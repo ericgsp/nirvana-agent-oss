@@ -1,0 +1,4121 @@
+/* Agent App — vanilla JS, no React, works on all mobile browsers */
+(function () {
+  'use strict';
+
+  // ── Debug logging (remove after debugging) ────────────────────
+  function dbg(msg) { console.log('[AGENT] ' + new Date().toISOString().slice(11,19) + ' ' + msg); }
+  window.onerror = function(msg, src, line) { dbg('ERROR: ' + msg + ' L' + line); return false; };
+  window.addEventListener('unhandledrejection', function(e) {
+    dbg('PROMISE ERR: ' + (e.reason && e.reason.message || e.reason));
+  });
+  document.addEventListener('click', function(e) { dbg('click on: ' + (e.target && e.target.id)); }, { capture: true });
+  dbg('JS loaded v2');
+
+  // Read sites from data attribute (works on both hard load and Next.js soft nav).
+  // Inline <script> tags are ignored by React on client navigation, data attrs are not.
+  var _cfg = document.getElementById('agent-config');
+  var SITES = (_cfg && _cfg.dataset.sites) ? JSON.parse(_cfg.dataset.sites) : (window.AGENT_SITES || []);
+  var MAX_LOTS = 9;
+  var CAT_LABELS = { 'Burial': 'Land', 'Niche': 'Niche', 'Pedestal': 'Pedestal', 'Package Plot': 'Package Plot', 'EBL': 'EBL', 'NLP': 'NLP' };
+
+  // Site dropdown custom state
+  var siteDropdownIsOpen = false;
+  var openSiteGroup      = null;   // which site group is expanded
+
+  // Zone dropdown custom state
+  var openCategory        = null;   // which category header is expanded
+  var currentZoneGroupKey = '';     // D2 selection (group key or zone name)
+  var zoneDropdownIsOpen  = false;
+
+  // Derive lot type prefix from a section code — longest known prefix wins
+  // e.g. "DL" → "D", "SF3" → "SF", "D1" → "D", "TDA" → "TD"
+  var _LOT_PFXS = ['SF','TD','F','S','D','R','A'];
+  function deriveLotPrefix(sec) {
+    var u = (sec || '').toUpperCase();
+    for (var i = 0; i < _LOT_PFXS.length; i++) { if (u.startsWith(_LOT_PFXS[i])) return _LOT_PFXS[i]; }
+    return u.replace(/[0-9].*$/, '') || u;
+  }
+
+  // ── Assets panel state ────────────────────────────────────────
+  var _assetsCache = {};
+  var _assetsOpen  = false;
+  var _assetsTab   = 'photos';
+
+
+  // ── State ──────────────────────────────────────────────────────
+  var site = '';
+  var product = '';
+  var productOpts = [];
+  var zoneLayouts = [];
+  var availMap = {};
+  var promoMap = {};
+  var lotMeta = {};
+  // Display-only zone name overrides — raw values are preserved for all API calls and matching
+  var ZONE_DISPLAY_NAMES = {
+    'Semenyih-NMG': { 'NV': 'Zone NV' }
+  };
+  function displayZone(siteName, zoneName) {
+    var m = ZONE_DISPLAY_NAMES[siteName];
+    return (m && m[zoneName]) || zoneName;
+  }
+  // Render Zone / Section / Row lines in the quotation header.
+  // For sub-zone products (e.g. 'BK-A-LG1-HB-S3A-D6, D7, D8, D9, D10') split into base zone + section list.
+  // For niches show "Section: X", for burial/package plot show "Row: X", for misc skip the second line.
+  function renderZoneSection(info) {
+    var cat = (info.product_category || '').toLowerCase();
+    var isNiche  = cat === 'niche';
+    var isBurial = cat === 'package plot' || cat === 'urn burial' || cat.indexOf('burial') >= 0;
+    var lbl = '<span style="font-weight:400;opacity:0.65">';
+
+    if (info.product && info.product.indexOf(',') >= 0) {
+      var baseZone = info.product.replace(/-[^-,]+(?:,.*)?$/, '');
+      if (baseZone !== info.product) {
+        var sectionPart = info.product.slice(baseZone.length + 1);
+        var selectedSec = (info.section || '').trim();
+        var sectionHtml = sectionPart.split(',').map(function (s) {
+          var t = s.trim();
+          return t === selectedSec
+            ? '<span style="color:#e02020;font-weight:700">' + esc(t) + '</span>'
+            : esc(t);
+        }).join(', ');
+        return '<div class="h-product">' + lbl + 'Zone:</span> ' + esc(baseZone) + '</div>'
+             + '<div class="h-product">' + lbl + 'Section:</span> ' + sectionHtml + '</div>';
+      }
+    }
+
+    var h = '<div class="h-product">' + lbl + 'Zone:</span> ' + esc(displayZone(info.site, info.product)) + '</div>';
+    if ((isNiche || isBurial) && info.section) {
+      var sectionLabel = isBurial ? 'Plot' : 'Section';
+      var sectionHtml;
+      if (info.section.indexOf('/') >= 0) {
+        // Slash-delimited section group (e.g. 'D2/D3/D3A/D5/D7/D8/D9/D10') — highlight active sub-section
+        var activeSec = (window._drawerSectionFilter || '').trim();
+        sectionHtml = info.section.split('/').map(function (s) {
+          var t = s.trim();
+          return (activeSec && t === activeSec)
+            ? '<span style="color:#e02020;font-weight:700">' + esc(t) + '</span>'
+            : esc(t);
+        }).join('/');
+      } else {
+        sectionHtml = '<span style="color:#e02020;font-weight:700">' + esc(info.section) + '</span>';
+      }
+      h += '<div class="h-product">' + lbl + sectionLabel + ':</span> ' + sectionHtml + '</div>';
+    }
+    return h;
+  }
+  window._agentRenderZoneSection = renderZoneSection;
+
+  var hiddenCols = {}; // lotCode → true when column unchecked by user
+  var selectedLots = [];
+  var lotQuotes = [];
+  var _pwpBundleActive = false; // true when PWP bundle is fully active (both levels selected + Level 2 re-fetched)
+  var _pwpLevel2Data   = null;  // { levelData, siteInfo } for Level 2 re-fetched with purchase_with_purchase promo
+  var _pwpHasOption    = false; // true when current site+product has a PWP promo row
+  var _pwpFetching     = false; // guard against re-entrant Level-2 PWP fetch
+  var worshipPlans = [];
+  var nlpPromos = [];
+  var dpPct = 20;
+  var _dpFixedRm = null;    // non-null = fixed RM down payment (e.g. RM4,000 for OV6-1F-AT)
+  var _tombType  = null;    // selected tomb code for tomb-bundle zones (e.g. Melaka Zone B)
+  // Southern Region sites — Central/Combo promos from other regions must never apply here.
+  // Add new Southern sites here only when user confirms the site is Southern Region.
+  var SOUTHERN_SITES = { 'melaka': true };
+  var asNeedMode = false;
+  var dpAutoSet = false;    // true once dpPct has been auto-set from promo for the current product
+  var _virtualBlk = null, _virtualSec = null; // tracks active virtual-section card for DP re-filtering
+  var layoutLoading = false;
+  var layoutScrollLeft = 0;  // persisted scroll position of the portal layout
+  var layoutMode = 'grid';   // 'grid' | 'promos'
+
+  // Qty-tier DP state: keyed by site+product, set when first qty-tier response arrives
+  var _qtyTiersMap = {};      // site|product → { tiers: [...], baseDp: N }
+
+  // Called whenever lot count changes (add or remove). Looks up stored qty_tiers for the
+  // current product and auto-updates dpPct if the quantity crossed a tier boundary.
+  // When dpPct changes, re-fetches all existing lot quotes with the new dp+qty values.
+  // Returns true if a re-fetch was triggered (caller must NOT call renderQuoteSection).
+  function _applyQtyTierDp(newQty) {
+    var key = site + '|' + product;
+    var info = _qtyTiersMap[key];
+    if (!info || !info.tiers || !info.tiers.length) return false;
+    var matched = null;
+    for (var i = 0; i < info.tiers.length; i++) {
+      if (newQty >= info.tiers[i].min_quantity) { matched = info.tiers[i]; break; }
+    }
+    var targetDp = matched ? matched.min_dp : info.baseDp;
+    if (!targetDp || dpPct === targetDp) return false;
+    dpPct = targetDp;
+    dpAutoSet = false;
+    if (lotQuotes.length === 0) return false;
+    // Re-fetch all lot quotes with new dp + qty
+    var prevQuotes = lotQuotes.slice();
+    lotQuotes = [];
+    quotationCache = {};
+    var done = 0;
+    prevQuotes.forEach(function (q) {
+      var blk = q._block || product;
+      var sec = q._section || '';
+      var lvl = (q.levelData && q.levelData.level) ? String(q.levelData.level) : '';
+      if (!sec) { done++; if (done === prevQuotes.length) { saveSession(); renderQuoteSection(); } return; }
+      fetch('/api/agent/quotation'
+        + '?site='    + encodeURIComponent(site)
+        + '&product=' + encodeURIComponent(product)
+        + '&block='   + encodeURIComponent(blk)
+        + '&section=' + encodeURIComponent(sec)
+        + (lvl ? '&levels=' + encodeURIComponent(lvl) : '')
+        + '&dp=' + dpPct
+        + '&qty=' + newQty)
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (!json.error && json.levels && json.levels.length) {
+          var lvData = json.levels.find(function (l) { return String(l.level) === lvl; }) || json.levels[0];
+          lotQuotes.push({ lotCode: q.lotCode, levelData: lvData, section: json.section, siteInfo: json,
+            _burialLotNum: q._burialLotNum || null, _block: blk, _section: sec });
+        }
+        done++;
+        if (done === prevQuotes.length) { saveSession(); renderQuoteSection(); }
+      })
+      .catch(function () {
+        done++;
+        if (done === prevQuotes.length) { saveSession(); renderQuoteSection(); }
+      });
+    });
+    return true;
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+  function qs(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function fmt(n) { return Number(n).toLocaleString('en-MY'); }
+
+  // ── calcMatrix (same logic as React version) ───────────────────
+  function calcMatrix(row, dp) {
+    var isPedestal  = !row.pre_need_price && !!row.pre_launch_price;
+    // NCKL SSD pedestal: has pre_need_price (pre-launch) AND total_pre_need_price (special promo).
+    // Special promo is the actual selling price — use it as the base for DP/instalment.
+    var hasSpecialPromo = !isPedestal && !!row.total_pre_need_price && (row.product_category || '') === 'Pedestal';
+    var originalPrice = isPedestal ? (row.original_price || 0) : (row.as_need_price || 0);
+    var preNeedPrice  = isPedestal ? (row.pre_launch_price || 0)
+      : hasSpecialPromo ? (row.total_pre_need_price || 0)
+      : (row.pre_need_price || 0);
+    var preNeedRebate = originalPrice - preNeedPrice;
+    var trust    = row.trust_account_facility || 0;
+    var backwall = row.backwall_cost || 0;
+    var promo    = row.promo;
+
+    // As Need Promo: base price is as_need_price, full payment only (no DP, no instalment)
+    var isAsNeed  = !!(promo && promo.purchase_condition === 'as_need');
+    var basePrice = isAsNeed ? (row.as_need_price || 0) : preNeedPrice;
+
+    var totalPrice  = basePrice + trust + backwall;
+    var _effectiveDpRm = (promo && promo.min_dp_rm != null) ? promo.min_dp_rm : _dpFixedRm;
+    var downPayment = isAsNeed ? 0 : (_effectiveDpRm != null ? _effectiveDpRm : Math.round(totalPrice * dp / 100));
+    var balance     = isAsNeed ? 0 : (totalPrice - downPayment);
+
+    var specialRebate = 0;
+    if (promo && promo.dp_tiers && promo.dp_tiers.length) {
+      var tiers = promo.dp_tiers.filter(function (t) { return t <= dp; });
+      var activeTier = tiers.length ? Math.max.apply(null, tiers) : null;
+      if (activeTier != null) specialRebate = Math.round(basePrice * activeTier / 100);
+    } else if (promo && promo.discount_pct != null) {
+      specialRebate = Math.round(basePrice * promo.discount_pct / 100);
+    } else if (promo && promo.discount_rm != null) {
+      specialRebate = promo.discount_rm;
+    }
+
+    var instalmentAmount = isAsNeed ? 0 : (balance - specialRebate);
+    var tenure = isAsNeed ? 0 : ((promo && promo.max_instalment_months) || 0);
+    var monthly = 0, lastInstalment = 0;
+    if (!isAsNeed && tenure > 0 && instalmentAmount > 0) {
+      monthly = Math.ceil(instalmentAmount / tenure);
+      lastInstalment = instalmentAmount - monthly * (tenure - 1);
+    }
+    var netTotalPrice = isAsNeed ? (totalPrice - specialRebate) : (downPayment + instalmentAmount);
+
+    var drPlusUnits = 0;
+    if (promo && promo.dr_plus_eligible) {
+      drPlusUnits = (promo.dr_plus_type === 'calculate' || promo.dr_plus_type === 'calc')
+        ? Math.round((basePrice - specialRebate) / 10000)
+        : (promo.dr_plus_fixed_units || 0);
+    }
+    return { originalPrice: originalPrice, preNeedRebate: preNeedRebate, preNeedPrice: preNeedPrice,
+      trust: trust, backwall: backwall, totalPrice: totalPrice, downPayment: downPayment,
+      balance: balance, specialRebate: specialRebate, instalmentAmount: instalmentAmount,
+      tenure: tenure, monthly: monthly, lastInstalment: lastInstalment,
+      netTotalPrice: netTotalPrice, drPlusUnits: drPlusUnits, isAsNeed: isAsNeed };
+  }
+  window._calcMatrix = calcMatrix;
+
+  // ── Burial section extraction (per-site) ─────────────────────
+  // General rule: strip trailing digits to get the alpha section prefix (e.g. DA138 → DA).
+  // Each site has its own explicit block so future format changes are isolated.
+  function extractBurialSection(lot, s) {
+    if (s === 'Klang')        return lot.replace(/[0-9].*$/, '');
+    if (s === 'Semenyih-NMG') return lot.replace(/[0-9].*$/, '');
+    if (s === 'Semenyih-NMP') return lot.replace(/[0-9].*$/, '');
+    if (s === 'Shah Alam')    return lot.replace(/[0-9].*$/, '');
+    if (s === 'NCKL')         return lot.replace(/[0-9].*$/, '');
+    if (s === 'NV-S')         return lot.replace(/[0-9].*$/, '');
+    if (s === 'NV-P')         return lot.replace(/[0-9].*$/, '');
+    // General fallback for any unrecognised site
+    return lot.replace(/[0-9].*$/, '') || lot.split('-')[0] || '';
+  }
+
+  // ── Zone group builder ────────────────────────────────────────
+  // Returns array of group objects from productOpts:
+  //   { key, display, type: 'group'|'subsections'|'standalone', members: [...] }
+  // 'group'      → D2 shows prefix (e.g. SSD), D3 shows suffixes (A, J, Q)
+  // 'subsections'→ D2 shows full zone name, D3 shows sub-section items
+  // 'standalone' → D2 shows full zone name, D3 hidden
+  function buildZoneGroups() {
+    var groups = [];
+    var seen   = {};
+    productOpts.forEach(function (p) {
+      if (seen[p.name]) return;
+      var dashIdx  = p.name.indexOf('-');
+      var prefix   = dashIdx > 0 ? p.name.slice(0, dashIdx) : p.name;
+      var siblings = productOpts.filter(function (x) { return x.name.indexOf(prefix + '-') === 0; });
+      var anyHasSubsections = siblings.some(function (s) { return s.subsections && s.subsections.length > 0; });
+      if (siblings.length > 1 && !anyHasSubsections && !groups.find(function (g) { return g.key === prefix; })) {
+        groups.push({ key: prefix, display: prefix, type: 'group', members: siblings });
+        siblings.forEach(function (s) { seen[s.name] = true; });
+      } else if (!seen[p.name]) {
+        if (p.subsections && p.subsections.length > 0) {
+          groups.push({ key: p.name, display: p.name, type: 'subsections', members: p.subsections });
+        } else {
+          groups.push({ key: p.name, display: p.name, type: 'standalone', members: [] });
+        }
+        seen[p.name] = true;
+      }
+    });
+    return groups;
+  }
+
+  // ── Select population ─────────────────────────────────────────
+  var SITE_GROUPS = [
+    { label: 'NLP',      filter: function (s) { return s === 'Nirvana Life Planning'; } },
+    { label: 'Central',  filter: function (s) { return s !== 'Nirvana Life Planning' && s !== 'Melaka'; } },
+    { label: 'Southern', filter: function (s) { return s === 'Melaka'; } },
+  ];
+
+  function renderSiteDropdownPanel() {
+    var panel = qs('site-dd-panel');
+    if (!panel) return;
+    var html = '';
+    SITE_GROUPS.forEach(function (grp) {
+      var members = SITES.filter(grp.filter);
+      if (!members.length) return;
+      var isOpen = openSiteGroup === grp.label;
+      html += '<div class="f-dd-cat' + (isOpen ? ' f-dd-cat-open' : '') + '" data-sitecat="' + grp.label + '">' + grp.label + '<span>' + (isOpen ? '▲' : '▼') + '</span></div>';
+      if (isOpen) {
+        members.forEach(function (s) {
+          html += '<div class="f-dd-zone' + (s === site ? ' f-dd-zone-sel' : '') + '" data-siteitem="' + esc(s) + '">' + esc(s) + '</div>';
+        });
+      }
+    });
+    panel.innerHTML = html;
+  }
+
+  function openSiteDropdown() {
+    var btn = qs('site-dd-btn');
+    var panel = qs('site-dd-panel');
+    if (!panel || !btn) return;
+    // Auto-expand the group containing the current site
+    if (!openSiteGroup) {
+      SITE_GROUPS.forEach(function (grp) {
+        if (site && SITES.filter(grp.filter).indexOf(site) !== -1) openSiteGroup = grp.label;
+      });
+      // All groups start closed; only auto-expand when a site is already selected
+    }
+    siteDropdownIsOpen = true;
+    var rect = btn.getBoundingClientRect();
+    panel.style.top    = (rect.bottom + 4) + 'px';
+    panel.style.left   = rect.left + 'px';
+    panel.style.width  = rect.width + 'px';
+    panel.style.display = 'block';
+    renderSiteDropdownPanel();
+  }
+
+  function closeSiteDropdown() {
+    var panel = qs('site-dd-panel');
+    if (panel) panel.style.display = 'none';
+    siteDropdownIsOpen = false;
+  }
+
+  function updateSiteDropdownBtn() {
+    var btn = qs('site-dd-btn');
+    if (!btn) return;
+    if (!site) { btn.textContent = 'Select site…'; btn.classList.add('placeholder'); }
+    else { btn.textContent = site; btn.classList.remove('placeholder'); }
+  }
+
+  function populateSiteSelect() {
+    updateSiteDropdownBtn();
+    // Ensure section starts as N/A until a zone with sections is picked
+    var secSel = qs('section-sel');
+    if (secSel && !secSel.options.length) {
+      secSel.innerHTML = '<option value="">Not applicable</option>';
+      secSel.disabled = true;
+    }
+  }
+
+  function populateZoneDropdown() {
+    var btn = qs('zone-dd-btn');
+    if (!btn) return;
+    btn.disabled = !site;
+    renderZoneDropdownPanel();
+    updateSectionSelect();
+  }
+
+  // Groups productOpts by category; within each category applies buildZoneGroups logic
+  function buildCategoryGroups() {
+    var CAT_ORDER = ['Niche', 'Land', 'Urn Plot', 'Pedestal', 'Package Plot', 'EBL', 'NLP'];
+    var byCategory = {};
+    productOpts.forEach(function (p) {
+      var cat = (p.category) ? p.category : 'Other';
+      if (cat === 'Burial' || cat === 'Burial Plot' || cat === 'Burial Plot (Christian)') cat = 'Land';
+      if (cat === 'Urn Burial' || cat === 'Urn Burial Plot' || cat === 'URN BURIAL PLOT') cat = 'Urn Plot';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(p);
+    });
+    var result = [];
+    CAT_ORDER.forEach(function (catLabel) {
+      if (!byCategory[catLabel]) return;
+      var opts = byCategory[catLabel];
+      // Build zone groups within this category
+      var groups = [];
+      var seen   = {};
+      opts.forEach(function (p) {
+        if (seen[p.name]) return;
+        var lastDash = p.name.lastIndexOf('-');
+        var prefix   = lastDash > 0 ? p.name.slice(0, lastDash) : p.name;
+        var siblings = opts.filter(function (x) { return x.name.indexOf(prefix + '-') === 0; });
+        var anyHasSub = siblings.some(function (s) { return s.subsections && s.subsections.length > 0; });
+        if (siblings.length > 1 && !anyHasSub && !groups.find(function (g) { return g.key === prefix; })) {
+          groups.push({ key: prefix, display: prefix, type: 'group', members: siblings, category: catLabel });
+          siblings.forEach(function (s) { seen[s.name] = true; });
+        } else if (!seen[p.name]) {
+          if (p.subsections && p.subsections.length > 0) {
+            groups.push({ key: p.name, display: p.name, type: 'subsections', members: p.subsections, category: catLabel });
+          } else {
+            groups.push({ key: p.name, display: p.name, type: 'standalone', members: [], category: catLabel });
+          }
+          seen[p.name] = true;
+        }
+      });
+      result.push({ label: catLabel, groups: groups });
+    });
+    // Also catch any categories not in CAT_ORDER
+    Object.keys(byCategory).forEach(function (cat) {
+      if (CAT_ORDER.indexOf(cat) === -1) {
+        result.push({ label: cat, groups: byCategory[cat].map(function (p) {
+          if (p.subsections && p.subsections.length > 0) {
+            return { key: p.name, display: p.name, type: 'subsections', members: p.subsections, category: cat };
+          }
+          return { key: p.name, display: p.name, type: 'standalone', members: [], category: cat };
+        })});
+      }
+    });
+    return result;
+  }
+
+  var _cachedCatGroups = null;
+
+  function renderZoneDropdownPanel() {
+    var panel = qs('zone-dd-panel');
+    if (!panel) return;
+    if (!productOpts.length) { panel.innerHTML = ''; return; }
+    _cachedCatGroups = buildCategoryGroups();
+
+    var html = '';
+    // Collapsed categories at top (all except openCategory)
+    _cachedCatGroups.forEach(function (cat) {
+      if (cat.label === openCategory) return; // skip — rendered at bottom
+      var isOpen = false;
+      html += '<div class="f-dd-cat" data-cat="' + cat.label + '">' + cat.label + '<span>' + (isOpen ? '▲' : '▼') + '</span></div>';
+    });
+    // Expanded category at bottom
+    if (openCategory) {
+      var activeCat = _cachedCatGroups.find(function (c) { return c.label === openCategory; });
+      if (activeCat) {
+        html += '<div class="f-dd-cat f-dd-cat-open" data-cat="' + activeCat.label + '">' + activeCat.label + '<span>▲</span></div>';
+        activeCat.groups.forEach(function (g) {
+          var isSel = (currentZoneGroupKey === g.key);
+          // members may be empty for standalone; check first member's religion or the original productOpt
+          var origOpt = productOpts.find(function (p) { return p.name === g.key; });
+          var isChristian = origOpt && origOpt.religion === 'Christian';
+          var isCombo = window.AgentCombo && window.AgentCombo.hasComboZone && window.AgentCombo.hasComboZone(site, g.key);
+          var isNewLaunch = g.key === 'N7-S2' || g.key === 'N12-S6' || g.key === 'JLD-B-GF' || g.key === 'MP3-2F-RS1';
+          var badge = isChristian ? '<span class="f-dd-badge">Christian</span>' : '';
+          if (isNewLaunch) badge += '<span class="f-dd-badge-green">New Launch</span>';
+          if (isCombo) badge += '<span class="f-dd-badge-amber">Combo Lot</span>';
+          html += '<div class="f-dd-zone' + (isSel ? ' f-dd-zone-sel' : '') + '" data-zone="' + g.key + '" data-cat="' + activeCat.label + '">' + g.display + badge + '</div>';
+        });
+      }
+    }
+    panel.innerHTML = html;
+  }
+  window._agentRenderZoneDropdown = renderZoneDropdownPanel;
+
+  function openZoneDropdown() {
+    var btn   = qs('zone-dd-btn');
+    var panel = qs('zone-dd-panel');
+    if (!panel || !btn || btn.disabled) return;
+    zoneDropdownIsOpen = true;
+    // Position panel under button
+    var rect = btn.getBoundingClientRect();
+    panel.style.top    = (rect.bottom + 4) + 'px';
+    panel.style.left   = rect.left + 'px';
+    panel.style.width  = rect.width + 'px';
+    panel.style.display = 'block';
+  }
+
+  function closeZoneDropdown() {
+    var panel = qs('zone-dd-panel');
+    if (panel) panel.style.display = 'none';
+    zoneDropdownIsOpen = false;
+  }
+
+  function onZoneSelected(groupKey) {
+    currentZoneGroupKey = groupKey;
+    closeZoneDropdown();
+    if (!_cachedCatGroups) _cachedCatGroups = buildCategoryGroups();
+    // Find the group
+    var g = null;
+    _cachedCatGroups.forEach(function (cat) {
+      cat.groups.forEach(function (gr) { if (gr.key === groupKey) g = gr; });
+    });
+    // Update button label
+    updateZoneDropdownBtn();
+    // Update section select
+    updateSectionSelect();
+    product = groupKey;
+    window._drawerSectionFilter = '';
+    window._drawerLevelFilter   = '';
+    window._drawerPromoFilter   = '';
+    resetLayout(); saveSession(); updateUI();
+    loadLayout(site, groupKey);
+    renderAssetsPanel();
+  }
+
+  function findGroupForProduct(prod, groups) {
+    for (var i = 0; i < groups.length; i++) {
+      var g = groups[i];
+      if (g.key === prod) return g;
+      if (g.type === 'group') {
+        for (var j = 0; j < g.members.length; j++) {
+          if (g.members[j].name === prod) return g;
+        }
+      }
+    }
+    return null;
+  }
+
+  function updateSectionSelect() {
+    var sel = qs('section-sel');
+    if (!sel) return;
+
+    // Find active group using currentZoneGroupKey
+    var g = null;
+    if (currentZoneGroupKey && _cachedCatGroups) {
+      _cachedCatGroups.forEach(function (cat) {
+        cat.groups.forEach(function (gr) { if (gr.key === currentZoneGroupKey) g = gr; });
+      });
+    }
+
+    if (!g || g.members.length === 0) {
+      sel.innerHTML = '<option value="">Not applicable</option>';
+      sel.disabled = true;
+      return;
+    }
+
+    sel.disabled = false;
+    sel.innerHTML = '<option value="">Select section…</option>';
+    if (g.type === 'group') {
+      g.members.forEach(function (m) {
+        var opt = document.createElement('option');
+        opt.value = m.name;
+        opt.textContent = m.name.slice(g.key.length + 1);
+        sel.appendChild(opt);
+      });
+      if (product && product !== g.key) sel.value = product;
+    } else if (g.type === 'subsections') {
+      g.members.forEach(function (sub) {
+        var opt = document.createElement('option');
+        var label = sub.available != null ? sub.section + ' (' + sub.available + ' avail)' : sub.section;
+        if (sub.instant_case) label += ' ⚡ Instant';
+        opt.value = sub.section; opt.textContent = label;
+        sel.appendChild(opt);
+      });
+      if (window._drawerSectionFilter) sel.value = window._drawerSectionFilter;
+    }
+    // Add Combo labels for sections that have active combo lots (if ranges already loaded)
+    if (window.AgentCombo && window.AgentCombo.updateSectionPicker) window.AgentCombo.updateSectionPicker();
+  }
+
+  // ── Cache ──────────────────────────────────────────────────────
+  var zoneLayoutCache = {};  // key: "site|product" → {layouts, availability, promos}
+  var lotMetaCache    = {};  // key: "site|product" → lotMeta object
+  var quotationCache  = {};  // key: "site|product|block|section|level" → quotation json
+  var zonesCache      = {};  // key: site → array of zone options (prefetched at startup)
+  var layoutGen       = 0;   // increments on every reset — stale callbacks compare against this
+
+  // ── Layout loading ─────────────────────────────────────────────
+  function loadLayout(s, p) {
+    if (p === 'NLP') { layoutLoading = false; renderLayoutArea(); return; }
+    var key = s + '|' + p;
+    var gen = layoutGen; // snapshot — if resetLayout() is called, layoutGen increments and this goes stale
+
+    if (zoneLayoutCache[key]) {
+      zoneLayouts = zoneLayoutCache[key].layouts;
+      availMap    = zoneLayoutCache[key].availability;
+      promoMap    = zoneLayoutCache[key].promos || {};
+      layoutLoading = false;
+      updateSyncedAt(zoneLayouts);
+      renderLayoutArea();
+    } else {
+      layoutLoading = true;
+      renderLayoutArea();
+    }
+
+    if (lotMetaCache[key]) {
+      lotMeta = lotMetaCache[key];
+    }
+
+    if (!zoneLayoutCache[key]) {
+      fetch('/api/agent/zone-layout?site=' + encodeURIComponent(s) + '&product=' + encodeURIComponent(p))
+        .then(function (r) { return r.json(); })
+        .then(function (zl) {
+          if (gen !== layoutGen) return; // reset happened while fetch was in-flight — discard
+          var layouts = (zl.layouts && zl.layouts.length) ? zl.layouts : [];
+          var avail   = zl.availability || {};
+          var promos  = zl.promo_lots   || {};
+          zoneLayoutCache[key] = { layouts: layouts, availability: avail, promos: promos };
+          zoneLayouts = layouts;
+          availMap    = avail;
+          promoMap    = promos;
+          layoutLoading = false;
+          updateSyncedAt(layouts);
+          renderLayoutArea();
+          if (!lotMetaCache[key]) loadLotMeta(s, p, key, gen);
+        })
+        .catch(function () { if (gen === layoutGen) { layoutLoading = false; renderLayoutArea(); } });
+    } else if (!lotMetaCache[key]) {
+      loadLotMeta(s, p, key, gen);
+    }
+  }
+
+  function loadLotMeta(s, p, key, gen) {
+    fetch('/api/agent/layout?site=' + encodeURIComponent(s) + '&product=' + encodeURIComponent(p))
+      .then(function (r) { return r.json().then(function(j) { if (!r.ok) dbg('layout API error: ' + JSON.stringify(j)); return j; }); })
+      .then(function (ld) {
+        var meta = {};
+        // Columbarium niches
+        (ld.sections || []).forEach(function (sec) {
+          (sec.levels || []).forEach(function (lvl) {
+            (lvl.niches || []).forEach(function (niche) {
+              if (niche.lot_code) {
+                meta[niche.lot_code] = { block: niche.price_block || p, section_group: niche.price_section_group || null, is_niche: true };
+              }
+            });
+          });
+        });
+        // Burial plot rows
+        dbg('burialSections count=' + (ld.burialSections || []).length);
+        (ld.burialSections || []).forEach(function (sec) {
+          dbg('burial sec=' + sec.section + ' sg=' + sec.section_group + ' block=' + sec.block + ' lots=' + (sec.lots || []).length);
+          (sec.lots || []).forEach(function (lot) {
+            meta[lot.lot_code] = {
+              block: lot.price_block || sec.block || p,
+              section_group: lot.price_section_group || sec.section_group || sec.section,
+              is_burial: true,
+            };
+          });
+        });
+        dbg('lotMeta keys=' + Object.keys(meta).length);
+        // Always populate cache (idempotent) so prefetch results survive a resetLayout() gen increment
+        if (!lotMetaCache[key]) lotMetaCache[key] = meta;
+        // Only update live state if this fetch is still current
+        if (gen !== layoutGen) return;
+        lotMeta = meta;
+        if (window.AgentCombo)  window.AgentCombo.loadRanges(s, p);
+        if (window.AgentBundle) window.AgentBundle.loadOptions(s, p);
+        if (layoutMode === 'promos') renderPromoView();
+        preloadQuotations(s, p, meta);
+      })
+      .catch(function (e) { dbg('loadLotMeta err: ' + e); });
+  }
+
+  function preloadQuotations(s, p, meta) {
+    // Collect unique block+section combos — use same fallbacks as onLayoutClick
+    var groups = {};
+    Object.keys(availMap).forEach(function (lot) {
+      if (!availMap[lot]) return;
+      var m = meta[lot] || {};
+      var block   = m.block || p;
+      var isNicheLot = lot.split('-').length >= 3;
+      var section = m.section_group || (isNicheLot ? null : extractBurialSection(lot, s));
+      if (!block || !section) return;
+      var gk = block + '|' + section;
+      if (!groups[gk]) groups[gk] = { block: block, section: section };
+    });
+
+    // Fetch each unique block+section (returns all levels) and cache
+    Object.keys(groups).forEach(function (gk) {
+      var g = groups[gk];
+      var url = '/api/agent/quotation'
+        + '?site='    + encodeURIComponent(s)
+        + '&product=' + encodeURIComponent(p)
+        + '&block='   + encodeURIComponent(g.block)
+        + '&section=' + encodeURIComponent(g.section);
+
+      fetch(url)
+        .then(function (r) { return r.json(); })
+        .then(function (json) {
+          if (!json.levels) return;
+          // Cache under every level key so onLayoutClick hits cache instantly
+          json.levels.forEach(function (lvData) {
+            var ck = s + '|' + p + '|' + g.block + '|' + g.section + '|' + lvData.level;
+            if (!quotationCache[ck]) quotationCache[ck] = json;
+          });
+        })
+        .catch(function () {});
+    });
+  }
+
+  // ── Reset ──────────────────────────────────────────────────────
+  function resetLayout() {
+    layoutGen++;  // invalidates all in-flight loadLayout / loadLotMeta callbacks
+    zoneLayouts = []; availMap = {}; lotMeta = {}; hiddenCols = {};
+    selectedLots = []; lotQuotes = []; worshipPlans = []; nlpPromos = [];
+    dpPct = 20; _dpFixedRm = null; _tombType = null; asNeedMode = false; dpAutoSet = false; _virtualBlk = null; _virtualSec = null;
+    _pwpBundleActive = false; _pwpLevel2Data = null; _pwpHasOption = false; _pwpFetching = false;
+    layoutLoading = false;
+    layoutScrollLeft = 0;
+    layoutMode = 'grid';
+    quotationCache = {};
+    var el = qs('layout-synced-at');
+    if (el) el.textContent = '';
+  }
+
+  function resetAll() {
+    try {
+      localStorage.setItem('agent_was_reset', '1');
+      localStorage.removeItem('agent_session');
+    } catch(e) {}
+    site = ''; product = ''; productOpts = []; currentZoneGroupKey = ''; openCategory = null; openSiteGroup = null; _cachedCatGroups = null; resetLayout();
+    window._drawerPromoFilter = '';
+    closeSiteDropdown(); closeZoneDropdown();
+    updateUI();
+  }
+
+  // ── Cell coloring ──────────────────────────────────────────────
+  function colorCells() {
+    var card = qs('layout-card');
+    if (!card) return;
+    var hasAvail = Object.keys(availMap).length > 0;
+    var secFilter = window._drawerSectionFilter || '';
+    var lvlFilter = window._drawerLevelFilter  || '';
+    var matchCells = [];
+    card.querySelectorAll('[data-lot]').forEach(function (td) {
+      var lot = td.dataset.lot;
+      if (selectedLots.indexOf(lot) >= 0) {
+        td.className = 'nz-selected';
+        return;
+      }
+      if (secFilter || lvlFilter) {
+        var parts   = lot.split('-');
+        var lotSec  = parts[0] || '';
+        var lotLvl  = parts.length === 4
+          ? (parts[2] ? (parts[2].replace(/^0+/, '') || '0') : '')
+          : (parts[1] ? (parts[1].replace(/^0+/, '') || '0') : '');
+        var lotSecAlpha = lotSec.replace(/[0-9].*$/, '');
+        var lotSecNorm = lotSec.replace(/^0+/, '') || lotSec;
+        var secFilterNorm2 = secFilter.replace(/^0+/, '') || secFilter;
+        var secMatch = !secFilter || lotSec === secFilter || lotSecAlpha === secFilter || deriveLotPrefix(lotSec) === secFilter || lotSecNorm === secFilterNorm2;
+        var lvlMatch = !lvlFilter || lvlFilter.split(',').indexOf(lotLvl) >= 0;
+        if (!secMatch || !lvlMatch) {
+          td.className = 'nz-filtered';
+          return;
+        }
+      }
+      if (hasAvail) {
+        var isAvail = !!availMap[lot];
+        var promoName = promoMap[lot] || '';
+        var promoClass = '';
+        var promoLabel = '';
+        if (promoName) {
+          if (promoName.indexOf('Customer') >= 0)                         { promoClass = 'nz-promo-customer'; promoLabel = 'CUST'; }
+          else if (promoName.indexOf('DRPlus') >= 0 || promoName.indexOf('DR+') >= 0) { promoClass = 'nz-promo-drplus';   promoLabel = 'DR+'; }
+          else if (promoName.indexOf('Central') >= 0)                     { promoClass = 'nz-promo-central';  promoLabel = 'CTR'; }
+          else if (promoName.toLowerCase().indexOf('need') >= 0)          { promoClass = 'nz-promo-asneed';   promoLabel = 'AN'; }
+          else                                                             { promoClass = 'nz-promo-customer'; promoLabel = promoName.slice(0,4).toUpperCase(); }
+        }
+        var _cellIsSouthern = SOUTHERN_SITES[(site || '').toLowerCase()];
+        if (!_cellIsSouthern && window.AgentCombo) window.AgentCombo.colorCell(td, lot, isAvail);
+        else td.className = isAvail ? 'nz-avail' : 'nz-sold';
+        if (!_cellIsSouthern && window.AgentBundle) window.AgentBundle.colorCell(td, lot, isAvail);
+        if (_pwpHasOption && isAvail) {
+          var _pp = lot.split('-');
+          var _pl = _pp.length >= 2 ? (_pp[1].replace(/^0+/, '') || _pp[1]) : '';
+          if (_pl === '1' || _pl === '2') td.className = 'nz-avail nz-bundle';
+        }
+        delete td.dataset.promoLabel;
+        if (isAvail) matchCells.push(td);
+      }
+    });
+    renderFilterNav(matchCells, secFilter || lvlFilter);
+    applyLayoutSectionFilter();
+  }
+
+  // When a section is selected, hide all other sections' rows from the layout grid
+  // so the agent only sees the relevant wall without needing to scroll past empty sections.
+  function applyLayoutSectionFilter() {
+    var card = qs('layout-card');
+    if (!card) return;
+    var secFilter = window._drawerSectionFilter || '';
+
+    if (!secFilter) {
+      card.querySelectorAll('tr').forEach(function (tr) { tr.style.display = ''; });
+      return;
+    }
+
+    // Hide gap rows — not needed when only one section is visible
+    card.querySelectorAll('tr.nz-wall-gap').forEach(function (tr) {
+      tr.style.display = 'none';
+    });
+
+    // Show only the matching wall header, hide others.
+    // Also compare with leading zeros stripped so e.g. filter '1' matches wall name '01'.
+    var secFilterNorm = secFilter.replace(/^0+/, '') || secFilter;
+    card.querySelectorAll('tr.nz-wall-header').forEach(function (tr) {
+      var nameEl = tr.querySelector('.nz-wall-name');
+      var wallName = nameEl ? nameEl.textContent.trim() : '';
+      var wallNorm = wallName.replace(/^0+/, '') || wallName;
+      tr.style.display = (wallName === secFilter || wallNorm === secFilterNorm) ? '' : 'none';
+    });
+
+    // Hide lot rows where every data-lot cell is filtered out
+    card.querySelectorAll('tr:not(.nz-wall-header):not(.nz-wall-gap)').forEach(function (tr) {
+      var lots = tr.querySelectorAll('[data-lot]');
+      if (!lots.length) return;
+      var allFiltered = Array.from(lots).every(function (td) {
+        return td.classList.contains('nz-filtered');
+      });
+      tr.style.display = allFiltered ? 'none' : '';
+    });
+  }
+
+  // ── Filter navigator ───────────────────────────────────────────
+  var _navCells = [];
+  var _navIdx   = 0;
+
+  function renderFilterNav(cells, hasFilter) {
+    var nav = document.getElementById('filter-nav');
+    if (!nav) return;
+    _navCells = cells;
+    _navIdx   = 0;
+    if (!hasFilter || !cells.length) {
+      nav.style.display = 'none';
+      return;
+    }
+    nav.style.display = 'flex';
+    nav.querySelector('#fn-count').textContent = cells.length + ' unit' + (cells.length !== 1 ? 's' : '') + ' available';
+    setTimeout(function() { scrollToNavCell(0); }, 100);
+  }
+
+  function scrollToNavCell(idx) {
+    if (!_navCells.length) return;
+    _navIdx = (idx + _navCells.length) % _navCells.length;
+    var td = _navCells[_navIdx];
+
+    // scrollIntoView handles both horizontal and vertical axes
+    td.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+    // Pulse highlight
+    td.classList.add('nz-pulse');
+    setTimeout(function() { td.classList.remove('nz-pulse'); }, 800);
+
+    var nav = document.getElementById('filter-nav');
+    if (nav) nav.querySelector('#fn-count').textContent = (_navIdx + 1) + ' / ' + _navCells.length + ' unit' + (_navCells.length !== 1 ? 's' : '');
+  }
+
+  // ── Availability drawer ────────────────────────────────────────
+  // Sequence: Type → Site → Zone → Lot Type → Level (optional, last step)
+  var drawerState = { type: '', site: '', levels: [], sort: 'available', selectedZone: null, selectedPrefix: null, selectedSection: null, _sections: [], selectedPromo: null, _promoTypes: [], _promoTypesLoading: false };
+
+  var LEVEL_ORDER = ['LG','G','B','1','2','3','3A','5','6','7','8','9','10','11','12'];
+  function sortLevels(lvls) {
+    return lvls.slice().sort(function(a, b) {
+      var ia = LEVEL_ORDER.indexOf(String(a)), ib = LEVEL_ORDER.indexOf(String(b));
+      if (ia >= 0 && ib >= 0) return ia - ib;
+      if (ia >= 0) return -1; if (ib >= 0) return 1;
+      return String(a).localeCompare(String(b));
+    });
+  }
+  function formatLevelSummary(levels) {
+    if (!levels || !levels.length) return '';
+    var sorted = sortLevels(levels);
+    var parts = []; var i = 0;
+    while (i < sorted.length) {
+      var cur = sorted[i], curNum = parseInt(cur, 10);
+      if (!isNaN(curNum) && String(curNum) === String(cur)) {
+        var j = i + 1;
+        while (j < sorted.length) {
+          var nNum = parseInt(sorted[j], 10);
+          if (!isNaN(nNum) && String(nNum) === String(sorted[j]) && nNum === curNum + (j - i)) j++;
+          else break;
+        }
+        if (j - i >= 3) { parts.push(sorted[i] + '–' + sorted[j-1]); i = j; }
+        else { parts.push(cur); i++; }
+      } else { parts.push(cur); i++; }
+    }
+    return parts.join(' · ');
+  }
+
+  function openPosterModal(evt) {
+    var modalImg    = document.getElementById('poster-modal-img');
+    var modalBg     = document.getElementById('poster-modal-backdrop');
+    var modalReg    = document.getElementById('poster-modal-register');
+    var modalNotice = document.getElementById('poster-modal-notice');
+    if (modalImg) modalImg.src = evt.poster;
+    if (modalReg)    { modalReg.href = evt.register || '#'; modalReg.style.display = evt.register ? '' : 'none'; }
+    if (modalNotice) { modalNotice.textContent = evt.notice || ''; modalNotice.style.display = evt.notice ? '' : 'none'; }
+    if (modalBg) modalBg.classList.add('open');
+  }
+
+  function openEventPicker(evts) {
+    var picker = document.getElementById('evt-picker-backdrop');
+    var list   = document.getElementById('evt-picker-list');
+    if (!picker || !list) return;
+    list.innerHTML = evts.map(function(ev) {
+      return '<div class="evt-picker-item" data-evt=\'' + JSON.stringify(ev) + '\'>' +
+        '<span class="evt-picker-dot" style="background:' + ev.color + '"></span>' +
+        '<span class="evt-picker-title">' + ev.title + '</span>' +
+        '</div>';
+    }).join('');
+    picker.classList.add('open');
+  }
+
+  function openAvailDrawer() {
+    document.getElementById('avail-backdrop').classList.add('open');
+    document.getElementById('avail-drawer').classList.add('open');
+    renderDrawer();
+    if (!drawerState._typesFetched) fetchDrawerTypes();
+  }
+
+  function closeAvailDrawer() {
+    document.getElementById('avail-backdrop').classList.remove('open');
+    document.getElementById('avail-drawer').classList.remove('open');
+  }
+
+  function promoTypeBadge(name) {
+    if (!name) return '';
+    var colour = name === 'Customer Promo' ? '#AAE571' : name === 'New Launch Promo' ? '#FB923C' : name === 'DRPlus Promo' ? '#FFFF00' : null;
+    var bg = colour ? 'background:' + colour + ';color:#1a1a1a;' : 'background:transparent;color:#64748b;border:1px solid #cbd5e1;';
+    return '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600;' + bg + '">' + esc(name) + '</span>';
+  }
+
+  function promoHighlightBadge(promo) {
+    if (!promo || !promo.promo_name) return '';
+    var name = promo.promo_name;
+    var colour = name === 'Customer Promo' ? '#AAE571' : name === 'New Launch Promo' ? '#FB923C' : name === 'DRPlus Promo' ? '#FFFF00' : null;
+    var dpPart = '';
+    if (promo.dp_min != null) {
+      dpPart = promo.dp_min === promo.dp_max ? promo.dp_min + '%DP' : promo.dp_min + '%~' + promo.dp_max + '%DP';
+    }
+    var discPart = '';
+    if (promo.disc_min != null) {
+      discPart = promo.disc_min === promo.disc_max ? promo.disc_min + '%disc' : promo.disc_min + '%~' + promo.disc_max + '%disc';
+    }
+    var detail = [dpPart, discPart].filter(Boolean).join(' / ');
+    var label = name + (detail ? ' ' + detail : '');
+    var bg = colour ? 'background:' + colour + ';color:#1a1a1a;' : 'background:transparent;color:#64748b;border:1px solid #cbd5e1;';
+    return '<div style="margin-top:4px;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:600;display:inline-block;' + bg + '">' + esc(label) + '</div>';
+  }
+
+  function renderDrawer() {
+    var c = document.getElementById('avail-content');
+    if (!c) return;
+    var html = '';
+
+    // Step 1: Product Type
+    html += '<div class="ad-card" style="margin-top:0">';
+    html += '<div class="ad-label"><div class="ad-dot">1</div><span class="ad-title">Product Type</span>';
+    if (drawerState.type) html += '<span class="ad-sub">' + esc(drawerState.typeLabel || drawerState.type) + '</span>';
+    html += '</div><div class="ad-body"><div class="ad-chips" id="ad-type-chips"><div class="ad-loading">Loading…</div></div></div></div>';
+
+    // Step 2: Site
+    if (drawerState.type) {
+      html += '<div class="ad-card"><div class="ad-label"><div class="ad-dot">2</div><span class="ad-title">Site</span>';
+      if (drawerState.site) html += '<span class="ad-sub">' + esc(drawerState.site) + '</span>';
+      html += '</div><div class="ad-body"><div class="ad-sites" id="ad-site-cards"><div class="ad-loading">Loading…</div></div></div></div>';
+    }
+
+    // Step 3: Available Zones
+    if (drawerState.site) {
+      html += '<div class="ad-card" id="ad-step-zones"><div class="ad-label"><div class="ad-dot">3</div><span class="ad-title">Available Zones</span>';
+      if (drawerState._zoneResults && drawerState._zoneResults.length) html += '<span class="ad-sub">' + drawerState._zoneResults.length + ' found</span>';
+      html += '</div><div class="ad-body">';
+      if (drawerState._zonesLoading) {
+        html += '<div class="ad-loading">Loading…</div>';
+      } else if (!drawerState._zoneResults || !drawerState._zoneResults.length) {
+        html += '<div class="ad-empty">No available lots found.</div>';
+      } else {
+        if (drawerState._sitePromos && drawerState._sitePromos.length) {
+          html += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">';
+          drawerState._sitePromos.forEach(function(name) {
+            html += promoTypeBadge(name);
+          });
+          html += '</div>';
+        }
+        html += '<div class="ad-sort-bar">';
+        ['available','price_asc','price_desc'].forEach(function(s, i) {
+          var lbl = ['Most Available','Cheapest First','Most Expensive'][i];
+          html += '<div class="ad-sort' + (drawerState.sort === s ? ' on' : '') + '" data-sort="' + s + '">' + lbl + '</div>';
+        });
+        html += '</div><div class="ad-results">';
+        drawerState._zoneResults.forEach(function(r, i) {
+          var isOn = drawerState.selectedZone && drawerState.selectedZone.zone === r.zone;
+          html += '<div class="ad-result' + (isOn ? ' on' : '') + '" data-ridx="' + i + '">';
+          html += '<div class="ad-result-left"><div class="ad-result-prod">' + esc(displayZone(drawerState.site, r.product_name)) + (r.religion === 'Christian' ? ' <span class="f-dd-badge">Christian</span>' : '') + '</div>';
+          if (r.section) html += '<div class="ad-result-sec">Section ' + esc(r.section) + (r.block ? ' · Block ' + esc(r.block) : '') + '</div>';
+          if (r.levels && r.levels.length) html += '<div class="ad-result-sec">Levels: ' + r.levels.join(', ') + '</div>';
+          if (r.min_pre_need_price) {
+            html += '<div class="ad-result-price">from RM ' + r.min_pre_need_price.toLocaleString('en-MY');
+            if (r.max_pre_need_price && r.max_pre_need_price !== r.min_pre_need_price) html += ' – RM ' + r.max_pre_need_price.toLocaleString('en-MY');
+            html += '</div>';
+          }
+          if (r.promo_types && r.promo_types.length) {
+            html += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">';
+            r.promo_types.forEach(function(name) { html += promoTypeBadge(name); });
+            html += '</div>';
+          }
+          html += '</div><div class="ad-result-right"><div class="ad-result-count">' + r.available + '</div><div style="font-size:10px;color:#94a3b8">avail</div></div>';
+          html += '<span class="ad-result-arrow">›</span></div>';
+        });
+        html += '</div>';
+      }
+      html += '</div></div>';
+    }
+
+    // Step 4: Sections (niche) or Lot Type (burial/others)
+    if (drawerState.selectedZone) {
+      var isNicheType = drawerState.type === 'NICHE' || drawerState.type === 'PET NICHE';
+      html += '<div class="ad-card" id="ad-step-lt"><div class="ad-label"><div class="ad-dot">4</div><span class="ad-title">' + (isNicheType ? 'Section' : 'Lot Type') + '</span><span class="ad-sub">' + esc(displayZone(drawerState.site, drawerState.selectedZone.zone)) + '</span></div><div class="ad-body">';
+      if (drawerState._ltLoading) {
+        html += '<div class="ad-loading">Loading…</div>';
+      } else if (isNicheType) {
+        if (!drawerState._sections || !drawerState._sections.length) {
+          html += '<div class="ad-empty">No section data available.</div>';
+        } else {
+          // Level multi-select pills — derived from all level_counts across sections
+          var allLevelSet = {};
+          drawerState._sections.forEach(function(s) {
+            Object.keys(s.level_counts || {}).forEach(function(l) { allLevelSet[l] = true; });
+          });
+          var allLevels = sortLevels(Object.keys(allLevelSet));
+          var selLevels = drawerState.levels;
+          if (allLevels.length) {
+            html += '<div style="padding:8px 12px 6px;">';
+            html += '<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Filter by Level</div>';
+            html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+            allLevels.forEach(function(l) {
+              var on = selLevels.indexOf(l) >= 0;
+              html += '<button class="sec-lvl-pill" data-lvl="' + esc(l) + '" style="padding:5px 13px;border-radius:20px;border:1.5px solid ' + (on ? '#075E54' : '#cbd5e1') + ';background:' + (on ? '#075E54' : '#fff') + ';color:' + (on ? '#fff' : '#334155') + ';font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation;">' + esc(l) + '</button>';
+            });
+            html += '</div></div>';
+          }
+          // Filter sections: show all if no levels selected, else only sections with at least one selected level
+          var visibleSections = selLevels.length
+            ? drawerState._sections.filter(function(s) {
+                return selLevels.some(function(l) { return (s.level_counts || {})[l] > 0; });
+              })
+            : drawerState._sections;
+          html += '<div class="ad-lt-grid">';
+          visibleSections.forEach(function(sec) {
+            var isOn = drawerState.selectedSection === sec.section;
+            var priceRange = '';
+            if (sec.min_pre_need_price != null && sec.max_pre_need_price != null) {
+              priceRange = '<div class="ad-lt-price">RM ' + sec.min_pre_need_price.toLocaleString('en-MY') + (sec.max_pre_need_price !== sec.min_pre_need_price ? ' – ' + sec.max_pre_need_price.toLocaleString('en-MY') : '') + '</div>';
+            }
+            var lc = sec.level_counts || {};
+            var lcKeys = sortLevels(Object.keys(lc));
+            // Filtered available count
+            var filteredAvail = selLevels.length
+              ? selLevels.reduce(function(sum, l) { return sum + (lc[l] || 0); }, 0)
+              : sec.available;
+            var availLabel = selLevels.length
+              ? filteredAvail + ' avail (Lvl ' + selLevels.join('+') + ')'
+              : sec.available + ' available';
+            // Per-level breakdown chips
+            var lvlBreakdown = lcKeys.length
+              ? '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">'
+                + lcKeys.map(function(l) {
+                    var cnt = lc[l];
+                    var isSelLvl = selLevels.length === 0 || selLevels.indexOf(l) >= 0;
+                    return '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:' + (isSelLvl ? '#f0fdfa' : '#f1f5f9') + ';color:' + (isSelLvl ? '#075E54' : '#94a3b8') + ';font-weight:700;">Lv' + esc(l) + ':' + cnt + '</span>';
+                  }).join('')
+                + '</div>'
+              : '';
+            html += '<div class="ad-lt' + (isOn ? ' on' : '') + '" style="' + (isOn ? 'border-color:#075E54;background:#f0fdfa' : '') + '" data-section="' + esc(sec.section) + '"><div class="ad-lt-prefix">' + esc(sec.section) + '</div>' + priceRange + '<div class="ad-lt-avail">' + availLabel + '</div>' + lvlBreakdown + promoHighlightBadge(sec.promo) + '<div class="ad-lt-arrow">›</div></div>';
+          });
+          html += '</div>';
+          html += '<button class="ad-show-all" id="ad-show-all">Show All Sections</button>';
+        }
+      } else {
+        if (!drawerState._lotTypes || !drawerState._lotTypes.length) {
+          html += '<div class="ad-empty">No lot type data available.</div>';
+        } else {
+          html += '<div class="ad-lt-grid">';
+          drawerState._lotTypes.forEach(function(lt) {
+            var isOn = drawerState.selectedPrefix === lt.prefix;
+            var priceRange = '';
+            if (lt.min_pre_need_price != null && lt.max_pre_need_price != null) {
+              priceRange = '<div class="ad-lt-price">RM ' + lt.min_pre_need_price.toLocaleString('en-MY') + (lt.max_pre_need_price !== lt.min_pre_need_price ? ' – ' + lt.max_pre_need_price.toLocaleString('en-MY') : '') + '</div>';
+            }
+            var showLabel = drawerState.type !== 'EBL' && lt.label !== lt.prefix;
+            var comboBadge = (window.AgentCombo && window.AgentCombo.isComboSection(lt.prefix))
+              ? '<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:#F59E0B;color:#fff;font-size:9px;font-weight:700;vertical-align:middle">Combo</span>'
+              : '';
+            html += '<div class="ad-lt' + (isOn ? ' on' : '') + '" style="' + (isOn ? 'border-color:#075E54;background:#f0fdfa' : '') + '" data-prefix="' + esc(lt.prefix) + '"><div class="ad-lt-prefix">' + esc(lt.prefix) + comboBadge + '</div>' + (showLabel ? '<div class="ad-lt-label">' + esc(lt.label) + '</div>' : '') + priceRange + '<div class="ad-lt-avail">' + lt.available + ' available</div>' + promoHighlightBadge(lt.promo) + '<div class="ad-lt-arrow">›</div></div>';
+          });
+          html += '</div>';
+          html += '<button class="ad-show-all" id="ad-show-all">Show All Lot Types</button>';
+        }
+      }
+      html += '</div></div>';
+    }
+
+    // Step 6: Level (non-niche only — niche level is chosen in step 4)
+    var isNicheStep6 = drawerState.type === 'NICHE' || drawerState.type === 'PET NICHE';
+    if (!isNicheStep6 && drawerState.selectedPrefix !== null && drawerState._levelOpts && drawerState._levelOpts.length) {
+      var lvls = drawerState.levels;
+      var lvlSub = lvls.length === 0 ? 'All levels' : lvls.map(function(l) { return 'L' + l; }).join(', ');
+      html += '<div class="ad-card" id="ad-step-lvl"><div class="ad-label"><div class="ad-dot">5</div><span class="ad-title">Level</span><span class="ad-sub">' + lvlSub + '</span></div><div class="ad-body">';
+      html += '<div class="ad-lvl-chips">';
+      html += '<div class="ad-lvl-chip' + (lvls.length === 0 ? ' on' : '') + '" data-lvl="">All</div>';
+      drawerState._levelOpts.forEach(function(l) {
+        html += '<div class="ad-lvl-chip' + (lvls.indexOf(l) >= 0 ? ' on' : '') + '" data-lvl="' + esc(l) + '">Level ' + esc(l) + '</div>';
+      });
+      html += '</div>';
+      html += '<button class="ad-show-all" id="ad-apply-btn" style="margin-top:12px;background:#075E54;color:#fff;border-color:#075E54">View Layout →</button>';
+      html += '</div></div>';
+    }
+
+    c.innerHTML = html;
+    bindDrawerEvents(c);
+    if (drawerState._typesFetched) renderTypeChips();
+    if (drawerState._sitesFetched) renderSiteCards();
+  }
+
+  function bindDrawerEvents(c) {
+    // Sort chips
+    c.querySelectorAll('[data-sort]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        drawerState.sort = el.dataset.sort;
+        fetchDrawerZones();
+      });
+    });
+    // Zone results
+    c.querySelectorAll('.ad-result[data-ridx]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var r = drawerState._zoneResults[parseInt(el.dataset.ridx)];
+        if (!r) return;
+        drawerState.selectedZone = r;
+        drawerState.selectedPrefix = null;
+        drawerState.selectedSection = null;
+        drawerState.levels = [];
+        drawerState._lotTypes = [];
+        drawerState._sections = [];
+        drawerState._ltLoading = true;
+        drawerState._levelOpts = [];
+        renderDrawer();
+        var isNiche = drawerState.type === 'NICHE' || drawerState.type === 'PET NICHE';
+        var zone = r.zone;
+        if (isNiche) {
+          Promise.all([
+            fetch('/api/agent/availability-filter?step=sections&type=' + encodeURIComponent(drawerState.type) + '&site=' + encodeURIComponent(drawerState.site) + '&zone=' + encodeURIComponent(zone)).then(function(r) { return r.json(); }),
+            fetch('/api/agent/availability-filter?step=levels&type=' + encodeURIComponent(drawerState.type) + '&site=' + encodeURIComponent(drawerState.site) + '&zone=' + encodeURIComponent(zone)).then(function(r) { return r.json(); }),
+          ]).then(function(results) {
+            drawerState._sections = results[0].sections || [];
+            drawerState._levelOpts = results[1].levels || [];
+            drawerState._ltLoading = false;
+            renderDrawer();
+            setTimeout(function() { var s = document.getElementById('ad-step-lt'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+          }).catch(function() { drawerState._ltLoading = false; renderDrawer(); });
+        } else {
+          fetch('/api/agent/availability-filter?step=lot_types&type=' + encodeURIComponent(drawerState.type) + '&site=' + encodeURIComponent(drawerState.site) + '&zone=' + encodeURIComponent(zone))
+            .then(function(res) { return res.json(); })
+            .then(function(j) {
+              drawerState._lotTypes = j.lot_types || [];
+              drawerState._ltLoading = false;
+              renderDrawer();
+              setTimeout(function() { var s = document.getElementById('ad-step-lt'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+              if (window.AgentCombo) window.AgentCombo.loadRanges(drawerState.site, zone);
+            }).catch(function() { drawerState._ltLoading = false; renderDrawer(); });
+        }
+      });
+    });
+    // Level filter pills (niche step 4) handled by the [data-lvl] listener below
+    // Section cards (niche) — levels already selected above, apply immediately
+    c.querySelectorAll('.ad-lt[data-section]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var section = el.dataset.section;
+        drawerState.selectedSection = section;
+        drawerState.selectedPrefix = section;
+        applyDrawerSelection();
+      });
+    });
+    // Lot type cards — selecting a lot type fetches levels then shows step 5
+    c.querySelectorAll('.ad-lt[data-prefix]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var prefix = el.dataset.prefix;
+        drawerState.selectedPrefix = prefix;
+        drawerState.levels = [];
+        var url = '/api/agent/availability-filter?step=levels&type=' + encodeURIComponent(drawerState.type) + '&site=' + encodeURIComponent(drawerState.site) + '&zone=' + encodeURIComponent(drawerState.selectedZone.zone) + (prefix ? '&prefix=' + encodeURIComponent(prefix) : '');
+        fetch(url).then(function(r) { return r.json(); }).then(function(j) {
+          drawerState._levelOpts = j.levels || [];
+          renderDrawer();
+          if (!drawerState._levelOpts.length) { applyDrawerSelection(); return; }
+          setTimeout(function() { var s = document.getElementById('ad-step-lvl'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+        }).catch(function() { applyDrawerSelection(); });
+      });
+    });
+    // Show all lot types — go straight to level step with no prefix
+    var showAll = document.getElementById('ad-show-all');
+    if (showAll) showAll.addEventListener('click', function() {
+      drawerState.selectedPrefix = '';
+      drawerState.levels = [];
+      fetch('/api/agent/availability-filter?step=levels&type=' + encodeURIComponent(drawerState.type) + '&site=' + encodeURIComponent(drawerState.site) + '&zone=' + encodeURIComponent(drawerState.selectedZone.zone))
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          drawerState._levelOpts = j.levels || [];
+          renderDrawer();
+          if (!drawerState._levelOpts.length) { applyDrawerSelection(); return; }
+          setTimeout(function() { var s = document.getElementById('ad-step-lvl'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+        }).catch(function() { applyDrawerSelection(); });
+    });
+    // Level chips — multi-select
+    c.querySelectorAll('[data-lvl]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var lvl = el.dataset.lvl;
+        if (!lvl) { drawerState.levels = []; }
+        else {
+          var idx = drawerState.levels.indexOf(lvl);
+          if (idx >= 0) drawerState.levels.splice(idx, 1); else drawerState.levels.push(lvl);
+        }
+        renderDrawer();
+        setTimeout(function() { var s = document.getElementById('ad-step-lvl'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
+      });
+    });
+    // Apply / View Layout button
+    var applyBtn = document.getElementById('ad-apply-btn');
+    if (applyBtn) applyBtn.addEventListener('click', applyDrawerSelection);
+  }
+
+  function applyDrawerSelection() {
+    if (!drawerState.selectedZone) return;
+    closeAvailDrawer();
+    // Set filters FIRST so colorCells picks them up when layout renders
+    window._drawerSectionFilter = drawerState.selectedPrefix || '';
+    window._drawerLevelFilter   = drawerState.levels.join(',');
+    window._drawerPromoFilter   = drawerState.selectedPromo || '';
+    var newSite    = drawerState.site;
+    var newProduct = drawerState.selectedZone.zone;
+    site = newSite; product = newProduct;
+    selectedLots = []; lotQuotes = [];
+    var _isRmDp = newSite === 'Semenyih-NMG' && newProduct === 'OV6-1F-AT';
+    dpPct = 20; _dpFixedRm = _isRmDp ? 4000 : null; _tombType = null; asNeedMode = false; dpAutoSet = false; _virtualBlk = null; _virtualSec = null;
+    _pwpBundleActive = false; _pwpLevel2Data = null; _pwpHasOption = false; _pwpFetching = false;
+    var key = newSite + '|' + newProduct;
+    delete zoneLayoutCache[key]; delete lotMetaCache[key]; quotationCache = {};
+    saveSession(); updateUI(); loadLayout(newSite, newProduct);
+  }
+
+  function fetchDrawerTypes() {
+    fetch('/api/agent/availability-filter?step=types')
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        drawerState._typesFetched = true;
+        drawerState._types = j.types || [];
+        renderTypeChips();
+      }).catch(function() {});
+  }
+
+  function renderTypeChips() {
+    var el = document.getElementById('ad-type-chips');
+    if (!el) return;
+    var html = '';
+    (drawerState._types || []).forEach(function(t) {
+      html += '<div class="ad-chip' + (drawerState.type === t.key ? ' on' : '') + '" data-tkey="' + esc(t.key) + '" data-tlabel="' + esc(t.label) + '">'
+        + esc(t.label) + '</div>';
+    });
+    el.innerHTML = html;
+    el.querySelectorAll('[data-tkey]').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        var k = chip.dataset.tkey;
+        if (drawerState.type === k) return;
+        drawerState.type = k;
+        drawerState.typeLabel = chip.dataset.tlabel;
+        drawerState.site = ''; drawerState.levels = []; drawerState.selectedZone = null; drawerState.selectedPrefix = null; drawerState.selectedPromo = null;
+        drawerState._sitesFetched = false; drawerState._levelOpts = []; drawerState._zoneResults = []; drawerState._promoTypes = [];
+        renderDrawer();
+        fetchDrawerSites();
+      });
+    });
+  }
+
+  function fetchDrawerSites() {
+    var t = drawerState.type;
+    fetch('/api/agent/availability-filter?step=sites&type=' + encodeURIComponent(t))
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (drawerState.type !== t) return;
+        drawerState._sitesFetched = true;
+        drawerState._sites = j.sites || [];
+        renderSiteCards();
+      }).catch(function() {});
+  }
+
+  function renderSiteCards() {
+    var el = document.getElementById('ad-site-cards');
+    if (!el) return;
+    var html = '';
+    (drawerState._sites || []).forEach(function(s) {
+      var badges = (s.promo_types || []).map(promoTypeBadge).join('');
+      html += '<div class="ad-site' + (drawerState.site === s.name ? ' on' : '') + '" data-sname="' + esc(s.name) + '">'
+        + '<div class="ad-site-name">' + esc(s.name) + '</div>'
+        + '<div class="ad-site-count">' + s.available + ' available</div>'
+        + (badges ? '<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">' + badges + '</div>' : '')
+        + '</div>';
+    });
+    el.innerHTML = html;
+    el.querySelectorAll('[data-sname]').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var name = card.dataset.sname;
+        if (drawerState.site === name) return;
+        drawerState.site = name; drawerState.levels = []; drawerState.selectedZone = null; drawerState.selectedPrefix = null; drawerState.selectedPromo = null;
+        drawerState._levelOpts = []; drawerState._zoneResults = []; drawerState._promoTypes = []; drawerState._zonesLoading = true;
+        renderDrawer();
+        fetchDrawerZones();
+      });
+    });
+  }
+
+  function fetchDrawerZones() {
+    var t = drawerState.type, s = drawerState.site;
+    drawerState._zonesLoading = true; drawerState.selectedZone = null; drawerState.selectedPrefix = null;
+    renderDrawer();
+    var url = '/api/agent/availability-filter?step=zones&type=' + encodeURIComponent(t) + '&site=' + encodeURIComponent(s) + '&sort=' + drawerState.sort;
+    fetch(url).then(function(r) { return r.json(); }).then(function(j) {
+      if (drawerState.type !== t || drawerState.site !== s) return;
+      drawerState._zoneResults = j.results || [];
+      drawerState._sitePromos  = j.site_promos || [];
+      drawerState._zonesLoading = false;
+      renderDrawer();
+      setTimeout(function() { var s = document.getElementById('ad-step-zones'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+    }).catch(function() { drawerState._zonesLoading = false; renderDrawer(); });
+  }
+
+  // ── Lot click ──────────────────────────────────────────────────
+  function onLayoutClick(e) {
+    var cell = e.target;
+    while (cell && cell !== e.currentTarget && !cell.dataset.lot) cell = cell.parentElement;
+    if (!cell || !cell.dataset.lot) return;
+    var lot = cell.dataset.lot;
+    var idx = selectedLots.indexOf(lot);
+    var isSelected = idx >= 0;
+    var isAvail = Object.keys(availMap).length > 0 ? (availMap[lot] === true) : cell.classList.contains('nz-avail');
+    var isFiltered = cell.classList.contains('nz-filtered') || cell.classList.contains('nz-sold');
+
+    if (!isSelected && (!isAvail || isFiltered)) return;
+    if (isSelected) {
+      selectedLots.splice(idx, 1);
+      lotQuotes = lotQuotes.filter(function (q) { return q.lotCode !== lot; });
+      delete hiddenCols[lot];
+      // After removal: check if qty crossed a tier boundary and auto-update DP if so
+      _applyQtyTierDp(selectedLots.length);
+      saveSession(); colorCells(); renderSelectedBar(); renderQuoteSection(); return;
+    }
+    if (selectedLots.length >= MAX_LOTS) return;
+    // Clear any promo-card overview columns (synthetic burial lots like "FA~FG-burial-0")
+    // before adding a real lot — promo overview must not mix with a real lot selection.
+    if (lotQuotes.some(function(q) { return q.lotCode.indexOf('-burial-') >= 0; })) {
+      selectedLots = selectedLots.filter(function(l) { return l.indexOf('-burial-') < 0; });
+      lotQuotes    = lotQuotes.filter(function(q)    { return q.lotCode.indexOf('-burial-') < 0; });
+      _virtualBlk = null; _virtualSec = null;
+    }
+    selectedLots.push(lot);
+    saveSession(); colorCells(); renderSelectedBar();
+
+    var meta    = lotMeta[lot] || {};
+    var block   = meta.block || product;
+    // For niches without a price-matched section_group, the niche_section is encoded as
+    // the first dash-segment of the lot code (e.g. "S3A" from "S3A-06-01").
+    // extractBurialSection strips digits so gives "S" — wrong. Use lot.split('-')[0] instead.
+    var section = meta.section_group
+      || (lot.split('-').length >= 3 ? lot.split('-')[0] : null)
+      || extractBurialSection(lot, site);
+    // Only extract level from lot code for proper niches (section_group set or is_niche).
+    // EBL lot codes like "A-06-18" have hyphens that are NOT levels — extracting "6"
+    // breaks the quotation because the view groups EBL as price_level "1", not "6".
+    // Semenyih-NMP pedestal: lot part 2 is position (L/R), not level — extract level
+    // from first digit of part 3 (unit number, e.g. LF-L-107 → level '1').
+    var level;
+    if (meta.is_niche) {
+      if (lot.split('-').length === 4) {
+        // 4-part niche (SECTION-TYPE-LEVEL-UNIT, e.g. HC): level is part 3
+        var _raw4 = lot.split('-')[2] || '';
+        level = _raw4 ? (_raw4.replace(/^0+/, '') || _raw4) : '';
+      } else {
+        var _raw1 = lot.split('-')[1] || '';
+        level = _raw1 ? (_raw1.replace(/^0+/, '') || _raw1) : '';
+      }
+    } else if (site === 'Klang' && lot.split('-').length === 3) {
+      // Sub-zone lots (e.g. D6-06-08 in BK-A-LG1-HB-S3A-D6, D7, D8, D9, D10) have no layout
+      // meta because the layout API finds no rows for the comma-containing zone name.
+      // Level is still segment 2 of the lot code.
+      var _raw2 = lot.split('-')[1] || '';
+      level = _raw2 ? (_raw2.replace(/^0+/, '') || _raw2) : '';
+    } else if (site === 'Nckl' && !meta.is_niche && lot.split('-').length === 2) {
+      // NCKL pedestal (e.g. SSD-A lot "01-08"): part 0 is the level, part 1 is the position.
+      var _raw3 = lot.split('-')[0] || '';
+      level = _raw3 ? (_raw3.replace(/^0+/, '') || _raw3) : '';
+    } else if (site === 'Klang' && !meta.is_niche && !meta.is_burial && lot.split('-').length === 2) {
+      // Klang pedestal (e.g. BK-A-MH-AT-A lot "01-08"): same 2-part format, part 0 is the level.
+      var _rawKP = lot.split('-')[0] || '';
+      level = _rawKP ? (_rawKP.replace(/^0+/, '') || _rawKP) : '';
+    } else if (site === 'Semenyih-NMP' && !meta.is_niche && !meta.is_burial && lot.split('-').length === 2) {
+      // Pet Niche (e.g. PET-J lot "01-18"): 2-part code, part 0 is the floor/level.
+      var _rawPetN = lot.split('-')[0] || '';
+      level = _rawPetN ? (_rawPetN.replace(/^0+/, '') || _rawPetN) : '';
+    } else {
+      level = '';
+    }
+    if (!block) return;
+
+    // Include dpPct in cache key only for N3 (DP-tier promo sensitive)
+    var isN3Site = window.AgentN3 && window.AgentN3.hasN3(site);
+    // For burial lots, extract the numeric part of the lot code (e.g. "FA18" → 18)
+    // so the server can match the correct lot-range restricted promo for this specific lot.
+    var burialLotNum = meta.is_burial ? parseInt(lot.replace(/^[A-Za-z~]+/, ''), 10) : NaN;
+    // Pedestal lot codes (NCKL SSD, Klang BK-A-MH-AT) are "{level}-{position}" (e.g. "15-08").
+    // The layout API sets is_burial=true for these because they have niche_section=null,
+    // but the first number is a floor level, not a burial lot number. Clear burialLotNum
+    // so the level-based DP re-fetch path fires instead of the burial lot path.
+    if (!meta.is_niche && lot.split('-').length === 2 &&
+        (site === 'Nckl' || site === 'Klang' || site === 'Semenyih-NMP')) {
+      burialLotNum = NaN;
+    }
+    // Burial lots are DP-tier sensitive (restricted promos have per-DP discounts), so always
+    // send dpPct for them and include it in the cache key so DP changes trigger a re-fetch.
+    var isBurialLot = !isNaN(burialLotNum);
+    var _promoFilter = window._drawerPromoFilter || '';
+    var _qty = selectedLots.length; // qty = total niches being quoted (including this one)
+    // For niche lots, extract the niche_section from the lot code (first dash-segment, e.g. 'DG' from 'DG-06-01')
+    // so the API can use the correct section for promo matching within a mixed section group.
+    var nicheSection = (meta.is_niche && lot.indexOf('-') >= 0) ? lot.split('-')[0] : '';
+    var cacheKey = site + '|' + product + '|' + block + '|' + section + '|' + level + '|dp' + dpPct + '|qty' + _qty + (isBurialLot ? '|n' + burialLotNum : '') + (_promoFilter ? '|p' + _promoFilter : '') + (nicheSection ? '|ns' + nicheSection : '');
+    var url = '/api/agent/quotation'
+      + '?site='    + encodeURIComponent(site)
+      + '&product=' + encodeURIComponent(product)
+      + '&block='   + encodeURIComponent(block)
+      + '&section=' + encodeURIComponent(section)
+      + (level ? '&levels=' + encodeURIComponent(level) : '')
+      + '&dp=' + dpPct
+      + '&qty=' + _qty
+      + (isBurialLot ? '&lot=' + burialLotNum : '')
+      + (_promoFilter ? '&promo=' + encodeURIComponent(_promoFilter) : '')
+      + (nicheSection ? '&niche_section=' + encodeURIComponent(nicheSection) : '');
+
+    function applyQuotation(json) {
+      // Discard stale fetch results if lot was deselected before response arrived
+      if (selectedLots.indexOf(lot) < 0) return;
+      if (!json.error && json.levels && json.levels.length) {
+        // Server returns exactly one level for burial lots (lot-by-lot mode) and one per
+        // niche level for niches. Pick by level for niches; fall back to first for burial.
+        var lvData = json.levels.find(function (l) { return l.level === level; }) || json.levels[0];
+
+        lotQuotes.push({ lotCode: lot, levelData: lvData, section: json.section, siteInfo: json,
+          _burialLotNum: isBurialLot ? burialLotNum : null, _block: block, _section: section,
+          _nicheSection: nicheSection || null });
+        worshipPlans = json.worship_plans || [];
+        nlpPromos    = json.nlp_promos    || [];
+        if (json.has_pwp_option && !_pwpHasOption) { _pwpHasOption = true; colorCells(); }
+
+        // Store qty_tiers for this product so _applyQtyTierDp can use them on future adds/removes
+        if (json.qty_tiers && json.qty_tiers.length) {
+          _qtyTiersMap[site + '|' + product] = { tiers: json.qty_tiers, baseDp: json.qty_tiers_base_dp || 20 };
+        }
+
+        // If qty just crossed a tier boundary, re-apply tier DP.
+        // _applyQtyTierDp re-fetches all quotes and returns true — don't double-render.
+        if (!_applyQtyTierDp(selectedLots.length)) {
+          saveSession(); renderQuoteSection();
+        }
+      }
+    }
+
+    if (quotationCache[cacheKey]) {
+      applyQuotation(quotationCache[cacheKey]);
+    } else {
+      fetch(url).then(function (r) { return r.json(); }).then(function (json) {
+        quotationCache[cacheKey] = json;
+        applyQuotation(json);
+      }).catch(function () {});
+    }
+  }
+
+  // ── NLP plan selector ──────────────────────────────────────────
+  function triggerNLPQuotation(planName, panelEl) {
+    // Toggle: if already selected, deselect and re-render
+    var idx = selectedLots.indexOf(planName);
+    if (idx >= 0) {
+      selectedLots.splice(idx, 1);
+      lotQuotes = lotQuotes.filter(function (q) { return q.lotCode !== planName; });
+      if (panelEl) {
+        panelEl.querySelectorAll('.nlp-card').forEach(function (c) {
+          if (c.dataset.plan === planName) {
+            c.style.background = c.dataset.color || '#fff';
+            c.style.color = '';
+          }
+        });
+      }
+      saveSession(); renderQuoteSection();
+      return;
+    }
+    // Add this plan
+    selectedLots.push(planName);
+    saveSession(); renderSelectedBar();
+    var url = '/api/agent/quotation'
+      + '?site='    + encodeURIComponent(site)
+      + '&product=NLP'
+      + '&block=NLP'
+      + '&section=' + encodeURIComponent(planName);
+    fetch(url).then(function (r) { return r.json(); }).then(function (json) {
+      if (!json.error && json.levels && json.levels.length) {
+        var lvData = json.levels[0];
+        lotQuotes.push({ lotCode: planName, levelData: lvData, section: planName, siteInfo: json,
+          nlpColor:    NLP_COLOR[planName]    || '#c5d8f0',
+          nlpZhName:   NLP_ZH_NAME[planName]  || '',
+          nlpReligion: NLP_RELIGION[planName] || '',
+        });
+        worshipPlans = json.worship_plans || [];
+        nlpPromos    = json.nlp_promos    || [];
+        saveSession(); renderQuoteSection();
+      }
+    }).catch(function () {});
+  }
+
+  var NLP_ZH_NAME = {
+    'NV Honour (A)':  '富贵如意',
+    'NV Elegant Plus':'富贵安详（升级版）',
+    'NV Elegant (A)': '富贵安详',
+    'NV KT':          '',
+    'NV Emerald':     '富贵永乐',
+    'NV Essential':   '富贵永安',
+    'NV Memory':      '美丽人生',
+    'NV Gracious':    '富贵圣恩',
+    'NV Blessing':    '富贵祝福',
+  };
+
+  // Card background colours matching the official NLP colour groups
+  var NLP_COLOR = {
+    'NV Honour (A)':  '#f0e8d0',
+    'NV Elegant Plus':'#b8c8e8',
+    'NV Elegant (A)': '#c8d4f0',
+    'NV KT':          '#dde8f8',
+    'NV Emerald':     '#b8dcc0',
+    'NV Essential':   '#c8e4cc',
+    'NV Memory':      '#f5e060',
+    'NV Gracious':    '#d8c8e8',
+    'NV Blessing':    '#e8e8e8',
+  };
+
+  var NLP_TIER = {
+    'NV Honour (A)':  'Premium',
+    'NV Elegant Plus':'Standard Plus',
+    'NV Elegant (A)': 'Standard',
+    'NV Emerald':     'Basic',
+    'NV Essential':   'Basic (Instant)',
+    'NV KT':          'Standard (Kuantan)',
+    'NV Memory':      'Standard',
+    'NV Gracious':    'Standard',
+    'NV Blessing':    'Basic',
+  };
+
+  var NLP_RELIGION = {
+    'NV Honour (A)':  'Buddhist & Taoist',
+    'NV Elegant Plus':'Buddhist & Taoist',
+    'NV Elegant (A)': 'Buddhist & Taoist',
+    'NV Emerald':     'Buddhist & Taoist',
+    'NV Essential':   'Buddhist & Taoist',
+    'NV KT':          'Buddhist & Taoist',
+    'NV Memory':      'Free Thinker',
+    'NV Gracious':    'Christian',
+    'NV Blessing':    'Christian',
+  };
+
+  function renderNLPPanel(el) {
+    el.innerHTML = '<div class="layout-placeholder"><span class="lp-icon">⏳</span><span class="lp-title">Loading plans…</span></div>';
+    fetch('/api/agent/nlp-plans?site=' + encodeURIComponent(site))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var plans = d.plans || [];
+        if (!plans.length) {
+          el.innerHTML = '<div class="layout-placeholder"><span class="lp-icon">📭</span><span class="lp-title">No NLP plans found</span></div>';
+          return;
+        }
+        var h = '<div class="nlp-panel">';
+        h += '<div class="nlp-panel-title">Nirvana Life Plan — Select a Package</div>';
+        h += '<div class="nlp-grid">';
+        plans.forEach(function (p) {
+          var active = selectedLots.indexOf(p.section_group) >= 0 ? ' style="background:#e0eaff;"' : '';
+          var religion = NLP_RELIGION[p.section_group] || '';
+          var tier     = NLP_TIER[p.section_group] || '';
+          var zhName   = NLP_ZH_NAME[p.section_group] || '';
+          var cardColor = NLP_COLOR[p.section_group] || '#fff';
+          var isSelected = selectedLots.indexOf(p.section_group) >= 0;
+          var bgStyle = 'background:' + (isSelected ? '#1a3a6b' : cardColor) + ';'
+            + (isSelected ? 'color:#fff;' : '');
+          h += '<div class="nlp-card" data-plan="' + esc(p.section_group) + '" data-color="' + esc(cardColor) + '" style="' + bgStyle + '">'
+            + '<div class="nlp-card-name">' + esc(p.section_group) + '</div>'
+            + (zhName ? '<div class="nlp-card-zh">' + esc(zhName) + '</div>' : '')
+            + (tier ? '<div class="nlp-card-tier">' + esc(tier) + '</div>' : '')
+            + (religion ? '<div class="nlp-card-religion">' + esc(religion) + '</div>' : '')
+            + '<div class="nlp-card-preneed">RM ' + fmt(p.pre_need_price) + '</div>'
+            + '<div class="nlp-card-asneed">As Need: RM ' + fmt(p.as_need_price) + '</div>'
+            + '</div>';
+        });
+        h += '</div></div>';
+        el.innerHTML = h;
+        el.querySelectorAll('.nlp-card').forEach(function (card) {
+          card.addEventListener('click', function () {
+            triggerNLPQuotation(card.dataset.plan, el);
+            // Sync highlight — check AFTER toggle has run
+            var nowSelected = selectedLots.indexOf(card.dataset.plan) >= 0;
+            card.style.background = nowSelected ? '#1a3a6b' : (card.dataset.color || '#fff');
+            card.style.color = nowSelected ? '#fff' : '';
+          });
+        });
+      })
+      .catch(function () {
+        el.innerHTML = '<div class="layout-placeholder"><span class="lp-icon">⚠️</span><span class="lp-title">Failed to load plans</span></div>';
+      });
+  }
+
+  // ── Render layout area ─────────────────────────────────────────
+  // Expose renderDrawer once here — before any early returns in renderLayoutArea
+  window._agentRenderDrawer = renderDrawer;
+
+  function renderLayoutArea() {
+    var el = qs('layout-area');
+    if (!el) return;
+
+    // Preserve horizontal scroll positions so a background re-fetch doesn't jump
+    var savedScrolls = [];
+    el.querySelectorAll('.portal-scroll').forEach(function (ps) { savedScrolls.push(ps.scrollLeft); });
+
+    if (!site || !product) {
+      el.innerHTML = '<div class="layout-placeholder"><span class="lp-icon">🗺️</span><span class="lp-title">Zone layout will appear here</span><span class="lp-sub">Select a site and zone above</span></div>';
+      return;
+    }
+    if (product === 'NLP') { renderNLPPanel(el); return; }
+    if (layoutLoading) {
+      el.innerHTML = '<div class="layout-placeholder"><span class="lp-icon">⏳</span><span class="lp-title">Loading layout…</span></div>';
+      return;
+    }
+    if (!zoneLayouts.length) {
+      el.innerHTML = '<div class="layout-placeholder"><span class="lp-icon">📭</span><span class="lp-title">No layout saved yet</span><span class="lp-sub">Run a Product Sync for ' + esc(product) + ' to generate the layout</span></div>';
+      return;
+    }
+
+    var html = '';
+
+    html += '<div class="legend no-print">'
+      + '<div class="leg-item"><div class="leg-dot" style="background:#22c55e;border:1px solid #16a34a"></div>Available</div>'
+      + '<div class="leg-item"><div class="leg-dot" style="background:#f1f5f9;border:1px solid #e2e8f0"></div>Unavailable</div>'
+      + '<div class="leg-item"><div class="leg-dot" style="background:#1a3a6b"></div>Selected (<span id="sel-count">' + selectedLots.length + '</span>/' + MAX_LOTS + ')</div>'
+      + '</div>'
+      + '<div id="sel-bar" class="selected-bar no-print"></div>'
+      + '<div id="filter-nav" class="filter-nav no-print" style="display:none">'
+      + '<button id="fn-prev" class="fn-btn">‹</button>'
+      + '<span id="fn-count"></span>'
+      + '<button id="fn-next" class="fn-btn">›</button>'
+      + '<button id="fn-clear" class="fn-clear">✕ Clear filter</button>'
+      + '</div>'
+      + '<div id="layout-card">';
+
+    zoneLayouts.forEach(function (zl) {
+      if (zoneLayouts.length > 1) html += '<div class="zone-label">' + esc(zl.zone) + '</div>';
+      html += '<div class="portal-scroll"><div class="nirvana-zone-layout">' + (zl.html || '') + '</div></div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+
+    // Fix unmerged ghost cells: Excel merged cells sometimes export as one lot cell
+    // followed by empty sibling cells. Absorb those empties into the lot cell's colspan.
+    el.querySelectorAll('tr').forEach(function (tr) {
+      if (tr.classList.contains('nz-wall-header') || tr.classList.contains('nz-wall-gap')) return;
+      tr.querySelectorAll('[data-lot]').forEach(function (lotTd) {
+        var next = lotTd.nextElementSibling;
+        while (next && !next.dataset.lot && !next.classList.contains('nz-empty')) {
+          var ghostCols = parseInt(next.getAttribute('colspan') || '1', 10);
+          lotTd.colSpan = (lotTd.colSpan || 1) + ghostCols;
+          var toRemove = next;
+          next = next.nextElementSibling;
+          toRemove.parentNode.removeChild(toRemove);
+        }
+      });
+    });
+
+    // Restore scroll positions immediately after innerHTML is written
+    var scrollEls = el.querySelectorAll('.portal-scroll');
+    scrollEls.forEach(function (ps, i) {
+      var target = savedScrolls[i] || layoutScrollLeft;
+      if (target) ps.scrollLeft = target;
+    });
+
+    // Track scroll so we can persist it through page reloads
+    scrollEls.forEach(function (ps) {
+      var scrollTimer;
+      ps.addEventListener('scroll', function () {
+        layoutScrollLeft = ps.scrollLeft;
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(saveSession, 300);
+      }, { passive: true });
+    });
+
+    renderSelectedBar();
+    colorCells();
+    window._agentColorCells = colorCells;
+    window._agentRenderQuoteSection = renderQuoteSection;
+
+    window._agentTriggerComboQuotation = function (lotCode, displayRange) {
+      var meta    = lotMeta[lotCode] || {};
+      var block   = meta.block || product;
+      var section = meta.section_group || (lotCode.replace(/[0-9].*$/, ''));
+      var level;
+      if (meta.is_niche && !meta.section_group) {
+        level = '';
+      } else if (site === 'Semenyih-NMP') {
+        var _nmpPart3c = lotCode.split('-')[2] || '';
+        level = _nmpPart3c ? _nmpPart3c.charAt(0) : '';
+      } else {
+        level = lotCode.split('-')[1] ? parseInt(lotCode.split('-')[1], 10).toString() : '';
+      }
+      if (!block || !section) return;
+
+      var cacheKey = site + '|' + product + '|' + block + '|' + section + '|' + level;
+      var url = '/api/agent/quotation'
+        + '?site='    + encodeURIComponent(site)
+        + '&product=' + encodeURIComponent(product)
+        + '&block='   + encodeURIComponent(block)
+        + '&section=' + encodeURIComponent(section)
+        + (level ? '&levels=' + encodeURIComponent(level) : '');
+
+      function applyQuotation(json) {
+        if (!json.error && json.levels && json.levels.length) {
+          var lvData = json.levels.find(function (l) { return l.level === level; }) || json.levels[0];
+          selectedLots = [lotCode];
+          dpAutoSet = false;
+          lotQuotes = [{ lotCode: lotCode, levelData: lvData, section: json.section, siteInfo: json, displayRange: displayRange || null }];
+          worshipPlans = json.worship_plans || [];
+          renderQuoteSection();
+        }
+      }
+
+      if (quotationCache[cacheKey]) {
+        applyQuotation(quotationCache[cacheKey]);
+      } else {
+        fetch(url).then(function (r) { return r.json(); }).then(function (json) {
+          quotationCache[cacheKey] = json;
+          applyQuotation(json);
+        }).catch(function () {});
+      }
+    };
+
+    var card = qs('layout-card');
+    if (card) card.addEventListener('click', onLayoutClick);
+
+    // Filter navigator buttons
+    var fnPrev = document.getElementById('fn-prev');
+    var fnNext = document.getElementById('fn-next');
+    var fnClear = document.getElementById('fn-clear');
+    if (fnPrev) fnPrev.addEventListener('click', function() { scrollToNavCell(_navIdx - 1); });
+    if (fnNext) fnNext.addEventListener('click', function() { scrollToNavCell(_navIdx + 1); });
+    if (fnClear) fnClear.addEventListener('click', function() {
+      window._drawerSectionFilter = '';
+      window._drawerLevelFilter = '';
+      colorCells();
+    });
+
+  }
+
+  // ── Promo view ─────────────────────────────────────────────────
+  function findCachedSection(blk, sec) {
+    var prefix = site + '|' + product + '|' + blk + '|' + sec + '|';
+    var allKeys = Object.keys(quotationCache);
+    for (var i = 0; i < allKeys.length; i++) {
+      if (allKeys[i].startsWith(prefix)) return quotationCache[allKeys[i]];
+    }
+    return null;
+  }
+
+  function renderPromoView() {
+    // Collect unique block+section combos from available lots
+    var groups = {};
+    Object.keys(availMap).forEach(function (lot) {
+      if (!availMap[lot]) return;
+      var m = lotMeta[lot] || {};
+      var block   = m.block || product;
+      var section = m.section_group;
+      var isBurial = !!m.is_burial;
+      if (!section) {
+        var _isNicheLot = lot.split('-').length >= 3;
+        if (_isNicheLot) return; // niche lot with no section_group — skip, not a burial section
+        section = lot.replace(/^([A-Za-z]+).*/, '$1').toUpperCase();
+        if (!m.is_niche) isBurial = true;
+      }
+      if (!block || !section) return;
+      // Skip burial sections whose name contains digits or parentheses — those are price
+      // bracket identifiers (e.g. "FA(08~198)") that should not create separate promo cards.
+      // Real burial section codes are letters only (e.g. "FA", "FA~FG", "DAB").
+      if (isBurial && /[0-9()]/.test(section)) { console.log('[promo-filter] skipped burial section:', section); return; }
+      var gk = block + '|' + section;
+      if (!groups[gk]) { console.log('[promo-groups] new group:', gk, 'burial='+isBurial); groups[gk] = { block: block, section: section, count: 0, json: null, is_burial: isBurial, lotNums: [] }; }
+      groups[gk].count++;
+      if (isBurial) {
+        var nm = lot.match(/(\d+)/);
+        if (nm) groups[gk].lotNums.push(parseInt(nm[1], 10));
+      }
+    });
+
+    var keys = Object.keys(groups);
+    if (!keys.length) {
+      var pv = document.getElementById('promo-view');
+      if (pv) pv.innerHTML = '<div class="promo-loading">No available lots found.</div>';
+      return;
+    }
+
+    // Paint immediately with whatever is cached, then fill in the rest
+    keys.forEach(function (gk) {
+      var g = groups[gk];
+      var cached = findCachedSection(g.block, g.section);
+      if (cached) g.json = cached;
+    });
+    paintPromoView(groups); // instant render with cached data
+
+    // Batch-fetch missing sections. Always send the request even when all sections
+    // are already cached from preloadQuotations — the batch API also returns virtual
+    // sections (lot-range-restricted promo cards) that preloadQuotations never creates.
+    var missing = keys.filter(function (gk) { return !groups[gk].json; });
+    var pairsArr = missing.length ? missing : keys; // when all cached, use all pairs to trigger virtuals
+    if (!pairsArr.length) return;
+
+    var pairs = pairsArr.map(function (gk) {
+      var g = groups[gk];
+      return encodeURIComponent(g.block) + '%7C' + encodeURIComponent(g.section);
+    }).join(',');
+
+    fetch('/api/agent/quotation/batch?site=' + encodeURIComponent(site) + '&product=' + encodeURIComponent(product) + '&pairs=' + pairs)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        console.log('[batch] results count=' + (data.results || []).length, (data.results || []).map(function(r){ return r.section + (r.virtual?'(V)':'') + ' levels=' + (r.levels||[]).length; }));
+        (data.results || []).forEach(function (json) {
+          var gk = json.block + '|' + json.section;
+          if (groups[gk]) {
+            (json.levels || []).forEach(function (lv) {
+              var ck = site + '|' + product + '|' + json.block + '|' + json.section + '|' + lv.level;
+              if (!quotationCache[ck]) quotationCache[ck] = json;
+            });
+            groups[gk].json = json;
+          } else if (json.virtual) {
+            // Virtual section for a lot-range-restricted promo — create a new group on the fly
+            var totalAvail = (json.levels || []).reduce(function (sum, lv) { return sum + (lv.available_count || 0); }, 0);
+            groups[gk] = { block: json.block, section: json.section, count: totalAvail, json: json, is_burial: true, lotNums: [], virtual: true };
+            // Cache it so onPromoCardTap can find it without a secondary API call
+            (json.levels || []).forEach(function (lv, i) {
+              var ck = site + '|' + product + '|' + json.block + '|' + json.section + '|v' + i;
+              if (!quotationCache[ck]) quotationCache[ck] = json;
+            });
+          }
+        });
+        if (layoutMode === 'promos') paintPromoView(groups);
+      }).catch(function () {});
+  }
+
+  function paintPromoView(groups) {
+    var pv = document.getElementById('promo-view');
+    if (!pv) return;
+
+    // Separate into promo and standard
+    var promoGroups = [], stdGroups = [];
+    Object.values(groups).forEach(function (g) {
+      if (!g.json) return;
+      var hasPromo = (g.json.levels || []).some(function (lv) { return lv.promo; });
+      if (hasPromo) promoGroups.push(g); else stdGroups.push(g);
+    });
+    promoGroups.sort(function (a, b) { return a.section.localeCompare(b.section); });
+    stdGroups.sort(function (a, b)   { return a.section.localeCompare(b.section); });
+
+    var allGroups = Object.values(groups);
+    var loadedCount  = allGroups.filter(function (g) { return !!g.json; }).length;
+    var pendingCount = allGroups.filter(function (g) { return !g.json; }).length;
+
+    if (!promoGroups.length && !stdGroups.length) {
+      if (pendingCount > 0) {
+        var dots = ['⏳', '⌛'][Math.floor(Date.now() / 600) % 2];
+        pv.innerHTML = '<div class="promo-loading promo-loading-progress">'
+          + '<div class="promo-fetch-icon">' + dots + '</div>'
+          + '<div class="promo-fetch-label">Fetching promo data, please wait…</div>'
+          + '<div class="promo-fetch-bar-wrap"><div class="promo-fetch-bar" style="width:' + Math.round(loadedCount / allGroups.length * 100) + '%"></div></div>'
+          + '<div class="promo-fetch-count">' + loadedCount + ' of ' + allGroups.length + ' sections loaded</div>'
+          + '</div>';
+      } else {
+        pv.innerHTML = '<div class="promo-loading">No promo data found for this zone.</div>';
+      }
+      return;
+    }
+
+    // ── Merge sections that share the same lot_type + promo + price range ──
+    function cardMergeKey(g) {
+      var levels    = (g.json && g.json.levels) || [];
+      var promos    = levels.map(function(l) { return l.promo; }).filter(Boolean);
+      // Use highest-discount promo for the merge key so sections with identical DP-tier
+      // options (but different prices) merge into one card.
+      var promo     = promos.length ? promos[promos.length - 1] : null;
+      var prices    = levels.map(function(l) { return l.pre_need_price || l.as_need_price || 0; }).filter(Boolean);
+      var minP      = prices.length ? Math.min.apply(null, prices) : 0;
+      var maxP      = prices.length ? Math.max.apply(null, prices) : 0;
+      var lotType   = (g.json && g.json.lot_type) || '';
+      var promoName = promo ? (promo.promo_name || '') : '__none__';
+      var discKey   = promo
+        ? (String(promo.discount_pct != null ? promo.discount_pct : '') + '|' + String(promo.discount_rm != null ? promo.discount_rm : ''))
+        : '';
+      // Virtual sections (lot-range-restricted) always get their own card.
+      // Burial non-virtual: merge across price brackets — price omitted from key.
+      var virtualKey = g.virtual ? ('__v__' + g.section) : '';
+      var priceKey   = (g.is_burial && !g.virtual) ? '' : (minP + '||' + maxP);
+      return g.block + '||' + String(!!g.is_burial) + '||' + lotType + '||' + promoName + '||' + discKey + '||' + priceKey + '||' + virtualKey;
+    }
+
+    function buildMergedList(list) {
+      var mergedMap = {}, order = [];
+      list.forEach(function(g) {
+        var k = cardMergeKey(g);
+        if (!mergedMap[k]) {
+          mergedMap[k] = {
+            sections:         [],
+            block:            g.block,
+            representativeGk: g.block + '|' + g.section,
+            count:            0,
+            lotNums:          [],
+            is_burial:        g.is_burial,
+            virtual:          g.virtual,
+            json:             g.json,
+          };
+          order.push(k);
+        }
+        mergedMap[k].sections.push(g.section);
+        mergedMap[k].count += g.count;
+        (g.lotNums || []).forEach(function(n) { mergedMap[k].lotNums.push(n); });
+      });
+      return order.map(function(k) { return mergedMap[k]; });
+    }
+
+    console.log('[paint] promoGroups=' + promoGroups.length + ' sections:', promoGroups.map(function(g){ var p=(g.json&&g.json.levels||[]).map(function(l){return l.promo&&l.promo.discount_pct;}).filter(Boolean); return g.section+'['+p+']'; }));
+    var mergedPromo = buildMergedList(promoGroups);
+    console.log('[paint] mergedPromo=' + mergedPromo.length, mergedPromo.map(function(m){ return m.sections.join('+'); }));
+    var mergedStd   = buildMergedList(stdGroups);
+
+    function buildCard(mg) {
+      var json    = mg.json;
+      var levels  = json.levels || [];
+      var promos  = levels.map(function (l) { return l.promo; }).filter(Boolean);
+      var promo   = promos.length ? promos[promos.length - 1] : null; // highest for name/badge
+      var prices  = levels.map(function (l) { return l.pre_need_price || l.as_need_price || 0; }).filter(Boolean);
+      var minP    = prices.length ? Math.min.apply(null, prices) : 0;
+      var maxP    = prices.length ? Math.max.apply(null, prices) : 0;
+      var lvlNums = levels.map(function (l) { return l.level; }).filter(Boolean).join(', ');
+      var isPromo = !!promo;
+      var isGroup = mg.sections.length > 1;
+
+      var c = '<div class="promo-card' + (isPromo ? ' has-promo' : '') + '" data-gk="' + esc(mg.representativeGk) + '">';
+      c += '<div class="promo-card-top">';
+      c += '<div class="promo-card-info">';
+
+      if (isGroup) {
+        var prefix = mg.is_burial ? 'Plot' : 'Wall';
+        c += '<div class="promo-card-section">' + esc(prefix) + '</div>';
+        c += '<div class="promo-section-list">' + mg.sections.map(esc).join(' · ') + '</div>';
+      } else {
+        var sectionLabel = mg.is_burial
+          ? ('Plot ' + esc(mg.sections[0]))
+          : ('Wall ' + esc(json.section || mg.sections[0]));
+        c += '<div class="promo-card-section">' + sectionLabel + '</div>';
+      }
+
+      if (json.lot_type) c += '<div class="promo-card-levels">' + esc(json.lot_type) + '</div>';
+
+      if (mg.is_burial && mg.lotNums && mg.lotNums.length) {
+        var minLot  = Math.min.apply(null, mg.lotNums);
+        var maxLot  = Math.max.apply(null, mg.lotNums);
+        var lotRange = minLot === maxLot ? 'Lot ' + minLot : 'Lots ' + minLot + '–' + maxLot;
+        c += '<div class="promo-card-levels">' + esc(lotRange) + '</div>';
+      } else if (lvlNums) {
+        c += '<div class="promo-card-levels">Levels: ' + esc(lvlNums) + '</div>';
+      }
+
+      if (minP) {
+        c += '<div class="promo-card-price">from RM ' + minP.toLocaleString('en-MY');
+        if (maxP && maxP !== minP) c += ' – RM ' + maxP.toLocaleString('en-MY');
+        c += '</div>';
+      }
+      c += '</div>';
+      c += '<div class="promo-card-right"><div class="promo-card-count">' + mg.count + '</div><div class="promo-card-avail">avail</div></div>';
+      c += '</div>';
+      if (isPromo) {
+        var allDiscs = promos.map(function(p) { return p.discount_pct || 0; }).filter(Boolean);
+        var minDisc  = allDiscs.length ? Math.min.apply(null, allDiscs) : 0;
+        var maxDisc  = allDiscs.length ? Math.max.apply(null, allDiscs) : 0;
+        var disc = promo.dp_tiers && promo.dp_tiers.length
+          ? 'Up to ' + Math.max.apply(null, promo.dp_tiers) + '% off'
+          : (maxDisc ? (minDisc && minDisc !== maxDisc ? minDisc + '–' + maxDisc + '% Special Rebate' : maxDisc + '% Special Rebate') : '');
+        c += '<div class="promo-badge-bar"><span class="promo-badge-name">' + esc(promo.promo_name || 'Promotion') + '</span>';
+        if (disc) c += '<span class="promo-badge-disc">' + esc(disc) + '</span>';
+        c += '</div>';
+      }
+      c += '</div>';
+      return c;
+    }
+
+    var html = '';
+    if (mergedPromo.length) {
+      html += '<div class="promo-group-label">🏷 Active Promotions</div>';
+      mergedPromo.forEach(function (mg) { html += buildCard(mg); });
+    }
+    if (mergedStd.length) {
+      html += '<div class="promo-group-label" style="margin-top:' + (mergedPromo.length ? '12px' : '0') + '">Standard Pricing</div>';
+      mergedStd.forEach(function (mg) { html += buildCard(mg); });
+    }
+    pv.innerHTML = html;
+    if (window.AgentCombo) window.AgentCombo.appendPromoSection(pv);
+
+    // Bind tap — uses representative section (first in the group)
+    pv.querySelectorAll('.promo-card[data-gk]').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var parts = card.dataset.gk.split('|');
+        var blk   = parts[0], sec = parts[1];
+        onPromoCardTap(blk, sec);
+      });
+    });
+  }
+
+  function onPromoCardTap(blk, sec) {
+    var cacheKey = site + '|' + product + '|' + blk + '|' + sec + '|';
+    var json = null;
+    var allKeys = Object.keys(quotationCache);
+    for (var i = 0; i < allKeys.length; i++) {
+      if (allKeys[i].startsWith(cacheKey)) { json = quotationCache[allKeys[i]]; break; }
+    }
+    function applyPromoJson(j) {
+      if (!j || j.error || !j.levels || !j.levels.length) return;
+      // Clear previous and load all levels for this section as synthetic lots
+      selectedLots = []; lotQuotes = [];
+      dpAutoSet = false;
+
+      // For virtual (lot-range-restricted) sections, filter to the DP tier that best matches
+      // the current dpPct — one level per price bracket, avoiding mixed 25%/35% columns.
+      var levelsToLoad = j.levels;
+      if (j.virtual) {
+        _virtualBlk = blk; _virtualSec = sec;
+        var byLotNo = {};
+        j.levels.forEach(function(lv) {
+          var key = lv.lot_no || 'std';
+          if (!byLotNo[key]) byLotNo[key] = [];
+          byLotNo[key].push(lv);
+        });
+        levelsToLoad = Object.keys(byLotNo).map(function(key) {
+          var group = byLotNo[key];
+          var eligible = group.filter(function(lv) {
+            return (lv.promo && lv.promo.min_down_payment_pct != null ? lv.promo.min_down_payment_pct : 0) <= dpPct;
+          });
+          var pool = eligible.length ? eligible : group;
+          return pool.reduce(function(best, lv) {
+            var bDp = best.promo && best.promo.min_down_payment_pct != null ? best.promo.min_down_payment_pct : 0;
+            var lDp = lv.promo && lv.promo.min_down_payment_pct != null ? lv.promo.min_down_payment_pct : 0;
+            return eligible.length ? (lDp > bDp ? lv : best) : (lDp < bDp ? lv : best);
+          });
+        });
+      } else {
+        _virtualBlk = null; _virtualSec = null;
+      }
+
+      levelsToLoad.forEach(function (lvData, i) {
+        var isBurial = lvData.lot_no != null && lvData.level == null;
+        var syntheticLot = isBurial ? sec + '-burial-' + i : sec + '-' + lvData.level + '-0';
+        selectedLots.push(syntheticLot);
+        lotQuotes.push({ lotCode: syntheticLot, levelData: lvData, section: j.section, siteInfo: j, isBurial: isBurial, _blk: blk, _sec: sec, displayRange: true });
+      });
+      colorCells(); renderSelectedBar(); renderQuoteSection();
+      setTimeout(function () {
+        var el = qs('quote-section');
+        var sb = qs('scroll-body');
+        if (el && sb) sb.scrollTop = el.offsetTop - 8;
+      }, 50);
+    }
+    if (json) {
+      applyPromoJson(json);
+    } else {
+      var _pf = window._drawerPromoFilter || '';
+      fetch('/api/agent/quotation?site=' + encodeURIComponent(site) + '&product=' + encodeURIComponent(product) + '&block=' + encodeURIComponent(blk) + '&section=' + encodeURIComponent(sec) + '&dp=' + dpPct + (_pf ? '&promo=' + encodeURIComponent(_pf) : ''))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          (j.levels || []).forEach(function (lv) {
+            var ck = site + '|' + product + '|' + blk + '|' + sec + '|' + lv.level + (_pf ? '|p' + _pf : '');
+            if (!quotationCache[ck]) quotationCache[ck] = j;
+          });
+          applyPromoJson(j);
+        }).catch(function () {});
+    }
+  }
+
+  function renderSelectedBar() {
+    var bar = qs('sel-bar');
+    if (!bar) return;
+    var counter = document.getElementById('sel-count');
+    if (counter) counter.textContent = selectedLots.length;
+    var html = selectedLots.map(function (lot) {
+      return '<div class="sel-chip" data-lot="' + esc(lot) + '">' + esc(lot) + ' <span class="sel-chip-x">×</span></div>';
+    }).join('');
+    bar.innerHTML = html;
+    bar.querySelectorAll('.sel-chip').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var lot = chip.dataset.lot;
+        selectedLots = selectedLots.filter(function (l) { return l !== lot; });
+        lotQuotes = lotQuotes.filter(function (q) { return q.lotCode !== lot; });
+        delete hiddenCols[lot];
+        saveSession(); colorCells(); renderSelectedBar(); renderQuoteSection();
+      });
+    });
+  }
+
+  // ── Product Assets Panel ───────────────────────────────────────
+  function _ytId(url) {
+    if (!url) return null;
+    var m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
+    return m ? m[1] : null;
+  }
+
+  function _wireAssetsPanel(ap, photos, videos) {
+    var header = ap.querySelector('#ap-header');
+    var body   = ap.querySelector('#ap-body');
+    var toggle = ap.querySelector('#ap-toggle');
+    if (header) {
+      header.addEventListener('click', function () {
+        _assetsOpen = !_assetsOpen;
+        if (body)   body.style.display = _assetsOpen ? 'block' : 'none';
+        if (toggle) toggle.textContent  = _assetsOpen ? '▾' : '▸';
+      });
+    }
+    ap.querySelectorAll('.ap-tab').forEach(function (tab) {
+      tab.addEventListener('click', function (e) {
+        e.stopPropagation();
+        _assetsTab = tab.dataset.tab;
+        ap.querySelectorAll('.ap-tab').forEach(function (t) { t.classList.remove('on'); });
+        tab.classList.add('on');
+        ap.querySelectorAll('.ap-pane').forEach(function (p) { p.style.display = 'none'; });
+        var pane = ap.querySelector('#ap-pane-' + _assetsTab);
+        if (pane) pane.style.display = 'block';
+      });
+    });
+    var lbIdx = 0;
+    function openLb(idx) {
+      lbIdx = idx;
+      var lb  = document.getElementById('ap-lightbox');
+      var img = document.getElementById('ap-lb-img');
+      if (!lb || !img || !photos[idx]) return;
+      img.src = photos[idx].url;
+      lb.style.display = 'flex';
+    }
+    function closeLb() {
+      var lb = document.getElementById('ap-lightbox');
+      if (lb) lb.style.display = 'none';
+    }
+    ap.querySelectorAll('.ap-photo').forEach(function (img) {
+      img.addEventListener('click', function () { openLb(parseInt(img.dataset.idx, 10)); });
+    });
+    var lbClose = document.getElementById('ap-lb-close');
+    var lbBack  = document.getElementById('ap-lb-backdrop');
+    var lbPrev  = document.getElementById('ap-lb-prev');
+    var lbNext  = document.getElementById('ap-lb-next');
+    if (lbClose) lbClose.onclick = closeLb;
+    if (lbBack)  lbBack.onclick  = closeLb;
+    if (lbPrev)  lbPrev.onclick  = function (e) {
+      e.stopPropagation();
+      lbIdx = (lbIdx - 1 + photos.length) % photos.length;
+      var img = document.getElementById('ap-lb-img');
+      if (img) img.src = photos[lbIdx].url;
+    };
+    if (lbNext)  lbNext.onclick  = function (e) {
+      e.stopPropagation();
+      lbIdx = (lbIdx + 1) % photos.length;
+      var img = document.getElementById('ap-lb-img');
+      if (img) img.src = photos[lbIdx].url;
+    };
+    // Folder toggle
+    ap.querySelectorAll('.ap-folder-header').forEach(function (fh) {
+      fh.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var folderId = fh.dataset.folder;
+        var fbody  = ap.querySelector('#ap-folder-body-' + folderId);
+        var arrow  = fh.querySelector('.ap-folder-arrow');
+        var isOpen = fbody && fbody.style.display !== 'none';
+        if (fbody) fbody.style.display = isOpen ? 'none' : 'block';
+        if (arrow) arrow.textContent   = isOpen ? '▸' : '▾';
+      });
+    });
+    ap.querySelectorAll('.ap-vid-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        window.open('https://www.youtube.com/watch?v=' + card.dataset.vid, '_blank');
+      });
+    });
+  }
+
+  function _buildAssetsPanelHtml(ap, assets) {
+    if (!assets || !assets.length) { ap.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8">No product materials</div>'; return; }
+    var photos = assets.filter(function (a) { return a.asset_type === 'photo'; });
+    var videos = assets.filter(function (a) { return a.asset_type === 'video'; });
+    var docs   = assets.filter(function (a) { return a.asset_type === 'doc';   });
+
+    // Normalise active tab to one that actually has content
+    if (_assetsTab === 'photos' && !photos.length) _assetsTab = videos.length ? 'videos' : 'docs';
+    if (_assetsTab === 'videos' && !videos.length) _assetsTab = photos.length ? 'photos' : 'docs';
+    if (_assetsTab === 'docs'   && !docs.length)   _assetsTab = photos.length ? 'photos' : 'videos';
+
+    // Mini thumbnail strip shown in the header even when collapsed
+    var miniStrip = '';
+    photos.slice(0, 4).forEach(function (p) {
+      miniStrip += '<img class="ap-mini" src="' + p.url + '" alt="" loading="lazy">';
+    });
+    if (photos.length > 4) {
+      miniStrip += '<div class="ap-mini ap-mini-more">+' + (photos.length - 4) + '</div>';
+    }
+
+    var tabsHtml = '';
+    if (photos.length) tabsHtml += '<div class="ap-tab' + (_assetsTab === 'photos' ? ' on' : '') + '" data-tab="photos">Photos (' + photos.length + ')</div>';
+    if (videos.length) tabsHtml += '<div class="ap-tab' + (_assetsTab === 'videos' ? ' on' : '') + '" data-tab="videos">Videos (' + videos.length + ')</div>';
+    if (docs.length)   tabsHtml += '<div class="ap-tab' + (_assetsTab === 'docs'   ? ' on' : '') + '" data-tab="docs">Docs ('   + docs.length   + ')</div>';
+
+    var pubBase = 'https://orlneoqfdgiatvybvgar.supabase.co/storage/v1/object/public/product-assets/';
+
+    // Split photos into EDM group and regular photos
+    var _monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var _now = new Date();
+    var _edmFolderLabel = 'EDM (' + _monthNames[_now.getMonth()] + ')';
+    var edmPhotos     = photos.filter(function (p) { return (p.caption || '').toUpperCase().indexOf('EDM') >= 0; });
+    var regularPhotos = photos.filter(function (p) { return (p.caption || '').toUpperCase().indexOf('EDM') < 0; });
+
+    function _photoItemHtml(p, idx) {
+      var publicUrl = p.storage_path ? pubBase + p.storage_path.split('/').map(encodeURIComponent).join('/') : p.url;
+      var fileName  = p.storage_path ? p.storage_path.split('/').pop() : (p.caption || 'photo.jpg');
+      return '<div class="ap-photo-item">'
+        + '<img class="ap-photo" src="' + publicUrl + '" alt="' + (p.caption || '') + '" data-idx="' + idx + '" loading="lazy">'
+        + '<a class="ap-dl-btn" href="' + publicUrl + '" download="' + fileName + '" target="_blank" rel="noopener">⬇ Save to Phone</a>'
+        + '</div>';
+    }
+
+    var photosHtml = '';
+    // Regular photos — flat strip
+    regularPhotos.forEach(function (p, i) { photosHtml += _photoItemHtml(p, i); });
+    // EDM folder — collapsible
+    if (edmPhotos.length) {
+      var edmInner = '';
+      edmPhotos.forEach(function (p, i) { edmInner += _photoItemHtml(p, regularPhotos.length + i); });
+      photosHtml += '<div class="ap-folder" id="ap-folder-edm">'
+        + '<div class="ap-folder-header" data-folder="edm">'
+        +   '<span class="ap-folder-icon">📁</span>'
+        +   '<span class="ap-folder-name">' + _edmFolderLabel + '</span>'
+        +   '<span class="ap-folder-count">(' + edmPhotos.length + ' photos)</span>'
+        +   '<span class="ap-folder-arrow">▸</span>'
+        + '</div>'
+        + '<div class="ap-folder-body" id="ap-folder-body-edm" style="display:none">'
+        +   '<div class="ap-photo-strip">' + edmInner + '</div>'
+        + '</div>'
+        + '</div>';
+    }
+
+    var videosHtml = '';
+    videos.forEach(function (v) {
+      var vid = _ytId(v.url);
+      if (!vid) return;
+      videosHtml += '<div class="ap-vid-card" data-vid="' + vid + '">'
+        + '<img class="ap-vid-thumb" src="https://img.youtube.com/vi/' + vid + '/mqdefault.jpg" alt="' + (v.caption || '') + '" loading="lazy">'
+        + '<div class="ap-vid-play">▶</div>'
+        + (v.caption ? '<div class="ap-vid-cap">' + v.caption + '</div>' : '')
+        + '</div>';
+    });
+
+    var docsHtml = '';
+    docs.forEach(function (d) {
+      var kb = d.file_size_kb ? Math.round(d.file_size_kb) + ' KB' : '';
+      docsHtml += '<a class="ap-doc" href="' + d.url + '" target="_blank" rel="noopener">'
+        + '<span class="ap-doc-icon">📄</span>'
+        + '<div class="ap-doc-info"><div class="ap-doc-name">' + (d.caption || 'Document') + '</div>'
+        + (kb ? '<div class="ap-doc-size">' + kb + '</div>' : '') + '</div>'
+        + '<span class="ap-doc-dl">↓</span></a>';
+    });
+
+    var html = '<div class="ap-wrap">'
+      + '<div class="ap-header" id="ap-header">'
+      +   '<div class="ap-header-left">'
+      +     '<div class="ap-toggle" id="ap-toggle">' + (_assetsOpen ? '▾' : '▸') + '</div>'
+      +     '<span class="ap-title">Product Assets</span>'
+      +   '</div>'
+      +   '<div class="ap-mini-strip">' + miniStrip + '</div>'
+      + '</div>'
+      + '<div class="ap-body" id="ap-body" style="display:' + (_assetsOpen ? 'block' : 'none') + '">'
+      +   '<div class="ap-tabs" id="ap-tabs">' + tabsHtml + '</div>'
+      +   '<div class="ap-pane" id="ap-pane-photos" style="display:' + (_assetsTab === 'photos' ? 'block' : 'none') + '">'
+      +     '<div class="ap-photo-strip">' + photosHtml + '</div>'
+      +   '</div>'
+      +   '<div class="ap-pane" id="ap-pane-videos" style="display:' + (_assetsTab === 'videos' ? 'block' : 'none') + '">'
+      +     '<div class="ap-vid-grid">' + videosHtml + '</div>'
+      +   '</div>'
+      +   '<div class="ap-pane" id="ap-pane-docs" style="display:' + (_assetsTab === 'docs' ? 'block' : 'none') + '">'
+      +     '<div class="ap-doc-list">' + docsHtml + '</div>'
+      +   '</div>'
+      + '</div>'
+      + '</div>'
+      // Lightbox overlay — appended outside .ap-wrap so it can fill the viewport
+      + '<div id="ap-lightbox" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;">'
+      +   '<div id="ap-lb-backdrop" style="position:absolute;inset:0;background:rgba(0,0,0,.85);"></div>'
+      +   '<button id="ap-lb-close" style="position:absolute;top:16px;right:16px;z-index:1;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:24px;width:40px;height:40px;border-radius:50%;cursor:pointer;">×</button>'
+      +   '<button id="ap-lb-prev" style="position:absolute;top:50%;left:16px;transform:translateY(-50%);z-index:1;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:28px;width:44px;height:44px;border-radius:50%;cursor:pointer;">‹</button>'
+      +   '<img id="ap-lb-img" src="" alt="" style="position:relative;max-width:92vw;max-height:85vh;border-radius:6px;object-fit:contain;">'
+      +   '<button id="ap-lb-next" style="position:absolute;top:50%;right:16px;transform:translateY(-50%);z-index:1;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:28px;width:44px;height:44px;border-radius:50%;cursor:pointer;">›</button>'
+      + '</div>';
+
+    ap.innerHTML = html;
+    _wireAssetsPanel(ap, photos, videos);
+  }
+
+  var _edmCache = {};
+
+  // ── Announcement read state ───────────────────────────────────
+  var ANNOUNCEMENT_KEY = 'announcement_read_aug2026b'; // change key each month to reset
+
+  function _applyAnnouncementReadState() {
+    var isRead = false;
+    try { isRead = !!localStorage.getItem(ANNOUNCEMENT_KEY); } catch(e) {}
+    // Red dot on hamburger
+    var dot = document.querySelector('#btn-menu > span:last-child');
+    if (dot) dot.style.display = isRead ? 'none' : 'block';
+    // NEW badge in side menu
+    var badge = document.querySelector('.menu-badge');
+    if (badge) badge.style.display = isRead ? 'none' : '';
+    // What's New box and Mark as Read button
+    var box = document.getElementById('whats-new-box');
+    var btn = document.getElementById('btn-mark-read');
+    var body = document.getElementById('whats-new-body');
+    var arrow = document.getElementById('whats-new-arrow');
+    if (isRead && body) {
+      body.style.display = 'none';
+      if (arrow) arrow.textContent = '▸';
+    }
+  }
+
+  function _loadAnnouncementEdm() {
+    // Reset dropdown and clear list when drawer opens
+    var sel = document.getElementById('edm-site-sel');
+    var el = document.getElementById('announcement-edm-list');
+    if (sel) sel.value = '';
+    if (el) el.innerHTML = '';
+  }
+
+  function _loadEdmForSite(s) {
+    var el = document.getElementById('announcement-edm-list');
+    if (!el || !s) return;
+    if (_edmCache[s]) { _renderEdmPosters(el, _edmCache[s]); return; }
+    el.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Loading…</div>';
+    fetch('/api/agent/assets?site=' + encodeURIComponent(s) + '&product=' + encodeURIComponent(s))
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        var a = (j.assets || []).filter(function(x) { return x.asset_type === 'photo'; });
+        _edmCache[s] = a;
+        _renderEdmPosters(el, a);
+      })
+      .catch(function() { el.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:8px 0">No EDM posters available</div>'; });
+  }
+
+  function _renderEdmPosters(el, assets) {
+    if (!assets || !assets.length) {
+      el.innerHTML = '<div style="font-size:12px;color:#94a3b8;padding:8px 0">No EDM posters available for this site</div>';
+      return;
+    }
+    var pubBase = 'https://orlneoqfdgiatvybvgar.supabase.co/storage/v1/object/public/product-assets/';
+    var html = '';
+    assets.forEach(function(a) {
+      if (!a.url) return;
+      var publicUrl = a.storage_path ? pubBase + a.storage_path.split('/').map(encodeURIComponent).join('/') : a.url;
+      var waUrl = 'https://wa.me/?text=' + encodeURIComponent(publicUrl);
+      html += '<div class="edm-poster-wrap">'
+        + '<img class="edm-poster-img" src="' + publicUrl + '" alt="' + (a.caption || 'EDM Poster') + '" data-poster="' + publicUrl + '" />'
+        + '<a class="edm-wa-btn" href="' + waUrl + '" target="_blank" rel="noopener noreferrer">'
+        + '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>'
+        + 'Share via WhatsApp</a>'
+        + '</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function renderAssetsPanel() {
+    var ap = document.getElementById('assets-panel');
+    if (!ap) return;
+    if (!site || !product) { ap.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8">No product materials</div>'; return; }
+    var cacheKey = site + '|' + product;
+    if (_assetsCache[cacheKey] !== undefined) {
+      _buildAssetsPanelHtml(ap, _assetsCache[cacheKey]);
+      return;
+    }
+    ap.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8">Loading materials…</div>';
+    fetch('/api/agent/assets?site=' + encodeURIComponent(site) + '&product=' + encodeURIComponent(product))
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var assets = j.assets || [];
+        _assetsCache[cacheKey] = assets;
+        _buildAssetsPanelHtml(ap, assets);
+      })
+      .catch(function () { ap.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8">No product materials</div>'; });
+  }
+
+  // ── Quotation section ──────────────────────────────────────────
+  function renderQuoteSection() {
+    // OV6-1F-AT uses a fixed RM down payment — enforce it on every render so no code path can leave it as a %.
+    if (site === 'Semenyih-NMG' && product === 'OV6-1F-AT' && dpPct !== 100) _dpFixedRm = 4000;
+    var el = qs('quote-body');
+    if (!el) return;
+    var pdfBtn = qs('btn-pdf');
+    if (pdfBtn) pdfBtn.style.display = lotQuotes.length ? '' : 'none';
+    // Preserve horizontal scroll so new columns appear in place without jumping left
+    var qtScrollEl = el.querySelector('.qt-scroll');
+    var savedQtScroll = qtScrollEl ? qtScrollEl.scrollLeft : 0;
+
+    if (!lotQuotes.length) {
+      el.innerHTML = '<div class="quote-empty"><span class="qe-icon">📋</span><span class="qe-msg">'
+        + (!product ? 'Select a site and zone to get started' : 'Tap available niches above to compare prices (up to 9)')
+        + '</span></div>';
+      return;
+    }
+
+    // Detect instant-case-only products (Package Plot / Semenyih-NMG NV-R)
+    var firstLd = lotQuotes[0] && lotQuotes[0].levelData;
+    var isInstantCase = (firstLd && firstLd.product_category === 'Package Plot')
+      || (site === 'Semenyih-NMG' && product.toUpperCase() === 'NV-P')
+      || (site === 'Shah Alam' && product.toUpperCase().startsWith('HC') && firstLd && !firstLd.pre_need_price);
+
+    // Auto-set mode on first lot selection for this product
+    if (!dpAutoSet) {
+      if (isInstantCase) {
+        asNeedMode = true;
+      } else {
+        var autoPromo = firstLd && firstLd.promo;
+        if (autoPromo && autoPromo.min_down_payment_pct) {
+          dpPct = autoPromo.min_down_payment_pct;
+        } else {
+          // Promo is always returned by the API regardless of dp (min_promo_dp enforced by
+          // the warning overlay in the frontend). Auto-set: if promo carries a min DP, jump
+          // straight to it so the agent sees the correct instalment breakdown immediately.
+          var _autoMinDp = lotQuotes[0] && lotQuotes[0].siteInfo && lotQuotes[0].siteInfo.min_promo_dp;
+          if (_autoMinDp && dpPct < _autoMinDp) dpPct = _autoMinDp;
+        }
+      }
+      dpAutoSet = true;
+    }
+
+    // Build promo info note
+    var promoNoteHtml = '';
+    if (isInstantCase) {
+      promoNoteHtml = '<div class="promo-note promo-note-instant no-print">⚡ For Instant Case Use Only</div>';
+    } else if (window.AgentCombo && window.AgentCombo.hasComboLot(lotQuotes)) {
+      var comboRow = window.AgentCombo.getFirstComboRow && window.AgentCombo.getFirstComboRow(lotQuotes);
+      var comboParts = [comboRow && comboRow.promo_name ? comboRow.promo_name : 'Combo Lot Promo'];
+      if (comboRow && comboRow.min_down_payment_pct) comboParts.push(comboRow.min_down_payment_pct + '% DP');
+      if (comboRow && comboRow.max_instalment_months) comboParts.push(comboRow.max_instalment_months + ' mths Inst');
+      if (comboRow && comboRow.promo_end_date) comboParts.push('Valid until ' + comboRow.promo_end_date);
+      promoNoteHtml = '<div class="promo-note no-print">🎁 ' + comboParts.join(' • ') + '</div>';
+    } else {
+      // For Pedestal: show all available promo types (instalment + full payment) as separate rows.
+      var _promoSummary = lotQuotes[0] && lotQuotes[0].siteInfo && lotQuotes[0].siteInfo.promo_summary;
+      if (_promoSummary && _promoSummary.length) {
+        var _promoRows = _promoSummary.map(function (p) {
+          var parts = [p.promo_name || 'Promo'];
+          if (p.lot_type) parts.push(p.lot_type);
+          if (p.level_restriction) parts.push('Lvl ' + p.level_restriction);
+          if (p.lot_range) parts.push(p.lot_range);
+          if (p.purchase_condition === 'cash_purchase') {
+            parts.push('Full Payment');
+          } else if (p.min_down_payment_pct) {
+            parts.push(p.min_down_payment_pct + '% DP');
+          }
+          if (p.max_instalment_months) parts.push(p.max_instalment_months + ' mths Inst');
+          if (p.discount_rm) parts.push('RM' + Number(p.discount_rm).toLocaleString('en-MY') + ' Disc');
+          else if (p.discount_pct) parts.push(p.discount_pct + '% Disc');
+          return '<div class="promo-note">🎁 ' + parts.join(' • ') + '</div>';
+        }).join('');
+        var _promoCount = _promoSummary.length;
+        promoNoteHtml = '<div class="promo-collapse no-print">'
+          + '<div class="promo-collapse-header">🎁 ' + _promoCount + ' Promo' + (_promoCount > 1 ? 's' : '') + ' Available <span class="promo-collapse-arrow">▼</span></div>'
+          + '<div class="promo-collapse-body" hidden>' + _promoRows + '</div>'
+          + '</div>';
+      }
+      var notePromo = firstLd && firstLd.promo;
+      if (!promoNoteHtml && notePromo && notePromo.promo_name) {
+        var noteParts = [notePromo.promo_name];
+        if (notePromo.min_down_payment_pct === 100) {
+          noteParts.push('Full Payment');
+        } else if (notePromo.dp_tiers && notePromo.dp_tiers.length) {
+          noteParts.push('DP tiers: ' + notePromo.dp_tiers.join('%, ') + '%');
+        } else if (notePromo.min_down_payment_pct) {
+          noteParts.push('Min. ' + notePromo.min_down_payment_pct + '% DP');
+        }
+        if (notePromo.max_instalment_months) noteParts.push(notePromo.max_instalment_months + ' mths Inst');
+        if (notePromo.discount_rm) {
+          noteParts.push('RM' + Number(notePromo.discount_rm).toLocaleString('en-MY') + ' Disc');
+        } else if (notePromo.discount_pct) {
+          noteParts.push(notePromo.discount_pct + '% Disc');
+        }
+        promoNoteHtml = '<div class="promo-collapse no-print">'
+          + '<div class="promo-collapse-header">🎁 1 Promo Available <span class="promo-collapse-arrow">▼</span></div>'
+          + '<div class="promo-collapse-body" hidden><div class="promo-note">🎁 ' + noteParts.join(' • ') + '</div></div>'
+          + '</div>';
+      }
+    }
+
+    var firstCat = (firstLd && firstLd.product_category) || '';
+    // EBL has no DP concept at all — hide the entire DP strip.
+    // Pedestal still needs DP pills and Full Payment; only hide the As-Need pill.
+    var isOneTimePayment = product.toUpperCase().startsWith('EBL') || firstCat === 'EBL';
+    var hideAsNeed = isOneTimePayment || firstCat === 'Pedestal';
+    // Compute min promo DP before rendering pills so we can hide invalid options.
+    var _minPromoDp = lotQuotes.length > 0 && lotQuotes[0].siteInfo
+      ? (lotQuotes[0].siteInfo.min_promo_dp || null) : null;
+    // Collect unique RM-based DP values from selected lots' promos.
+    var _rmDpValues = [];
+    lotQuotes.forEach(function (q) {
+      var p = q.levelData && q.levelData.promo;
+      if (p && p.min_dp_rm != null) {
+        var v = Number(p.min_dp_rm);
+        if (_rmDpValues.indexOf(v) < 0) _rmDpValues.push(v);
+      }
+    });
+    // Legacy OV6-1F-AT fallback — treat as RM 4,000 pill
+    if (_rmDpValues.length === 0 && site === 'Semenyih-NMG' && product === 'OV6-1F-AT') {
+      _rmDpValues = [4000];
+    }
+    // If switching away from an RM-based lot, clear any leftover fixed RM.
+    if (_rmDpValues.length === 0 && _dpFixedRm != null) _dpFixedRm = null;
+    var dpHtml = '';
+    if (!isOneTimePayment) {
+      dpHtml = '<div id="dp-strip" class="no-print"><span class="lbl">Down Payment:</span>';
+      if (!isInstantCase) {
+        if (_rmDpValues.length > 0) {
+          _rmDpValues.slice().sort(function (a, b) { return a - b; }).forEach(function (v) {
+            // Default "on" to smallest RM value when nothing has been explicitly clicked yet.
+            var isOn = !asNeedMode && (_dpFixedRm === v || (_dpFixedRm == null && v === Math.min.apply(null, _rmDpValues)));
+            dpHtml += '<div class="dp-pill' + (isOn ? ' on' : '') + '" data-pct="rm' + v + '">RM' + fmt(v) + '</div>';
+          });
+          dpHtml += '<div class="dp-pill' + (!asNeedMode && dpPct === 100 ? ' on' : '') + '" data-pct="100">Full Payment</div>';
+        } else {
+          [10, 20, 30, 50, 100].filter(function (p) {
+            return p === 100 || !_minPromoDp || p >= _minPromoDp;
+          }).forEach(function (p) {
+            var label = p === 100 ? 'Full Payment' : p + '%';
+            dpHtml += '<div class="dp-pill' + (!asNeedMode && dpPct === p ? ' on' : '') + '" data-pct="' + p + '">' + label + '</div>';
+          });
+        }
+      }
+      if (!hideAsNeed) dpHtml += '<div class="dp-pill dp-asneed' + (asNeedMode ? ' on' : '') + '" data-pct="as-need">As-Need</div>';
+      dpHtml += '</div>';
+    }
+
+    // If the current DP is below the minimum promo DP, auto-bump to the minimum and re-render.
+    if (_minPromoDp && !asNeedMode && dpPct < _minPromoDp) {
+      dpPct = _minPromoDp;
+      saveSession();
+      renderQuoteSection();
+      return;
+    }
+
+    el.innerHTML = dpHtml + promoNoteHtml + '<div id="bundle-slot"></div>' + buildMatrixHtml();
+
+    var _collapseHeader = el.querySelector('.promo-collapse-header');
+    if (_collapseHeader) {
+      _collapseHeader.addEventListener('click', function () {
+        var _body = _collapseHeader.parentNode.querySelector('.promo-collapse-body');
+        var _arrow = _collapseHeader.querySelector('.promo-collapse-arrow');
+        var _open = !_body.hidden;
+        _body.hidden = _open;
+        if (_arrow) _arrow.textContent = _open ? '▼' : '▲';
+      });
+    }
+
+    if (window.AgentBundle && !SOUTHERN_SITES[(site || '').toLowerCase()]) window.AgentBundle.afterRender(el, lotQuotes, function () { renderQuoteSection(); });
+
+    // PWP (Purchase with Purchase) bundle — agent selects BOTH Level 1 and Level 2 from the layout.
+    // When only one level is selected, show a message guiding the agent to pick the other.
+    // When both are in lotQuotes, auto-fetch Level 2 with purchase_with_purchase promo (RM 8,000)
+    // and render the 3-column PWP matrix.
+    if (_pwpHasOption && lotQuotes.length > 0) {
+      function _getLotLevel(lotCode) {
+        var _p = lotCode.split('-');
+        return _p.length >= 2 ? (_p[1].replace(/^0+/, '') || _p[1]) : '';
+      }
+      var _pwpHasL1 = lotQuotes.some(function (q) { return _getLotLevel(q.lotCode) === '1'; });
+      var _pwpHasL2 = lotQuotes.some(function (q) { return _getLotLevel(q.lotCode) === '2'; });
+
+      var _pwpSlot = document.getElementById('bundle-slot');
+      var _pwpTarget = _pwpSlot || el;
+
+      if (_pwpHasL1 && _pwpHasL2) {
+        // Both lots selected — auto-fetch with PWP promo if not yet done
+        if (!_pwpBundleActive && !_pwpFetching) {
+          _pwpFetching = true;
+          var _l2q = lotQuotes.find(function (q) { return _getLotLevel(q.lotCode) === '2'; });
+          if (_l2q) {
+            var _m2   = lotMeta[_l2q.lotCode] || {};
+            var _blk2 = _m2.block || (_l2q.siteInfo && _l2q.siteInfo.block) || product;
+            var _sec2 = _m2.section_group || (_l2q.siteInfo && _l2q.siteInfo.section) || 'DEFAULT';
+            fetch('/api/agent/quotation'
+              + '?site='    + encodeURIComponent(site)
+              + '&product=' + encodeURIComponent(product)
+              + '&block='   + encodeURIComponent(_blk2)
+              + '&section=' + encodeURIComponent(_sec2)
+              + '&levels=2'
+              + '&dp=' + dpPct
+              + '&promo=purchase_with_purchase')
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+              _pwpFetching = false;
+              if (!json.error && json.levels && json.levels.length) {
+                _pwpBundleActive = true;
+                _pwpLevel2Data   = { levelData: json.levels[0], siteInfo: json };
+                renderQuoteSection();
+              }
+            }).catch(function () { _pwpFetching = false; });
+          }
+        }
+        if (_pwpBundleActive) {
+          var _pwpActiveDiv = document.createElement('div');
+          _pwpActiveDiv.className = 'bundle-section no-print';
+          _pwpActiveDiv.innerHTML = '<div class="bundle-section-header">'
+            + '<span class="bundle-section-title">Purchase with Purchase (PWP) 同步购买</span>'
+            + '</div>';
+          _pwpTarget.appendChild(_pwpActiveDiv);
+        }
+      } else {
+        // Only one level selected — show guidance message
+        _pwpBundleActive = false; _pwpLevel2Data = null; _pwpFetching = false;
+        var _pwpMsg = _pwpHasL1
+          ? 'Select a <strong>2nd unit</strong> from the layout to activate PWP bundle promo (Additional Discount RM 6,000).'
+          : 'Select a unit from the layout to activate PWP bundle promo.';
+        var _pwpMsgDiv = document.createElement('div');
+        _pwpMsgDiv.className = 'bundle-trigger no-print';
+        _pwpMsgDiv.innerHTML = '<p style="margin:0;padding:8px 12px;font-size:12px;color:#0369a1">'
+          + '⬆ PWP Bundle 同步购买: ' + _pwpMsg + '</p>';
+        _pwpTarget.appendChild(_pwpMsgDiv);
+      }
+    }
+
+    // Restore scroll position after browser finishes layout (defer one frame)
+    if (savedQtScroll > 0) {
+      var elRef = el;
+      var scrollTarget = savedQtScroll;
+      requestAnimationFrame(function () {
+        var s = elRef.querySelector('.qt-scroll');
+        if (s) s.scrollLeft = scrollTarget;
+      });
+    }
+
+    el.querySelectorAll('.dp-pill[data-pct]').forEach(function (pill) {
+      pill.addEventListener('click', function () {
+        if (pill.dataset.pct === 'as-need') {
+          asNeedMode = !asNeedMode;
+          saveSession(); renderQuoteSection();
+          return;
+        }
+        asNeedMode = false;
+        var prevDp = dpPct;
+        if (pill.dataset.pct.startsWith('rm')) {
+          _dpFixedRm = parseInt(pill.dataset.pct.replace('rm', ''), 10);
+          dpPct = 10; // instalment sentinel — ensures API excludes cash_purchase promo
+        } else {
+          _dpFixedRm = null;
+          dpPct = parseInt(pill.dataset.pct);
+        }
+        // Virtual sections (lot-range-restricted) must re-filter levels for the new DP tier
+        if (prevDp !== dpPct && _virtualBlk && _virtualSec) {
+          onPromoCardTap(_virtualBlk, _virtualSec);
+          saveSession();
+          return;
+        }
+        // Burial lots with restricted promos are DP-tier sensitive — re-fetch per lot with new DP
+        var burialLotQuotes = lotQuotes.filter(function (q) { return q._burialLotNum != null; });
+        if (prevDp !== dpPct && burialLotQuotes.length) {
+          var bFetches = burialLotQuotes.map(function (q) {
+            var bUrl = '/api/agent/quotation?site=' + encodeURIComponent(site)
+              + '&product=' + encodeURIComponent(product)
+              + '&block='   + encodeURIComponent(q._block)
+              + '&section=' + encodeURIComponent(q._section)
+              + '&lot='     + q._burialLotNum
+              + '&dp='      + dpPct;
+            return fetch(bUrl).then(function (r) { return r.json(); }).then(function (j) {
+              if (!j || j.error || !j.levels) return;
+              q.levelData = j.levels[0];
+            });
+          });
+          Promise.all(bFetches).then(function () { renderQuoteSection(); });
+          saveSession();
+          return;
+        }
+        // Re-fetch promo for regular lots when DP changes (instalment vs cash promo selection)
+        if (prevDp !== dpPct && lotQuotes.length && !window.AgentN3?.hasN3(site)) {
+          var regularQuotes = lotQuotes.filter(function (q) { return q._burialLotNum == null && !_virtualBlk; });
+          if (regularQuotes.length) {
+            // Group by (block + section + nicheSection) so each group gets its own fetch with correct niche_section
+            var fetchGroups = {};
+            regularQuotes.forEach(function (q) {
+              var blk = q._blk || (q.siteInfo && q.siteInfo.block);
+              var sec = q._sec || (q.siteInfo && q.siteInfo.section);
+              var ns = q._nicheSection || '';
+              var gk = (blk || '') + '|' + (sec || '') + '|' + ns;
+              if (!fetchGroups[gk]) fetchGroups[gk] = { blk: blk, sec: sec, ns: ns, quotes: [] };
+              fetchGroups[gk].quotes.push(q);
+            });
+            var groupKeys = Object.keys(fetchGroups).filter(function (gk) {
+              return fetchGroups[gk].blk && fetchGroups[gk].sec;
+            });
+            if (groupKeys.length) {
+              var pending = groupKeys.length;
+              function onGroupDone() { pending--; if (!pending) renderQuoteSection(); }
+              groupKeys.forEach(function (gk) {
+                var g = fetchGroups[gk];
+                var url = '/api/agent/quotation?site=' + encodeURIComponent(site) + '&product=' + encodeURIComponent(product) + '&block=' + encodeURIComponent(g.blk) + '&section=' + encodeURIComponent(g.sec) + '&dp=' + dpPct + (g.ns ? '&niche_section=' + encodeURIComponent(g.ns) : '');
+                fetch(url)
+                  .then(function (r) { return r.json(); })
+                  .then(function (j) {
+                    if (!j || j.error || !j.levels) { onGroupDone(); return; }
+                    var promoByLevel = {};
+                    j.levels.forEach(function (lv) {
+                      var key = lv.level != null ? String(lv.level) : 'std';
+                      promoByLevel[key] = lv.promo;
+                    });
+                    g.quotes.forEach(function (q) {
+                      var ld = q.levelData;
+                      if (!ld) return;
+                      var key = ld.level != null ? String(ld.level) : 'std';
+                      if (promoByLevel[key] !== undefined) ld.promo = promoByLevel[key];
+                    });
+                    onGroupDone();
+                  }).catch(function () { onGroupDone(); });
+              });
+              saveSession();
+              return;
+            }
+          }
+        }
+        // N3 promos are DP-tier sensitive — re-fetch promo only, update in place (don't replace lots)
+        if (prevDp !== dpPct && window.AgentN3 && window.AgentN3.hasN3(site)) {
+          var q0 = lotQuotes[0];
+          var refBlk = q0 && (q0._blk || (q0.siteInfo && q0.siteInfo.block));
+          var refSec = q0 && (q0._sec || (q0.siteInfo && q0.siteInfo.section));
+          if (refBlk && refSec) {
+            fetch('/api/agent/quotation?site=' + encodeURIComponent(site) + '&product=' + encodeURIComponent(product) + '&block=' + encodeURIComponent(refBlk) + '&section=' + encodeURIComponent(refSec) + '&dp=' + dpPct)
+              .then(function (r) { return r.json(); })
+              .then(function (j) {
+                if (!j || j.error || !j.levels) return;
+                var promoByLevel = {};
+                j.levels.forEach(function (lv) {
+                  var key = lv.level != null ? String(lv.level) : (lv.lot_no != null ? String(lv.lot_no) : 'std');
+                  promoByLevel[key] = lv.promo;
+                });
+                lotQuotes.forEach(function (q) {
+                  var ld = q.levelData;
+                  var key = ld.level != null ? String(ld.level) : (ld.lot_no != null ? String(ld.lot_no) : 'std');
+                  if (key in promoByLevel) ld.promo = promoByLevel[key];
+                });
+                renderQuoteSection();
+              });
+            saveSession();
+            return;
+          }
+        }
+        saveSession(); renderQuoteSection();
+      });
+    });
+
+    // Tomb type buttons (Southern Region combo lot zones)
+    el.querySelectorAll('[data-tomb-code]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        _tombType = btn.getAttribute('data-tomb-code');
+        renderQuoteSection();
+      });
+    });
+  }
+
+  function buildWorshipPlanHtml(calcs, plans) {
+    var info = lotQuotes[0].siteInfo;
+    var firstCalc = calcs[0];
+
+    // 1-year data from the standard level row
+    var yr1AsNeed  = firstCalc.q.levelData.as_need_price || firstCalc.q.levelData.pre_need_price || 0;
+    var yr1Trust   = firstCalc.q.levelData.trust_account_facility || 0;
+    var yr1Total   = yr1AsNeed + yr1Trust;
+    var yr1Dp      = Math.round(yr1Total * dpPct / 100);
+    var yr1Balance = yr1Total - yr1Dp;
+
+    // 3-year data from the worship plan row
+    var plan3 = null;
+    for (var i = 0; i < plans.length; i++) {
+      if ((plans[i].size_description || '').toLowerCase().indexOf('3') >= 0) { plan3 = plans[i]; break; }
+    }
+    var yr3PreNeed = plan3 ? (plan3.pre_need_price || 0) : 0;
+    var yr3Trust   = plan3 ? (plan3.trust_account_facility || yr1Trust) : yr1Trust;
+    var yr3Total   = yr3PreNeed + yr3Trust;
+    var yr3Dp      = Math.round(yr3Total * dpPct / 100);
+    var yr3Balance = yr3Total - yr3Dp;
+
+    var h = '<div style="position:relative;border:2px solid #1a3a6b;border-radius:6px;overflow:hidden">';
+    h += '<div class="wm-wrap" aria-hidden="true"><div class="wm-text">BDD1228</div></div>';
+    h += '<div class="qt-header">';
+    h += '<div class="h-brand">' + esc(info.site_name_en || info.site) + '</div>';
+    if (info.site_name_zh) h += '<div class="h-site-zh">' + esc(info.site_name_zh) + '</div>';
+    h += renderZoneSection(info);
+    if (lotQuotes[0] && lotQuotes[0].lotCode) h += '<div class="h-lot">Lot: ' + esc(lotQuotes[0].lotCode) + '</div>';
+    h += '<div class="h-category"><span style="font-weight:400;opacity:0.65">Product:</span> ' + esc((info.lot_type ? info.lot_type + ' ' : '') + ((info.product_category || '').toLowerCase().indexOf('burial') >= 0 ? 'Plot' : (info.product_category || ''))) + '</div>';
+    h += '</div>';
+
+    h += '<div class="qt-scroll"><table class="qt"><thead></thead><tbody>';
+
+    function wpRow(cls, label, zh, v1, v2) {
+      return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>'
+        + '<td>' + label + '</td><td>' + zh + '</td>'
+        + '<td class="tv">' + v1 + '</td>'
+        + '<td class="tv">' + v2 + '</td>'
+        + '</tr>';
+    }
+    function wpSep() { return '<tr class="tsep"><td colspan="4"></td></tr>'; }
+    function wpRule() { return '<tr class="tnet-rule"><td colspan="4"></td></tr>'; }
+
+    h += wpRow('', 'Selling Price', '售价', fmt(yr1AsNeed), fmt(yr3PreNeed));
+    h += wpRow('', 'Trust Account 3 &amp; Facility Cost', '储托账户3及设施款项', fmt(yr1Trust), fmt(yr3Trust));
+    h += wpRow('tbold', 'Total Price', '总价', fmt(yr1Total), fmt(yr3Total));
+    h += wpRule();
+    h += '<tr class="tnet"><td colspan="2">NET TOTAL PRICE 净价</td>'
+      + '<td class="tv">' + fmt(yr1Total) + '</td>'
+      + '<td class="tv">' + fmt(yr3Total) + '</td>'
+      + '</tr>' + wpRule();
+    h += '</tbody></table></div>';
+    h += '<div class="qt-footer">';
+    h += '<p style="margin-top:5px">*公司保留权力，在必须时随时更改以上价格</p>';
+    h += '<p>*Company reserves the rights to amend any of the above terms and conditions when it deemed fit.</p>';
+    h += '</div></div>';
+    return h;
+  }
+
+  function buildNoPromoHtml(calcs) {
+    var _isEbl = calcs.some(function (x) { return (x.q.levelData.product_category || '').toLowerCase() === 'ebl'; });
+    if (_isEbl && worshipPlans.length) return buildWorshipPlanHtml(calcs, worshipPlans);
+    var hasBackwall = calcs.some(function (x) { return (x.q.levelData.backwall_cost || 0) > 0; });
+    var info = lotQuotes[0].siteInfo;
+    var n = calcs.length + 2;
+    var lotCodes = calcs.map(function (x) { return x.q.lotCode; });
+
+    function row(cls, label, zh, vals) {
+      var r = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + label + '</td><td>' + zh + '</td>';
+      vals.forEach(function (v, ci) {
+        var lc = lotCodes[ci];
+        var hid = hiddenCols[lc] ? ' col-hidden' : '';
+        r += '<td class="tv' + hid + '" data-col="' + lc + '">' + v + '</td>';
+      });
+      return r + '</tr>';
+    }
+    function sep() { return '<tr class="tsep"><td colspan="' + n + '"></td></tr>'; }
+    function rule() { return '<tr class="tnet-rule"><td colspan="' + n + '"></td></tr>'; }
+
+    var h = '<div style="position:relative;border:2px solid #1a3a6b;border-radius:6px;overflow:hidden">';
+    h += '<div class="wm-wrap" aria-hidden="true"><div class="wm-text">BDD1228</div></div>';
+    h += '<div class="qt-header">';
+    h += '<div class="h-brand">' + esc(info.site_name_en || info.site) + '</div>';
+    if (info.site_name_zh) h += '<div class="h-site-zh">' + esc(info.site_name_zh) + '</div>';
+    h += renderZoneSection(info);
+    var _nlpReligion = (info.product_category === 'NLP' && lotQuotes[0] && lotQuotes[0].nlpReligion) ? lotQuotes[0].nlpReligion : '';
+    h += '<div class="h-category"><span style="font-weight:400;opacity:0.65">Product:</span> ' + esc((info.lot_type ? info.lot_type + ' ' : '') + ((info.product_category || '').toLowerCase().indexOf('burial') >= 0 ? 'Plot' : (info.product_category || ''))) + (_nlpReligion ? ' — ' + _nlpReligion : '') + '</div>';
+    h += '</div>';
+
+    h += '<div class="qt-scroll"><table class="qt"><thead>';
+    h += '<tr class="no-print col-toggle-row"><th colspan="2" style="font-size:10px;color:#94a3b8;padding:4px 8px">Print columns:</th>';
+    calcs.forEach(function (x) {
+      var lc = x.q.lotCode;
+      h += '<th class="tc-val" style="text-align:center;padding:4px">'
+        + '<input type="checkbox" class="col-toggle" data-col="' + lc + '"' + (hiddenCols[lc] ? '' : ' checked') + ' style="width:16px;height:16px;cursor:pointer">'
+        + '</th>';
+    });
+    h += '</tr>';
+    h += '</thead><tbody>';
+
+    var _pdTnr = info.tenure || null; var _pdDir = info.direction || null; var _bcmRaw = info.bury_capacity_map || {}; var _pdBcM = {}; Object.keys(_bcmRaw).forEach(function(k){ _pdBcM[k.toLowerCase()] = _bcmRaw[k]; }); var _pdCatL = (info.product_category || '').toLowerCase(); var _pdIsLand = _pdCatL.indexOf('burial') >= 0 || _pdCatL === 'urn burial' || _pdCatL === 'land'; var _pdHasSize = calcs.some(function (x) { return !!(x.q.levelData && x.q.levelData.size_description); }); var _bcKeys = Object.keys(_pdBcM); var _bcFallback = _bcKeys.length === 1 ? _bcKeys[0] : ''; var _pdHasCap = calcs.some(function (x) { var lt = ((x.q.levelData && x.q.levelData.lot_type) || info.lot_type || _bcFallback).toLowerCase(); return !!_pdBcM[lt]; }); var _pdHasDir = _pdIsLand && _pdDir && _pdDir !== 'N/A' && _pdDir !== 'sold out';
+    var _dirZh = { 'North': '北', 'South': '南', 'East': '东', 'West': '西', 'North East': '东北', 'Northeast': '东北', 'North West': '西北', 'Northwest': '西北', 'South East': '东南', 'Southeast': '东南', 'South West': '西南', 'Southwest': '西南' };
+    var _tnrZh = { 'Freehold': '永久地契', 'Leasehold': '有期地契' };
+    h += '<tr class="tsection-hdr"><td colspan="' + n + '">Product Details 产品资料</td></tr>';
+    if (_pdTnr) h += row('tinfo no-print', 'Tenure', '地契性质', calcs.map(function () { var zh = _tnrZh[_pdTnr] || ''; return esc(_pdTnr + (zh ? ' ' + zh : '')); }));
+    if (_pdHasDir) h += row('tinfo', 'Direction', '朝向', calcs.map(function () { var zh = _dirZh[_pdDir] || ''; return esc(_pdDir + (zh ? ' ' + zh : '')); }));
+    if (_pdHasSize) h += row('tinfo', 'Size', '面积', calcs.map(function (x) { return esc((x.q.levelData && x.q.levelData.size_description) || '—'); }));
+    var _bcKeys = Object.keys(_pdBcM); var _bcFallback = _bcKeys.length === 1 ? _bcKeys[0] : '';
+    if (_pdHasCap) h += row('tinfo', 'Capacity', '可安葬人数', calcs.map(function (x) { var lt = ((x.q.levelData && x.q.levelData.lot_type) || info.lot_type || _bcFallback).toLowerCase(); var cap = _pdBcM[lt]; return cap ? cap + ' 位' + (lt === 'super double' ? ' (2 land + 2 niche)' : '') : '—'; }));
+    h += '<tr class="tsection-hdr"><td colspan="2">Description 描述</td><td style="text-align:center"><div style="font-size:10px;font-weight:700">1 Year</div><div style="font-size:9px;font-weight:400;opacity:0.8">As Need / 常规</div></td><td style="text-align:center"><div style="font-size:10px;font-weight:700">3 Years</div><div style="font-size:9px;font-weight:400;opacity:0.8">Pre Need / 事前</div></td></tr>';
+
+    var anDiscPct = asNeedMode ? ((lotQuotes[0] && lotQuotes[0].siteInfo && lotQuotes[0].siteInfo.as_need_discount_pct) || 0) : 0;
+    var hasPedestalSpecialPromo = calcs.some(function (x) {
+      return x.q.levelData.total_pre_need_price != null && (x.q.levelData.product_category || '') === 'Pedestal';
+    });
+    h += row('', 'Original Price', '原价', calcs.map(function (x) { return fmt(x.c.originalPrice); }));
+    if (asNeedMode && anDiscPct) {
+      h += row('tred', 'As-Need Discount ' + anDiscPct + '% 即时折扣', '', calcs.map(function (x) {
+        return '- ' + fmt(Math.round(x.c.originalPrice * anDiscPct / 100));
+      }));
+    }
+    if (!asNeedMode && hasPedestalSpecialPromo) {
+      h += row('', 'Pre-Launch Price', '推介价', calcs.map(function (x) { return fmt(x.q.levelData.pre_need_price || 0); }));
+      h += row('tbold tpnp', 'Special Promotion Price', '特惠价', calcs.map(function (x) { return fmt(x.q.levelData.total_pre_need_price || 0); }));
+    } else if (!asNeedMode) {
+      h += row('tbold tpnp', 'Pre Need Price', '价格', calcs.map(function (x) { return fmt(x.c.preNeedPrice); }));
+    }
+    if (calcs.some(function (x) { return x.c.trust > 0; })) h += row('', 'Trust Account 3 &amp; Facility Cost', '储托账户3及设施款项', calcs.map(function (x) { return fmt(x.c.trust); }));
+    if (hasBackwall) h += row('', 'Backwall Cost', '后壁费用', calcs.map(function (x) { return (x.q.levelData.backwall_cost || 0) > 0 ? fmt(x.c.backwall) : '—'; }));
+    h += row('tbold', 'Total Price', '总价', calcs.map(function (x) {
+      if (asNeedMode) {
+        var disc = anDiscPct ? Math.round(x.c.originalPrice * anDiscPct / 100) : 0;
+        return fmt(x.c.originalPrice - disc + (x.c.trust || 0) + (x.c.backwall || 0));
+      }
+      return fmt(x.c.totalPrice);
+    }));
+    if (!asNeedMode) {
+      var fullPmt = dpPct === 100;
+      if (!fullPmt) {
+        h += sep();
+        var _dpLabel = _dpFixedRm != null ? '<strong>RM' + fmt(_dpFixedRm) + '</strong>' : '<strong>' + dpPct + '%</strong>';
+        h += row('', _dpLabel + ' Down Payment', '头期', calcs.map(function (x) { return fmt(x.c.downPayment); }));
+        h += row('', 'Balance', '余额', calcs.map(function (x) { return fmt(x.c.balance); }));
+      }
+    }
+    h += rule();
+    h += '<tr class="tnet"><td colspan="2">NET TOTAL PRICE 净价</td>';
+    calcs.forEach(function (x) {
+      var lc = x.q.lotCode;
+      var hid = hiddenCols[lc] ? ' col-hidden' : '';
+      var netVal;
+      if (asNeedMode) {
+        var disc = anDiscPct ? Math.round(x.c.originalPrice * anDiscPct / 100) : 0;
+        netVal = x.c.originalPrice - disc + (x.c.trust || 0) + (x.c.backwall || 0);
+      } else {
+        netVal = x.c.netTotalPrice;
+      }
+      h += '<td class="tv' + hid + '" data-col="' + lc + '">' + fmt(netVal) + '</td>';
+    });
+    h += '</tr>' + rule();
+    h += '</tbody></table></div>';
+    h += '<div class="qt-footer">';
+    h += '<p style="margin-top:5px">*公司保留权力，在必须时随时更改以上价格</p>';
+    h += '<p>*Company reserves the rights to amend any of the above terms and conditions when it deemed fit.</p>';
+    h += '</div></div>';
+    return h;
+  }
+
+  function buildPackagePlotHtml(calcs) {
+    var info = lotQuotes[0].siteInfo;
+    var n = calcs.length + 2;
+    var lotCodes = calcs.map(function (x) { return x.q.lotCode; });
+
+    function row(cls, label, zh, vals) {
+      var r = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + label + '</td><td>' + zh + '</td>';
+      vals.forEach(function (v, ci) {
+        var lc = lotCodes[ci];
+        var hid = hiddenCols[lc] ? ' col-hidden' : '';
+        r += '<td class="tv' + hid + '" data-col="' + lc + '">' + v + '</td>';
+      });
+      return r + '</tr>';
+    }
+    function sep() { return '<tr class="tsep"><td colspan="' + n + '"></td></tr>'; }
+    function rule() { return '<tr class="tnet-rule"><td colspan="' + n + '"></td></tr>'; }
+
+    var h = '<div style="position:relative;border:2px solid #1a3a6b;border-radius:6px;overflow:hidden">';
+    h += '<div class="wm-wrap" aria-hidden="true"><div class="wm-text">BDD1228</div></div>';
+    h += '<div class="qt-header">';
+    h += '<div class="h-brand">' + esc(info.site_name_en || info.site) + '</div>';
+    if (info.site_name_zh) h += '<div class="h-site-zh">' + esc(info.site_name_zh) + '</div>';
+    h += renderZoneSection(info);
+    h += '<div class="h-category">Package Plot</div>';
+    h += '</div>';
+
+    h += '<div class="qt-scroll"><table class="qt"><thead>';
+    h += '<tr class="no-print col-toggle-row"><th colspan="2" style="font-size:10px;color:#94a3b8;padding:4px 8px">Print columns:</th>';
+    calcs.forEach(function (x) {
+      var lc = x.q.lotCode;
+      h += '<th class="tc-val" style="text-align:center;padding:4px">'
+        + '<input type="checkbox" class="col-toggle" data-col="' + lc + '"' + (hiddenCols[lc] ? '' : ' checked') + ' style="width:16px;height:16px;cursor:pointer">'
+        + '</th>';
+    });
+    h += '</tr>';
+    h += '<tr><th class="tc-lbl" colspan="2">Description 描述</th>';
+    calcs.forEach(function (x) {
+      var lc = x.q.lotCode;
+      var hid = hiddenCols[lc] ? ' col-hidden' : '';
+      var ln = x.q.levelData.lot_no || '';
+      var sectionPart = ln.split('(')[0].trim() || x.q.section;
+      var lotRange = '';
+      var rm = ln.match(/\(([^)]+)\)/);
+      if (rm) {
+        var inner = rm[1];
+        if (inner.indexOf('~') >= 0) {
+          var rp = inner.split('~');
+          lotRange = 'Lots ' + rp[0].trim() + '–' + rp[1].trim();
+        } else {
+          lotRange = 'Lot ' + inner.trim();
+        }
+      }
+      h += '<th class="tc-val' + hid + '" data-col="' + lc + '" style="min-width:90px">'
+        + '<div style="font-size:10px;font-weight:700">' + esc(lotRange || ln || lc) + '</div>'
+        + (x.q.levelData.size_description ? '<div style="font-size:8px;font-weight:400;opacity:0.65;letter-spacing:-0.2px">' + esc(x.q.levelData.size_description) + '</div>' : '')
+        + '</th>';
+    });
+    h += '</tr></thead><tbody>';
+
+    var hasTomb    = calcs.some(function (x) { return (x.q.levelData.tomb_price || 0) > 0; });
+    var hasHole    = calcs.some(function (x) { return (x.q.levelData.hole_excavation_fees || 0) > 0; });
+    var hasBack    = calcs.some(function (x) { return (x.q.levelData.backwall_cost || 0) > 0; });
+
+    var hasAsNeedDiscount = calcs.some(function (x) {
+      var promo = x.q.levelData.promo;
+      return promo && promo.purchase_condition === 'as_need' && promo.discount_pct;
+    });
+
+    h += row('tbold tpnp', 'Plot Price', '骨灰地价格', calcs.map(function (x) { return fmt(x.q.levelData.as_need_price || 0); }));
+
+    if (hasAsNeedDiscount) {
+      h += row('tred', 'As-Need Discount 即时折扣', '', calcs.map(function (x) {
+        var promo = x.q.levelData.promo;
+        var discPct = promo && promo.purchase_condition === 'as_need' ? (promo.discount_pct || 0) : 0;
+        if (!discPct) return '—';
+        return '- ' + fmt(Math.round((x.q.levelData.as_need_price || 0) * discPct / 100));
+      }));
+    }
+
+    h += row('', 'Trust Account 3 &amp; Facility Cost', '储托账户3及设施款项', calcs.map(function (x) { return fmt(x.q.levelData.trust_account_facility || 0); }));
+    if (hasBack) h += row('', 'Backwall Cost', '后壁费用', calcs.map(function (x) { return (x.q.levelData.backwall_cost || 0) > 0 ? fmt(x.q.levelData.backwall_cost) : '—'; }));
+    if (hasHole) h += row('', 'Hole Excavation Fees', '挖掘费', calcs.map(function (x) { return (x.q.levelData.hole_excavation_fees || 0) > 0 ? fmt(x.q.levelData.hole_excavation_fees) : '—'; }));
+    if (hasTomb) h += row('', 'Tomb', '墓碑', calcs.map(function (x) { return (x.q.levelData.tomb_price || 0) > 0 ? fmt(x.q.levelData.tomb_price) : '—'; }));
+    h += sep();
+    h += rule();
+    h += '<tr class="tnet"><td colspan="2">TOTAL PACKAGE PRICE 配套总价</td>';
+    calcs.forEach(function (x) {
+      var lc = x.q.lotCode;
+      var hid = hiddenCols[lc] ? ' col-hidden' : '';
+      var promo = x.q.levelData.promo;
+      var discPct = (hasAsNeedDiscount && promo && promo.purchase_condition === 'as_need') ? (promo.discount_pct || 0) : 0;
+      var plotPrice = x.q.levelData.as_need_price || 0;
+      var discountedPlot = discPct ? Math.round(plotPrice * (1 - discPct / 100)) : plotPrice;
+      var total = discountedPlot
+                + (x.q.levelData.trust_account_facility || 0)
+                + (x.q.levelData.backwall_cost || 0)
+                + (x.q.levelData.hole_excavation_fees || 0)
+                + (x.q.levelData.tomb_price || 0);
+      h += '<td class="tv' + hid + '" data-col="' + lc + '">' + fmt(total) + '</td>';
+    });
+    h += '</tr>' + rule();
+    h += '</tbody></table></div>';
+    h += '<div class="qt-footer">';
+    h += '<p style="margin-top:5px">*公司保留权力，在必须时随时更改以上价格</p>';
+    h += '<p>*Company reserves the rights to amend any of the above terms and conditions when it deemed fit.</p>';
+    h += '</div></div>';
+    return h;
+  }
+
+  // ── PWP 3-column matrix: Level 1 | Level 2 | Total ────────────
+  // Level 1: Special Discount = c1.specialRebate (RM 2,000 from standard Customer Promo row)
+  // Level 2: Additional Discount = c2.specialRebate (RM 6,000 from purchase_with_purchase row)
+  // Each column stands alone; Total column sums every row across both levels.
+  function _buildPwpMatrixHtml(calc1, lvl2, dpPct, lot2Code) {
+    var q1   = calc1.q;
+    var c1   = calc1.c;
+    var ld2  = lvl2.levelData;
+    var c2   = calcMatrix(ld2, dpPct);
+    var info = q1.siteInfo;
+    var fmt  = function (n) { if (n == null || isNaN(n)) return '—'; return 'RM ' + Number(n).toLocaleString('en-MY', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); };
+    var fmtNeg = function (n) { if (!n || n <= 0) return '—'; return '<span style="color:#dc2626">(' + fmt(n) + ')</span>'; };
+
+    var tenure1 = c1.tenure || 0;
+    var tenure2 = c2.tenure || 0;
+    var maxTen  = Math.max(tenure1, tenure2);
+    var dpFull  = dpPct === 100;
+
+    // Total column values
+    var totalNet  = c1.netTotalPrice + c2.netTotalPrice;
+    var totalDp   = c1.downPayment   + c2.downPayment;
+    var totalBal  = c1.balance       + c2.balance;
+
+    function row3(cls, en, zh, v1, v2, vt) {
+      return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>'
+        + '<td>' + en + '</td><td>' + zh + '</td>'
+        + '<td class="tv">' + v1 + '</td>'
+        + '<td class="tv">' + v2 + '</td>'
+        + '<td class="tv">' + vt + '</td>'
+        + '</tr>';
+    }
+    function sep3()  { return '<tr class="tsep"><td colspan="5"></td></tr>'; }
+    function rule3() { return '<tr class="tnet-rule"><td colspan="5"></td></tr>'; }
+
+    var h = '<div style="position:relative;border:2px solid #1a3a6b;border-radius:6px;overflow:hidden">';
+    h += '<div class="wm-wrap" aria-hidden="true"><div class="wm-text">BDD1228</div></div>';
+    h += '<div class="qt-header">';
+    h += '<div class="h-brand">' + esc(info.site_name_en || info.site) + '</div>';
+    if (info.site_name_zh) h += '<div class="h-site-zh">' + esc(info.site_name_zh) + '</div>';
+    h += renderZoneSection(info);
+    h += '<div class="h-promo-badge" style="background:#0284c7">Purchase with Purchase (PWP) 同步购买</div>';
+    h += '</div>';
+
+    h += '<div class="qt-scroll"><table class="qt"><thead>';
+    h += '<tr><th class="tc-lbl" colspan="2">Description 描述</th>'
+      + '<th class="tc-val" style="min-width:90px">Level 1<br><div style="font-size:9px;font-weight:400;opacity:0.7">' + esc(q1.lotCode) + '</div></th>'
+      + '<th class="tc-val" style="min-width:90px">Level 2 (PWP)<br><div style="font-size:9px;font-weight:400;opacity:0.7">' + esc(lot2Code || ld2.size_description || '') + '</div></th>'
+      + '<th class="tc-val" style="min-width:90px">Total 总计</th>'
+      + '</tr></thead><tbody>';
+
+    var origTotal = (c1.originalPrice || c1.preNeedPrice) + (c2.originalPrice || c2.preNeedPrice);
+    h += row3('', 'Original Price', '原价', fmt(c1.originalPrice || c1.preNeedPrice), fmt(c2.originalPrice || c2.preNeedPrice), fmt(origTotal));
+    if (c1.preNeedRebate > 0 || c2.preNeedRebate > 0) {
+      h += row3('tred', 'Pre Need Rebate', '事前规划回扣',
+        c1.preNeedRebate > 0 ? fmtNeg(c1.preNeedRebate) : '—',
+        c2.preNeedRebate > 0 ? fmtNeg(c2.preNeedRebate) : '—',
+        fmtNeg(c1.preNeedRebate + c2.preNeedRebate));
+      h += row3('tbold tpnp', 'Pre Need Price', '价格', fmt(c1.preNeedPrice), fmt(c2.preNeedPrice), fmt(c1.preNeedPrice + c2.preNeedPrice));
+    }
+    if (c1.trust + c2.trust > 0) h += row3('', 'Trust Account 3 &amp; Facility Cost', '储托账戸3及设施款项', fmt(c1.trust), fmt(c2.trust), fmt(c1.trust + c2.trust));
+    h += row3('tbold', 'Total Price', '总价', fmt(c1.totalPrice), fmt(c2.totalPrice), fmt(c1.totalPrice + c2.totalPrice));
+
+    if (!dpFull) {
+      h += sep3();
+      h += row3('', '<strong>' + dpPct + '%</strong> Down Payment', '头期', fmt(c1.downPayment), fmt(c2.downPayment), fmt(totalDp));
+      h += row3('', 'Balance', '余额', fmt(c1.balance), fmt(c2.balance), fmt(totalBal));
+      // Level 1: Special Discount (RM 2,000); Level 2: Additional Discount (RM 6,000)
+      if (c1.specialRebate > 0) {
+        h += row3('tred', 'Special Discount', '特别折扣', fmtNeg(c1.specialRebate), '—', fmtNeg(c1.specialRebate));
+      }
+      if (c2.specialRebate > 0) {
+        h += row3('tred', 'Additional Discount', '额外折扣', '—', fmtNeg(c2.specialRebate), fmtNeg(c2.specialRebate));
+      }
+      // Instalment Amount (balance after discounts)
+      var inst1 = tenure1 > 0 ? c1.instalmentAmount : 0;
+      var inst2 = tenure2 > 0 ? c2.instalmentAmount : 0;
+      h += row3('tbold tinst', 'Instalment Amount', '供期余额',
+        tenure1 > 0 ? fmt(inst1) : '—',
+        tenure2 > 0 ? fmt(inst2) : '—',
+        fmt(inst1 + inst2));
+      h += row3('ttenure', 'Instalment Tenure', '分期付款期限',
+        tenure1 > 0 ? String(tenure1) : '—',
+        tenure2 > 0 ? String(tenure2) : '—',
+        String(maxTen));
+      if (maxTen > 1) {
+        h += row3('', '1st – ' + (maxTen - 1) + 'th Monthly', '',
+          tenure1 > 0 ? fmt(c1.monthly) : '—',
+          tenure2 > 0 ? fmt(c2.monthly) : '—',
+          fmt((tenure1 > 0 ? c1.monthly : 0) + (tenure2 > 0 ? c2.monthly : 0)));
+      }
+      h += row3('', maxTen + 'th Monthly', '',
+        tenure1 > 0 ? fmt(c1.lastInstalment) : '—',
+        tenure2 > 0 ? fmt(c2.lastInstalment) : '—',
+        fmt((tenure1 > 0 ? c1.lastInstalment : 0) + (tenure2 > 0 ? c2.lastInstalment : 0)));
+    }
+
+    h += rule3();
+    h += '<tr class="tnet"><td colspan="2">NET TOTAL PRICE 净价</td>'
+      + '<td class="tv">' + fmt(c1.netTotalPrice) + '</td>'
+      + '<td class="tv">' + fmt(c2.netTotalPrice) + '</td>'
+      + '<td class="tv">' + fmt(totalNet) + '</td>'
+      + '</tr>' + rule3();
+
+    h += '</tbody></table></div>';
+    h += '<div class="qt-footer">';
+    var endDate = ld2.promo && ld2.promo.promo_end_date ? ld2.promo.promo_end_date : '';
+    if (endDate) h += '<p class="f-valid">*** Valid until :&nbsp;&nbsp;' + esc(endDate) + '</p>';
+    h += '<p>1. Only NEW Pre-Need sale confirmed during the promotion period is eligible to this promotion.</p>';
+    h += '<p>2. Purchase with Purchase (PWP): customer must purchase both Level 1 and Level 2 together.</p>';
+    h += '<p style="margin-top:5px">*公司保留权力，在必须时随时更改以上价格</p>';
+    h += '<p>*Company reserves the rights to amend any of the above terms and conditions when it deemed fit.</p>';
+    h += '</div></div>';
+    return h;
+  }
+
+  function buildTombBundleHtml(calcs) {
+    var info = lotQuotes[0].siteInfo;
+    var tombOpts = info.tomb_options || [];
+    if (!_tombType && tombOpts.length) _tombType = tombOpts[0].tomb_code;
+    var activeTomb     = tombOpts.find(function (t) { return t.tomb_code === _tombType; }) || tombOpts[0];
+    var tombOriginal   = activeTomb ? Number(activeTomb.price)    : 0;
+    var tombDiscount   = activeTomb ? Number(activeTomb.discount || 0) : 0;
+    var tombPrice      = tombOriginal - tombDiscount;  // net price after discount
+
+    // In print, show the selected tomb name in the Tomb column header
+    var tombPrintName = '<div class="print-only" style="font-size:9px;font-weight:400;opacity:0.8">' + esc(activeTomb ? activeTomb.tomb_name : '') + '</div>';
+
+    function row3(cls, en, zh, landVal, tombVal, totalVal) {
+      return '<tr' + (cls ? ' class="' + cls + '"' : '') + '>'
+        + '<td>' + en + '</td><td>' + zh + '</td>'
+        + '<td class="tv">' + landVal + '</td>'
+        + '<td class="tv">' + tombVal + '</td>'
+        + '<td class="tv">' + totalVal + '</td>'
+        + '</tr>';
+    }
+    function sep3()  { return '<tr class="tsep"><td colspan="5"></td></tr>'; }
+    function rule3() { return '<tr class="tnet-rule"><td colspan="5"></td></tr>'; }
+
+    var h = '<div style="position:relative;border:2px solid #1a3a6b;border-radius:6px;overflow:hidden">';
+    h += '<div class="wm-wrap" aria-hidden="true"><div class="wm-text">BDD1228</div></div>';
+    h += '<div class="qt-header">';
+    h += '<div class="h-brand">' + esc(info.site_name_en || info.site) + '</div>';
+    if (info.site_name_zh) h += '<div class="h-site-zh">' + esc(info.site_name_zh) + '</div>';
+    var _zoneComboLabel = '<div class="h-product"><span style="font-weight:400;opacity:0.65">Zone:</span> ' + esc(info.product) + ' <span style="font-size:11px;font-weight:600;color:#1a3a6b;opacity:0.75">(Combo Lot)</span></div>';
+    h += renderZoneSection(info).replace(/^<div class="h-product">[\s\S]*?<\/div>/, _zoneComboLabel);
+    h += '<div class="h-category"><span style="font-weight:400;opacity:0.65">Product:</span> '
+      + esc((info.lot_type ? info.lot_type + ' ' : '') + 'Burial Plot') + '</div>';
+    h += '</div>';
+
+    calcs.forEach(function (x) {
+      var lvl      = x.q.levelData;
+      var trust    = Number(lvl.trust_account_facility) || 0;
+      var backwall = Number(lvl.backwall_cost) || 0;
+      var landAsNeed  = Number(lvl.as_need_price)  || 0;
+      var landPreNeed = Number(lvl.pre_need_price)  || 0;
+
+      var isBurial = lvl.lot_no != null && lvl.level == null;
+      var lotSub = '<div style="font-size:9px;opacity:0.7">' + (isBurial ? 'Lot ' : '') + esc(x.q.lotCode) + '</div>';
+
+      var _pdTnr = info.tenure || null;
+      var _pdDir = info.direction || null;
+      var _pdHasSize = !!(lvl && lvl.size_description);
+      var _bcmRaw = info.bury_capacity_map || {};
+      var _bcmKeys = Object.keys(_bcmRaw);
+      var _pdCap = _bcmKeys.length ? (_bcmRaw[_bcmKeys[0]] || null) : null;
+      var _tnrZh = { 'Freehold': '永久地契', 'Leasehold': '有期地契' };
+      var _dirZh = { 'North': '北', 'South': '南', 'East': '东', 'West': '西', 'North East': '东北', 'Northeast': '东北', 'North West': '西北', 'Northwest': '西北', 'South East': '东南', 'Southeast': '东南', 'South West': '西南', 'Southwest': '西南' };
+      function rowPd(en, zh, val) {
+        return '<tr class="tinfo"><td>' + en + '</td><td>' + zh + '</td><td class="tv" colspan="3">' + val + '</td></tr>';
+      }
+
+      h += '<div class="qt-scroll"><table class="qt"><thead></thead><tbody>';
+      if (_pdTnr || _pdHasSize || _pdDir || _pdCap) {
+        h += '<tr class="tsection-hdr"><td colspan="5">Product Details 产品资料</td></tr>';
+        if (_pdTnr) { var _zh = _tnrZh[_pdTnr] || ''; h += '<tr class="tinfo no-print"><td>Tenure</td><td>地契性质</td><td class="tv" colspan="3">' + esc(_pdTnr + (_zh ? ' ' + _zh : '')) + '</td></tr>'; }
+        if (_pdDir && _pdDir !== 'N/A') { var _zh2 = _dirZh[_pdDir] || ''; h += rowPd('Direction', '朝向', esc(_pdDir + (_zh2 ? ' ' + _zh2 : ''))); }
+        if (_pdCap) h += rowPd('Capacity', '容量', String(_pdCap));
+        if (_pdHasSize) h += rowPd('Size', '面积', esc(lvl.size_description));
+      }
+
+      // Tomb type selector row (interactive, hidden on print)
+      var _tombRowHtml = '<tr class="no-print" style="background:#eff6ff">'
+        + '<td colspan="2" style="padding:6px 10px;font-size:10px;font-weight:700;color:#64748b;letter-spacing:0.05em;text-transform:uppercase">Tomb Type 墓碑类型</td>'
+        + '<td colspan="3" style="padding:6px 10px;text-align:center">';
+      tombOpts.forEach(function (t) {
+        var isActive = t.tomb_code === (activeTomb ? activeTomb.tomb_code : '');
+        _tombRowHtml += '<button data-tomb-code="' + esc(t.tomb_code) + '" style="margin:0 4px;padding:4px 14px;border-radius:4px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid '
+          + (isActive ? '#1a3a6b;background:#1a3a6b;color:#fff' : '#94a3b8;background:#fff;color:#334155')
+          + '">' + esc(t.tomb_name) + '</button>';
+      });
+      _tombRowHtml += '</td></tr>';
+      h += _tombRowHtml;
+
+      // Column header: Land | Tomb | Total
+      var _colHdrCell = 'text-align:center;border-left:2px solid #fff;border-right:2px solid #fff';
+      h += '<tr class="tsection-hdr">'
+        + '<td colspan="2">Description 描述</td>'
+        + '<td style="' + _colHdrCell + '">Land 土地<br>' + lotSub + '</td>'
+        + '<td style="' + _colHdrCell + '">Tomb 墓碑<br>' + tombPrintName + '</td>'
+        + '<td style="text-align:center">Total 总计</td>'
+        + '</tr>';
+
+      var promo   = x.q.levelData.promo || null;
+      var discRm  = promo && promo.discount_rm ? Number(promo.discount_rm) : 0;
+
+      var anm            = !!window._agentAsNeedMode;
+      var asNeedTotal    = landAsNeed + tombOriginal;
+      var totalPriceLand = (anm ? landAsNeed : landPreNeed) + trust + backwall;  // pre-need + trust + backwall
+      var totalPriceTomb = tombOriginal;                                          // tomb unchanged
+      var totalPrice     = totalPriceLand + totalPriceTomb;
+      var netLand        = totalPriceLand - discRm;                               // after promo discount
+      var netTotal       = netLand + (tombOriginal - tombDiscount);
+
+      function fmtNeg(n) {
+        if (!n || n <= 0) return '—';
+        return '<span style="color:#dc2626">(' + fmt(n) + ')</span>';
+      }
+
+      var landPreNeedDisc = landAsNeed - landPreNeed;
+      // 1. Original Price (As-Need)
+      h += row3('', 'Original Price', '原价', fmt(landAsNeed), fmt(tombOriginal), fmt(asNeedTotal));
+      // 2. Pre-Need Discount (land only — tomb has no pre-need price difference)
+      if (!anm && landPreNeedDisc > 0) h += row3('tred', 'Pre-Need Discount', '预售折扣', fmtNeg(landPreNeedDisc), '—', fmtNeg(landPreNeedDisc));
+      // 3. Pre Need Price (tomb stays at original price — no pre-need vs as-need distinction)
+      if (!anm) h += row3('tbold tpnp', 'Pre Need Price', '价格', fmt(landPreNeed), fmt(tombOriginal), fmt(landPreNeed + tombOriginal));
+      // 4. Trust, Backwall
+      h += row3('', 'Trust Account 3 &amp; Facility Cost', '储托账戸3及设施款项', fmt(trust), '—', fmt(trust));
+      if (backwall > 0) h += row3('', 'Backwall Cost', '后壁费用', fmt(backwall), '—', fmt(backwall));
+      // 5. Total Price (pre-need + trust + backwall, before promo discount)
+      h += row3('tbold', 'Total Price', '总价', fmt(totalPriceLand), fmt(totalPriceTomb), fmt(totalPrice));
+
+      // ── DP / Instalment section ───────────────────────────────────
+      if (!anm) {
+        var months   = promo && promo.max_instalment_months ? Number(promo.max_instalment_months) : 0;
+        var fullPmt  = dpPct === 100;
+        var _effDpRm = (promo && promo.min_dp_rm != null) ? promo.min_dp_rm : _dpFixedRm;
+        var dpAmt    = _effDpRm != null ? _effDpRm : Math.round(totalPrice * dpPct / 100);
+        var landDpAmt= Math.round(totalPriceLand * dpPct / 100);
+        var tombDpAmt= Math.round(totalPriceTomb * dpPct / 100);
+        // pre-discount balance (shown in Balance row)
+        var balPreDisc     = totalPrice     - dpAmt;
+        var landBalPreDisc = totalPriceLand - landDpAmt;
+        var tombBalPreDisc = tombOriginal   - tombDpAmt;
+        // post-discount instalment amounts
+        var instAmt     = balPreDisc     - (discRm + tombDiscount);
+        var landInstAmt = landBalPreDisc - discRm;
+        var tombInstAmt = tombBalPreDisc - tombDiscount;
+        var monthly      = months > 0 ? Math.ceil(instAmt / months) : 0;
+        var lastInst     = months > 0 ? instAmt - monthly * (months - 1) : 0;
+        var landMonthly  = months > 0 ? Math.ceil(landInstAmt / months) : 0;
+        var tombMonthly  = months > 0 ? Math.ceil(tombInstAmt / months) : 0;
+        var landLastInst = months > 0 ? landInstAmt - landMonthly * (months - 1) : 0;
+        var tombLastInst = months > 0 ? tombInstAmt - tombMonthly * (months - 1) : 0;
+
+        if (!fullPmt) {
+          h += sep3();
+          h += row3('', '<strong>' + dpPct + '%</strong> Down Payment', '头期',
+            fmt(landDpAmt), fmt(tombDpAmt), fmt(dpAmt));
+          h += row3('', 'Balance', '余额', fmt(landBalPreDisc), fmt(tombBalPreDisc), fmt(balPreDisc));
+          if (discRm > 0 || tombDiscount > 0) {
+            h += row3('tred', 'Promotion Discount', '促销折扣',
+              fmtNeg(discRm), fmtNeg(tombDiscount), fmtNeg(discRm + tombDiscount));
+          }
+          if (months > 0) {
+            h += row3('tbold tinst', 'Instalment Amount', '供期余额', fmt(landInstAmt), fmt(tombInstAmt), fmt(instAmt));
+            h += row3('ttenure', 'Instalment Tenure', '分期付款期限', String(months) + ' mths', String(months) + ' mths', String(months) + ' mths');
+            h += row3('', '1st – ' + (months - 1) + 'th', '', fmt(landMonthly), fmt(tombMonthly), fmt(monthly));
+            h += row3('', months + 'th', '', fmt(landLastInst), fmt(tombLastInst), fmt(lastInst));
+          }
+        }
+      }
+
+      h += rule3();
+      h += '<tr class="tnet"><td colspan="2">NET TOTAL PRICE 净价</td>'
+        + '<td class="tv">' + fmt(netLand) + '</td>'
+        + '<td class="tv">' + fmt(tombPrice) + '</td>'
+        + '<td class="tv">' + fmt(netTotal) + '</td>'
+        + '</tr>' + rule3();
+      h += '</tbody></table></div>';
+    });
+
+    var _srFirstPromo = lotQuotes[0] && lotQuotes[0].q && lotQuotes[0].q.levelData && lotQuotes[0].q.levelData.promo ? lotQuotes[0].q.levelData.promo : null;
+    h += '<div class="qt-footer">';
+    if (_srFirstPromo && _srFirstPromo.promo_end_date) h += '<p class="f-valid">*** Valid until :&nbsp;&nbsp;' + esc(_srFirstPromo.promo_end_date) + '</p>';
+    h += '<p>1. Only NEW Pre-Need sale confirmed during the promotion period is eligible to this promotion.</p>';
+    h += '<p>2. Purchasers are required to submit the balance payment documents support upon sales confirmation.</p>';
+    h += '<p>3. No Booking and Reservation allowed for products with 35% discount and above.</p>';
+    if (_srFirstPromo && _srFirstPromo.remarks) h += '<p>4. ' + esc(_srFirstPromo.remarks) + '</p>';
+    h += '<p style="margin-top:5px">*公司保留权力，在必须时随时更改以上价格</p>';
+    h += '<p>*Company reserves the rights to amend any of the above terms and conditions when it deemed fit.</p>';
+    h += '</div></div>';
+    return h;
+  }
+
+  function buildMatrixHtml() {
+    if (!lotQuotes.length) return '';
+    var calcs = lotQuotes.map(function (q) { return { q: q, c: calcMatrix(q.levelData, dpPct) }; });
+    window._agentAsNeedMode = asNeedMode;
+    if (_pwpBundleActive && _pwpLevel2Data && calcs.length) {
+      var _pwpCalc1 = calcs.find(function (x) {
+        var _p = x.q.lotCode.split('-');
+        return (_p.length >= 2 ? (_p[1].replace(/^0+/, '') || _p[1]) : '') === '1';
+      }) || calcs[0];
+      var _pwpCalc2 = calcs.find(function (x) { return x !== _pwpCalc1; });
+      var _lot2Code = _pwpCalc2 ? _pwpCalc2.q.lotCode : null;
+      return _buildPwpMatrixHtml(_pwpCalc1, _pwpLevel2Data, dpPct, _lot2Code);
+    }
+    var _isSouthern = SOUTHERN_SITES[(site || '').toLowerCase()];
+    if (!_isSouthern && window.AgentBundle && window.AgentBundle.isBundleActive() && window.AgentBundle.hasBundleLot(lotQuotes)) return window.AgentBundle.buildMatrixHtml(calcs, dpPct);
+    if (window.AgentNLP   && window.AgentNLP.hasNLP(lotQuotes))        return window.AgentNLP.buildMatrixHtml(calcs, dpPct, nlpPromos);
+    if (!_isSouthern && window.AgentCombo && window.AgentCombo.hasComboLot(lotQuotes)) return window.AgentCombo.buildMatrixHtml(calcs, dpPct);
+    if (window.AgentN3    && window.AgentN3.hasN3(site))               return window.AgentN3.buildMatrixHtml(calcs, dpPct, lotQuotes[0] && lotQuotes[0].siteInfo, hiddenCols);
+    if (lotQuotes[0] && lotQuotes[0].levelData && lotQuotes[0].levelData.product_category === 'Package Plot') return buildPackagePlotHtml(calcs);
+    if (lotQuotes[0] && lotQuotes[0].siteInfo && lotQuotes[0].siteInfo.tomb_options && lotQuotes[0].siteInfo.tomb_options.length) return buildTombBundleHtml(calcs);
+    var hasPromo = calcs.some(function (x) { return !!x.q.levelData.promo; });
+    var _calcsIsNiche = calcs.some(function (x) { return (x.q.levelData.product_category || '').toLowerCase() === 'niche'; });
+    if (!hasPromo && !_calcsIsNiche) return buildNoPromoHtml(calcs);
+    var hasRebate     = calcs.some(function (x) { return x.c.preNeedRebate > 0; });
+    var hasBackwall   = calcs.some(function (x) { return (x.q.levelData.backwall_cost || 0) > 0; });
+    var hasInstalment = calcs.some(function (x) { return x.c.tenure > 0; });
+    var hasDrPlus     = calcs.some(function (x) { return x.c.drPlusUnits > 0; });
+    var isAsNeedPromo = calcs.every(function (x) { return !!x.c.isAsNeed; });
+    var maxTenure     = Math.max.apply(null, calcs.map(function (x) { return x.c.tenure; }).concat([0]));
+    var firstPromo    = null;
+    for (var i = 0; i < calcs.length; i++) { if (calcs[i].q.levelData.promo) { firstPromo = calcs[i].q.levelData.promo; break; } }
+    var activeDpTier  = null;
+    if (firstPromo && firstPromo.dp_tiers && firstPromo.dp_tiers.length) {
+      var tiers2 = firstPromo.dp_tiers.filter(function (t) { return t <= dpPct; });
+      if (tiers2.length) activeDpTier = Math.max.apply(null, tiers2);
+    }
+    var rebateLabel = activeDpTier != null
+      ? activeDpTier + '% Special Rebate'
+      : (firstPromo && firstPromo.discount_pct != null ? firstPromo.discount_pct + '% Special Rebate' : 'Special Rebate');
+    var info = lotQuotes[0].siteInfo;
+    var n = calcs.length + 2;
+    var lotCodes = calcs.map(function (x) { return x.q.lotCode; });
+
+    function row(cls, label, zh, vals) {
+      var r = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + label + '</td><td>' + zh + '</td>';
+      vals.forEach(function (v, ci) {
+        var lc = lotCodes[ci];
+        var hid = hiddenCols[lc] ? ' col-hidden' : '';
+        r += '<td class="tv' + hid + '" data-col="' + lc + '">' + v + '</td>';
+      });
+      return r + '</tr>';
+    }
+    function sep() { return '<tr class="tsep"><td colspan="' + n + '"></td></tr>'; }
+    function rule() { return '<tr class="tnet-rule"><td colspan="' + n + '"></td></tr>'; }
+
+    var h = '<div style="position:relative;border:2px solid #1a3a6b;border-radius:6px;overflow:hidden">';
+    h += '<div class="wm-wrap" aria-hidden="true"><div class="wm-text">BDD1228</div></div>';
+    h += '<div class="qt-header">';
+    h += '<div class="h-brand">' + esc(info.site_name_en || info.site) + '</div>';
+    if (info.site_name_zh) h += '<div class="h-site-zh">' + esc(info.site_name_zh) + '</div>';
+    h += renderZoneSection(info);
+    h += '<div class="h-category"><span style="font-weight:400;opacity:0.65">Product:</span> ' + esc((info.lot_type ? info.lot_type + ' ' : '') + ((info.product_category || '').toLowerCase().indexOf('burial') >= 0 ? 'Plot' : (info.product_category || ''))) + '</div>';
+    if (firstPromo && firstPromo.promo_name) { var _pnBg = (firstPromo.promo_name === 'New Launch Promo') ? 'background:#ea580c' : ''; h += '<div class="h-promo-badge"' + (_pnBg ? ' style="' + _pnBg + '"' : '') + '>' + esc(firstPromo.promo_name) + '</div>'; }
+    h += '</div>';
+
+    h += '<div class="qt-scroll"><table class="qt"><thead>';
+    // Checkbox row — hidden in print, lets user untick columns before saving PDF
+    h += '<tr class="no-print col-toggle-row"><th colspan="2" style="font-size:10px;color:#94a3b8;padding:4px 8px">Print columns:</th>';
+    calcs.forEach(function (x) {
+      var lc = x.q.lotCode;
+      h += '<th class="tc-val" style="text-align:center;padding:4px">'
+        + '<input type="checkbox" class="col-toggle" data-col="' + lc + '"' + (hiddenCols[lc] ? '' : ' checked') + ' style="width:16px;height:16px;cursor:pointer">'
+        + '</th>';
+    });
+    h += '</tr>';
+    h += '</thead><tbody>';
+
+    var _pdTnr2 = info.tenure || null; var _pdDir2 = info.direction || null; var _bcmRaw2 = info.bury_capacity_map || {}; var _pdBcM2 = {}; Object.keys(_bcmRaw2).forEach(function(k){ _pdBcM2[k.toLowerCase()] = _bcmRaw2[k]; }); var _pdCatL2 = (info.product_category || '').toLowerCase(); var _pdIsLand2 = _pdCatL2.indexOf('burial') >= 0 || _pdCatL2 === 'urn burial' || _pdCatL2 === 'land'; var _pdHasSize2 = calcs.some(function (x) { return !!(x.q.levelData && x.q.levelData.size_description); }); var _bcKeys2 = Object.keys(_pdBcM2); var _bcFallback2 = _bcKeys2.length === 1 ? _bcKeys2[0] : ''; var _pdHasCap2 = calcs.some(function (x) { var lt = ((x.q.levelData && x.q.levelData.lot_type) || info.lot_type || _bcFallback2).toLowerCase(); return !!_pdBcM2[lt]; }); var _pdHasDir2 = _pdIsLand2 && _pdDir2 && _pdDir2 !== 'N/A' && _pdDir2 !== 'sold out';
+    var _dirZh2 = { 'North': '北', 'South': '南', 'East': '东', 'West': '西', 'North East': '东北', 'Northeast': '东北', 'North West': '西北', 'Northwest': '西北', 'South East': '东南', 'Southeast': '东南', 'South West': '西南', 'Southwest': '西南' };
+    var _tnrZh2 = { 'Freehold': '永久地契', 'Leasehold': '有期地契' };
+    h += '<tr class="tsection-hdr"><td colspan="' + n + '">Product Details 产品资料</td></tr>';
+    if (_pdTnr2) h += row('tinfo no-print', 'Tenure', '地契性质', calcs.map(function () { var zh = _tnrZh2[_pdTnr2] || ''; return esc(_pdTnr2 + (zh ? ' ' + zh : '')); }));
+    if (_pdHasDir2) h += row('tinfo', 'Direction', '朝向', calcs.map(function () { var zh = _dirZh2[_pdDir2] || ''; return esc(_pdDir2 + (zh ? ' ' + zh : '')); }));
+    if (_pdHasSize2) h += row('tinfo', 'Size', '面积', calcs.map(function (x) { return esc((x.q.levelData && x.q.levelData.size_description) || '—'); }));
+    var _bcKeys2 = Object.keys(_pdBcM2); var _bcFallback2 = _bcKeys2.length === 1 ? _bcKeys2[0] : '';
+    if (_pdHasCap2) h += row('tinfo', 'Capacity', '可安葬人数', calcs.map(function (x) { var lt = ((x.q.levelData && x.q.levelData.lot_type) || info.lot_type || _bcFallback2).toLowerCase(); var cap = _pdBcM2[lt]; return cap ? cap + ' 位' + (lt === 'super double' ? ' (2 land + 2 niche)' : '') : '—'; }));
+    h += '<tr class="tsection-hdr"><td colspan="2">Description 描述</td>' + calcs.map(function (x) {
+      var isBurial2 = !!x.q.isBurial || (x.q.levelData.lot_no != null && x.q.levelData.level == null);
+      var lbl2;
+      if (isBurial2) { lbl2 = esc(x.q.lotCode.indexOf('-burial-') < 0 ? x.q.lotCode : (x.q.levelData.lot_no || x.q.lotCode)); }
+      else { var _lp2 = x.q.lotCode.split('-'); var _lr2 = site === 'Nckl' && _lp2.length === 2 ? (_lp2[0] || '0') : ((_lp2.length === 4 ? _lp2[2] : _lp2[1]) || '0'); var lv2 = _lr2.replace(/^0+/, '') || _lr2; lbl2 = 'Lvl ' + lv2 + (x.q.displayRange ? '' : ' · ' + esc(x.q.lotCode)); }
+      var hid2 = (hiddenCols || {})[x.q.lotCode] ? ' col-hidden' : '';
+      return '<td class="tc-val' + hid2 + '" data-col="' + x.q.lotCode + '" style="text-align:center">' + lbl2 + '</td>';
+    }).join('') + '</tr>';
+
+    var anDiscPct2 = (asNeedMode && !isAsNeedPromo) ? ((lotQuotes[0] && lotQuotes[0].siteInfo && lotQuotes[0].siteInfo.as_need_discount_pct) || 0) : 0;
+    h += row('', isAsNeedPromo ? 'As Need Price' : 'Original Price', '原价', calcs.map(function (x) { return fmt(x.c.originalPrice); }));
+    if (asNeedMode && !isAsNeedPromo && anDiscPct2) {
+      h += row('tred', 'As-Need Discount ' + anDiscPct2 + '% 即时折扣', '', calcs.map(function (x) {
+        return '- ' + fmt(Math.round(x.c.originalPrice * anDiscPct2 / 100));
+      }));
+    }
+    if (!asNeedMode && !isAsNeedPromo && hasRebate) h += row('tred', 'Pre Need Rebate', '事前规划回扣', calcs.map(function (x) { return x.c.preNeedRebate > 0 ? '(' + fmt(x.c.preNeedRebate) + ')' : '—'; }));
+    if (!asNeedMode && !isAsNeedPromo) h += row('tbold tpnp', 'Pre Need Price', '价格', calcs.map(function (x) { return fmt(x.c.preNeedPrice); }));
+    if (calcs.some(function (x) { return x.c.trust > 0; })) h += row('', 'Trust Account 3 &amp; Facility Cost', '储托账戸3及设施款项', calcs.map(function (x) { return fmt(x.c.trust); }));
+    if (hasBackwall) h += row('', 'Backwall Cost', '后壁费用', calcs.map(function (x) { return (x.q.levelData.backwall_cost || 0) > 0 ? fmt(x.c.backwall) : '—'; }));
+    h += row('tbold', 'Total Price', '总价', calcs.map(function (x) {
+      if (asNeedMode && !isAsNeedPromo) {
+        var disc = anDiscPct2 ? Math.round(x.c.originalPrice * anDiscPct2 / 100) : 0;
+        return fmt(x.c.originalPrice - disc + (x.c.trust || 0) + (x.c.backwall || 0));
+      }
+      return fmt(x.c.totalPrice);
+    }));
+    if (!asNeedMode && !isAsNeedPromo) {
+      var fullPmt = dpPct === 100;
+      if (!fullPmt) {
+        h += sep();
+        var _hasPromoRmDp = calcs.some(function(x) { return x.q.levelData.promo && x.q.levelData.promo.min_dp_rm != null; });
+        var _dpLabelPed = _hasPromoRmDp ? '<strong>Min. DP</strong>'
+          : (_dpFixedRm != null ? '<strong>RM' + fmt(_dpFixedRm) + '</strong>' : '<strong>' + dpPct + '%</strong>');
+        h += row('', _dpLabelPed + ' Down Payment', '头期', calcs.map(function (x) { return fmt(x.c.downPayment); }));
+        h += row('', 'Balance', '余额', calcs.map(function (x) { return fmt(x.c.balance); }));
+      }
+      if (hasPromo) h += row('tred', rebateLabel, '特别回扣', calcs.map(function (x) { return x.q.levelData.promo ? fmt(x.c.specialRebate) : '—'; }));
+      if (!fullPmt && hasPromo) h += row('tbold tinst', 'Instalment Amount', '供期余额', calcs.map(function (x) { return x.c.tenure > 0 ? fmt(x.c.instalmentAmount) : '—'; }));
+      if (!fullPmt && hasPromo) h += row('ttenure', 'Instalment Tenure', '分期付款期限', calcs.map(function (x) { return x.c.tenure > 0 ? String(x.c.tenure) : '—'; }));
+      if (!fullPmt && hasPromo) h += row('', '1st – ' + (maxTenure > 1 ? maxTenure - 1 : '?') + 'th', '', calcs.map(function (x) { return x.c.tenure > 0 ? fmt(x.c.monthly) : '—'; }));
+      if (!fullPmt && hasPromo) h += row('', (maxTenure || '?') + 'th', '', calcs.map(function (x) { return x.c.tenure > 0 ? fmt(x.c.lastInstalment) : '—'; }));
+    } else if (isAsNeedPromo && hasPromo) {
+      // Full payment only — show discount row but no DP/instalment
+      h += row('tred', rebateLabel, '特别回扣', calcs.map(function (x) { return x.q.levelData.promo ? fmt(x.c.specialRebate) : '—'; }));
+    }
+    h += rule();
+    h += '<tr class="tnet"><td colspan="2">NET TOTAL PRICE 净价</td>';
+    calcs.forEach(function (x) {
+      var lc = x.q.lotCode;
+      var hid = hiddenCols[lc] ? ' col-hidden' : '';
+      var netVal;
+      if (asNeedMode && !isAsNeedPromo) {
+        var disc = anDiscPct2 ? Math.round(x.c.originalPrice * anDiscPct2 / 100) : 0;
+        netVal = x.c.originalPrice - disc + (x.c.trust || 0) + (x.c.backwall || 0);
+      } else {
+        netVal = x.c.netTotalPrice;
+      }
+      h += '<td class="tv' + hid + '" data-col="' + lc + '">' + fmt(netVal) + '</td>';
+    });
+    h += '</tr>' + rule();
+    if (hasDrPlus) {
+      h += sep() + row('tdr', 'Entitled Unit DRPlus', 'DRPlus 有权单位', calcs.map(function (x) { return x.c.drPlusUnits > 0 ? String(x.c.drPlusUnits) : '—'; }));
+    }
+    h += '</tbody></table></div>';
+    h += '<div class="qt-footer">';
+    if (firstPromo) h += '<p class="f-valid">*** Valid until :&nbsp;&nbsp;' + esc(firstPromo.promo_end_date) + '</p>';
+    h += '<p>1. Only NEW Pre-Need sale confirmed during the promotion period is eligible to this promotion.</p>';
+    h += '<p>2. Purchasers are required to submit the balance payment documents support upon sales confirmation.</p>';
+    h += '<p>3. No Booking and Reservation allowed for products with 35% discount and above.</p>';
+    if (firstPromo && firstPromo.remarks) h += '<p>4. ' + esc(firstPromo.remarks) + '</p>';
+    h += '<p style="margin-top:5px">*公司保留权力，在必须时随时更改以上价格</p>';
+    h += '<p>*Company reserves the rights to amend any of the above terms and conditions when it deemed fit.</p>';
+    h += '</div></div>';
+    return h;
+  }
+
+  // ── Toast notification ─────────────────────────────────────────
+  function showToast(msg, type) {
+    var t = document.createElement('div');
+    t.className = 'agent-toast' + (type === 'err' ? ' toast-err' : '');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    // fade in
+    requestAnimationFrame(function () { t.classList.add('toast-in'); });
+    setTimeout(function () {
+      t.classList.remove('toast-in');
+      setTimeout(function () { t.remove(); }, 400);
+    }, 3500);
+  }
+
+  // ── Synced-at label ────────────────────────────────────────────
+  function updateSyncedAt(layouts) {
+    var el = qs('layout-synced-at');
+    if (!el) return;
+    var ts = layouts && layouts[0] && layouts[0].synced_at;
+    if (!ts) { el.textContent = ''; return; }
+    var d = new Date(ts);
+    var days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    var age = days === 0 ? 'today' : days === 1 ? '1 day ago' : days + ' days ago';
+    el.textContent = 'Last update: ' + d.toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) + ' (' + age + ')';
+  }
+
+  // ── Session persistence ────────────────────────────────────────
+  function saveSession() {
+    try {
+      var snapshot = {
+        site: site,
+        product: product,
+        dpPct: dpPct,
+        dpFixedRm: _dpFixedRm,
+        selectedLots: selectedLots,
+        layoutScrollLeft: layoutScrollLeft,
+        layoutMode: layoutMode,
+        drawerSecFilter:   window._drawerSectionFilter || '',
+        drawerLvlFilter:   window._drawerLevelFilter   || '',
+      };
+      localStorage.setItem('agent_session', JSON.stringify(snapshot));
+    } catch(e) {}
+  }
+
+  function restoreSession() {
+    try {
+      var raw = localStorage.getItem('agent_session');
+      if (!raw) return;
+      var snap = JSON.parse(raw);
+      if (!snap.site) return;
+
+      site             = snap.site    || '';
+      product          = snap.product || '';
+      dpPct            = snap.dpPct   || 20;
+      var _isRmDpRestore = (snap.site === 'Semenyih-NMG' && snap.product === 'OV6-1F-AT');
+      _dpFixedRm       = snap.dpFixedRm !== undefined ? snap.dpFixedRm : (_isRmDpRestore ? 4000 : null);
+      selectedLots     = snap.selectedLots || [];
+      lotQuotes        = []; // never restore lotQuotes — large objects crash on restore
+      layoutScrollLeft = snap.layoutScrollLeft || 0;
+      layoutMode       = snap.layoutMode || 'grid';
+      window._drawerSectionFilter = snap.drawerSecFilter  || '';
+      window._drawerLevelFilter   = snap.drawerLvlFilter   || '';
+      window._drawerPromoFilter   = snap.drawerPromoFilter || '';
+      currentZoneGroupKey = product || '';
+      _cachedCatGroups    = null;
+
+      if (site) {
+        var restoreZoneGroup = function () {
+          // After zones load, find the group key that matches the restored product
+          if (product && _cachedCatGroups) {
+            var found = null;
+            _cachedCatGroups.forEach(function (cat) {
+              cat.groups.forEach(function (g) {
+                if (g.key === product) { found = g.key; return; }
+                if (g.type === 'group') {
+                  g.members.forEach(function (m) { if (m.name === product) found = g.key; });
+                }
+              });
+            });
+            if (found) currentZoneGroupKey = found;
+          }
+          populateZoneDropdown();
+          updateZoneSelect();
+        };
+        if (zonesCache[site]) {
+          productOpts = zonesCache[site]; _cachedCatGroups = null; restoreZoneGroup();
+        } else {
+          fetch('/api/agent/filters?step=products&site=' + encodeURIComponent(site))
+            .then(function (r) { return r.json(); })
+            .then(function (d) { zonesCache[site] = d.options || []; productOpts = zonesCache[site]; _cachedCatGroups = null; restoreZoneGroup(); })
+            .catch(function () {});
+        }
+      }
+
+      if (site && product) {
+        loadLayout(site, product);
+      }
+      updateUI();
+    } catch(e) {}
+  }
+
+  // ── UI helpers ─────────────────────────────────────────────────
+  function updateSiteSelect() {
+    updateSiteDropdownBtn();
+  }
+
+  function updateZoneDropdownBtn() {
+    var btn = qs('zone-dd-btn');
+    if (!btn) return;
+    btn.disabled = !site;
+    if (!currentZoneGroupKey) {
+      btn.textContent = 'Select zone…';
+      btn.classList.add('placeholder');
+    } else {
+      btn.textContent = currentZoneGroupKey;
+      btn.classList.remove('placeholder');
+    }
+  }
+
+  function updateZoneSelect() {
+    updateZoneDropdownBtn();
+    updateSectionSelect();
+  }
+
+  function updateResetBtn() {
+    var btn = qs('btn-reset');
+    if (btn) btn.style.display = ''; // always visible — last-resort escape hatch
+  }
+
+  function updateUI() {
+    updateSiteSelect(); updateZoneSelect(); updateResetBtn();
+    renderLayoutArea(); renderQuoteSection();
+  }
+
+  // ── Print ──────────────────────────────────────────────────────
+  window.addEventListener('beforeprint', function () {
+    var el = qs('quote-section');
+    if (!el) return;
+    var dynStyle = qs('dyn-page-style');
+    if (!dynStyle) {
+      dynStyle = document.createElement('style');
+      dynStyle.id = 'dyn-page-style';
+      document.head.appendChild(dynStyle);
+    }
+
+    // Remove overflow clipping on qt-scroll so the full table width is measurable and printable
+    var qtScrollEl = el.querySelector('.qt-scroll');
+    if (qtScrollEl) {
+      qtScrollEl.dataset.printOverflow = qtScrollEl.style.overflow || '';
+      qtScrollEl.style.overflow = 'visible';
+    }
+
+    el.style.zoom = '';
+
+    // Measure true content dimensions with overflow visible
+    var contentW = el.scrollWidth;
+    var contentH = el.scrollHeight;
+
+    // Scale to fit A4 landscape (1123×794px at 96dpi, zero margins) in one page.
+    var scale = Math.min(1123 / contentW, 794 / contentH);
+    if (scale > 1) scale = 1;
+
+    dynStyle.textContent = '@media print { #quote-section { margin: 0 auto; display: block; } }';
+    el.style.zoom = scale.toFixed(3);
+  });
+  window.addEventListener('afterprint', function () {
+    var el = qs('quote-section');
+    if (el) el.style.zoom = '';
+    // Restore qt-scroll overflow
+    var qtScrollEl = el ? el.querySelector('.qt-scroll') : null;
+    if (qtScrollEl) {
+      qtScrollEl.style.overflow = qtScrollEl.dataset.printOverflow || '';
+      delete qtScrollEl.dataset.printOverflow;
+    }
+    var s = qs('dyn-page-style');
+    if (s) s.textContent = '';
+  });
+
+  // ── Init ───────────────────────────────────────────────────────
+  function init() {
+    // Column visibility toggle — checkbox per column in the quotation table
+    document.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t || !t.classList.contains('col-toggle')) return;
+      var lc = t.dataset.col;
+      if (!lc) return;
+      if (t.checked) {
+        delete hiddenCols[lc];
+      } else {
+        hiddenCols[lc] = true;
+      }
+      // col-hidden only takes effect during print (@media print) — no screen change needed
+    });
+
+    // Stamp col-hidden just before the browser renders the print preview,
+    // and clean up immediately after — works correctly across all browsers.
+    window.addEventListener('beforeprint', function () {
+      Object.keys(hiddenCols).forEach(function (lc) {
+        document.querySelectorAll('[data-col="' + lc + '"]').forEach(function (el) { el.classList.add('col-hidden'); });
+      });
+    });
+    window.addEventListener('afterprint', function () {
+      document.querySelectorAll('.col-hidden').forEach(function (el) { el.classList.remove('col-hidden'); });
+    });
+
+    // Populate site dropdown on load
+    populateSiteSelect();
+
+    // ── Site custom dropdown (all via delegation — survives Next.js hydration) ──
+    document.addEventListener('click', function (e) {
+      // Site dropdown: button toggle
+      if (e.target && e.target.closest('#site-dd-btn')) {
+        if (siteDropdownIsOpen) closeSiteDropdown(); else openSiteDropdown();
+        return;
+      }
+      // Site dropdown: group header toggle
+      var catEl = e.target && e.target.closest('[data-sitecat]');
+      if (catEl) {
+        var label = catEl.getAttribute('data-sitecat');
+        openSiteGroup = (openSiteGroup === label) ? null : label;
+        renderSiteDropdownPanel();
+        return;
+      }
+      // Site dropdown: item click
+      var itemEl = e.target && e.target.closest('[data-siteitem]');
+      if (itemEl) {
+        var val = itemEl.getAttribute('data-siteitem');
+        var siteChanged = (val !== site);
+        site = val;
+        closeSiteDropdown();
+        if (siteChanged) {
+          product = ''; currentZoneGroupKey = ''; openCategory = null; _cachedCatGroups = null;
+          window._drawerSectionFilter = ''; window._drawerLevelFilter = ''; window._drawerPromoFilter = ''; productOpts = []; resetLayout();
+        }
+        saveSession(); updateUI();
+        if (!val) return;
+        (function loadSiteAssets(s) {
+          var ap = document.getElementById('assets-panel');
+          if (!ap) return;
+          var cacheKey = s + '|' + s;
+          if (_assetsCache[cacheKey] !== undefined) { _buildAssetsPanelHtml(ap, _assetsCache[cacheKey]); return; }
+          ap.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8">Loading materials…</div>';
+          fetch('/api/agent/assets?site=' + encodeURIComponent(s) + '&product=' + encodeURIComponent(s))
+            .then(function(r) { return r.json(); })
+            .then(function(j) { var a = j.assets || []; _assetsCache[cacheKey] = a; _buildAssetsPanelHtml(ap, a); })
+            .catch(function() { ap.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:#94a3b8">No product materials</div>'; });
+        }(val));
+        if (zonesCache[val]) {
+          productOpts = zonesCache[val]; _cachedCatGroups = null; populateZoneDropdown();
+          if (val === 'Nirvana Life Planning') { var _nlpOpt = productOpts.find(function(p){ return p.category === 'NLP'; }); if (_nlpOpt) onZoneSelected(_nlpOpt.name); }
+        } else {
+          fetch('/api/agent/filters?step=products&site=' + encodeURIComponent(val))
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              zonesCache[val] = d.options || []; productOpts = zonesCache[val]; _cachedCatGroups = null; populateZoneDropdown();
+              if (val === 'Nirvana Life Planning') { var _nlpOpt = productOpts.find(function(p){ return p.category === 'NLP'; }); if (_nlpOpt) onZoneSelected(_nlpOpt.name); }
+            })
+            .catch(function () {});
+        }
+        return;
+      }
+      // Close site dropdown when clicking outside
+      if (siteDropdownIsOpen) {
+        var panel = document.getElementById('site-dd-panel');
+        var btn   = document.getElementById('site-dd-btn');
+        if (panel && !panel.contains(e.target) && btn && !btn.contains(e.target)) closeSiteDropdown();
+      }
+    });
+
+    // Site / Zone / Section select handlers
+    document.addEventListener('change', function (e) {
+      var id = e.target && e.target.id;
+
+      if (id === 'edm-site-sel') {
+        _loadEdmForSite(e.target.value);
+        return;
+      }
+
+      if (id === 'section-sel') {
+        var val = e.target.value;
+        if (!_cachedCatGroups) _cachedCatGroups = buildCategoryGroups();
+        var g = null;
+        _cachedCatGroups.forEach(function (cat) {
+          cat.groups.forEach(function (gr) { if (gr.key === currentZoneGroupKey) g = gr; });
+        });
+        if (!g) return;
+        if (g.type === 'group') {
+          // Sub-zone products (e.g. NV-S-DA) are genuinely different products — full reload needed.
+          if (!val) return;
+          product = val;
+          window._drawerSectionFilter = '';
+          window._drawerLevelFilter   = '';
+          window._drawerPromoFilter   = '';
+          resetLayout(); saveSession(); updateUI();
+          loadLayout(site, product);
+        } else {
+          // Subsections within the same zone — layout already loaded, just filter rows in place.
+          product = currentZoneGroupKey;
+          window._drawerSectionFilter = val;
+          window._drawerLevelFilter   = '';
+          saveSession();
+          applyLayoutSectionFilter();
+          colorCells();
+        }
+        return;
+      }
+    });
+
+    // Custom zone dropdown click delegation
+    document.addEventListener('click', function (e) {
+      var ddBtn   = qs('zone-dd-btn');
+      var ddPanel = qs('zone-dd-panel');
+
+      // Toggle dropdown on button click
+      if (ddBtn && e.target === ddBtn) {
+        if (zoneDropdownIsOpen) { closeZoneDropdown(); } else { openZoneDropdown(); }
+        e.stopPropagation();
+        return;
+      }
+
+      // Category header click — toggle open category
+      var catEl = e.target && e.target.closest && e.target.closest('.f-dd-cat');
+      if (catEl && ddPanel && ddPanel.contains(catEl)) {
+        var cat = catEl.dataset.cat;
+        openCategory = (openCategory === cat) ? null : cat;
+        renderZoneDropdownPanel();
+        // Reposition panel in case height changed
+        if (ddBtn) {
+          var rect = ddBtn.getBoundingClientRect();
+          ddPanel.style.top  = (rect.bottom + 4) + 'px';
+          ddPanel.style.left = rect.left + 'px';
+          ddPanel.style.width = rect.width + 'px';
+        }
+        e.stopPropagation();
+        return;
+      }
+
+      // Zone item click
+      var zoneEl = e.target && e.target.closest && e.target.closest('.f-dd-zone');
+      if (zoneEl && ddPanel && ddPanel.contains(zoneEl)) {
+        var zoneKey = zoneEl.dataset.zone;
+        if (zoneKey) onZoneSelected(zoneKey);
+        e.stopPropagation();
+        return;
+      }
+
+      // Outside click — close dropdown
+      if (zoneDropdownIsOpen) {
+        if (ddPanel && !ddPanel.contains(e.target)) closeZoneDropdown();
+      }
+    });
+
+    // Use event delegation on document so listeners survive any React DOM re-renders
+    document.addEventListener('click', function (e) {
+      var id = e.target && e.target.id;
+      if (!id && e.target) id = e.target.closest && e.target.closest('[id]') && e.target.closest('[id]').id;
+      // Poster modal — tap an image with data-poster attribute directly (challenge gallery)
+      var directPoster = e.target && e.target.closest && e.target.closest('[data-poster]');
+      if (directPoster && !directPoster.hasAttribute('data-events')) {
+        var dp = directPoster.getAttribute('data-poster');
+        if (dp) { openPosterModal({ poster: dp }); return; }
+      }
+      // Poster modal — tap a calendar day with data-events attribute
+      var evtTarget = e.target && e.target.closest && e.target.closest('[data-events]');
+      if (evtTarget) {
+        var evtsRaw = evtTarget.getAttribute('data-events');
+        if (evtsRaw) {
+          var evts = JSON.parse(evtsRaw);
+          if (evts.length === 1) {
+            openPosterModal(evts[0]);
+          } else {
+            openEventPicker(evts);
+          }
+          return;
+        }
+      }
+      // Event picker item tap
+      var pickerItem = e.target && e.target.closest && e.target.closest('.evt-picker-item');
+      if (pickerItem) {
+        var itemEvt = JSON.parse(pickerItem.getAttribute('data-evt'));
+        document.getElementById('evt-picker-backdrop').classList.remove('open');
+        openPosterModal(itemEvt);
+        return;
+      }
+
+      // Close side menu on outside click or when a menu item is clicked
+      var sideMenu = document.getElementById('side-menu');
+      if (sideMenu && sideMenu.classList.contains('open')) {
+        var menuBtn = document.getElementById('btn-menu');
+        var clickedLink = e.target && e.target.closest && e.target.closest('#side-menu a, #side-menu button.menu-item');
+        if (clickedLink || (!sideMenu.contains(e.target) && e.target !== menuBtn && !menuBtn.contains(e.target))) {
+          sideMenu.classList.remove('open');
+        }
+      }
+
+      // Memo drawer tab switching
+      var memoTab = e.target && e.target.closest && e.target.closest('.memo-tab');
+      if (memoTab) {
+        var tabId = memoTab.dataset.tab;
+        document.querySelectorAll('.memo-tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.memo-panel').forEach(function(p) { p.classList.remove('active'); });
+        memoTab.classList.add('active');
+        var panel = document.getElementById('memo-panel-' + tabId);
+        if (panel) panel.classList.add('active');
+        return;
+      }
+
+      switch (id) {
+        case 'btn-reset':         resetAll(); break;
+        case 'btn-reload':        window.location.reload(); break;
+        case 'btn-avail':         openAvailDrawer(); break;
+        case 'avail-drawer-close':closeAvailDrawer(); break;
+        case 'avail-backdrop':    closeAvailDrawer(); break;
+        case 'btn-menu': {
+          var sm = document.getElementById('side-menu');
+          if (sm) sm.classList.toggle('open');
+          break;
+        }
+        case 'btn-menu-memo':
+          document.getElementById('memo-backdrop').classList.add('open');
+          document.getElementById('memo-drawer').classList.add('open');
+          break;
+        case 'memo-drawer-close':
+        case 'memo-backdrop':
+          document.getElementById('memo-backdrop').classList.remove('open');
+          document.getElementById('memo-drawer').classList.remove('open');
+          break;
+        case 'btn-menu-forms':
+          document.getElementById('forms-backdrop').classList.add('open');
+          document.getElementById('forms-drawer').classList.add('open');
+          break;
+        case 'forms-drawer-close':
+        case 'forms-backdrop':
+          document.getElementById('forms-backdrop').classList.remove('open');
+          document.getElementById('forms-drawer').classList.remove('open');
+          break;
+        case 'btn-menu-sites':
+          document.getElementById('sites-backdrop').classList.add('open');
+          document.getElementById('sites-drawer').classList.add('open');
+          break;
+        case 'sites-drawer-close':
+        case 'sites-backdrop':
+          document.getElementById('sites-backdrop').classList.remove('open');
+          document.getElementById('sites-drawer').classList.remove('open');
+          break;
+        case 'evt-picker-backdrop':
+          if (e.target.id === 'evt-picker-backdrop') document.getElementById('evt-picker-backdrop').classList.remove('open');
+          break;
+        case 'poster-modal-close':
+          document.getElementById('poster-modal-backdrop').classList.remove('open');
+          document.getElementById('poster-modal-img').src = '';
+          document.getElementById('poster-modal-register').style.display = 'none';
+          document.getElementById('poster-modal-notice').style.display = 'none';
+          break;
+        case 'poster-modal-backdrop':
+          if (e.target.id === 'poster-modal-backdrop') {
+            document.getElementById('poster-modal-backdrop').classList.remove('open');
+            document.getElementById('poster-modal-img').src = '';
+            document.getElementById('poster-modal-register').style.display = 'none';
+            document.getElementById('poster-modal-notice').style.display = 'none';
+          }
+          break;
+        case 'btn-menu-announcement':
+          document.getElementById('announcement-backdrop').classList.add('open');
+          document.getElementById('announcement-drawer').classList.add('open');
+          _loadAnnouncementEdm();
+          _applyAnnouncementReadState();
+          break;
+        case 'btn-whats-new-toggle': {
+          var _wnBody = document.getElementById('whats-new-body');
+          var _wnArrow = document.getElementById('whats-new-arrow');
+          if (_wnBody) {
+            var _collapsed = _wnBody.style.display === 'none';
+            _wnBody.style.display = _collapsed ? '' : 'none';
+            if (_wnArrow) _wnArrow.textContent = _collapsed ? '▾' : '▸';
+          }
+          break;
+        }
+        case 'btn-mark-read':
+          if (confirm('Confirm that you have read and understood all updates in What\'s New?')) {
+            try { localStorage.setItem('announcement_read_aug2026', '1'); } catch(e) {}
+            _applyAnnouncementReadState();
+          }
+          break;
+        case 'announcement-drawer-close':
+        case 'announcement-backdrop':
+          document.getElementById('announcement-backdrop').classList.remove('open');
+          document.getElementById('announcement-drawer').classList.remove('open');
+          break;
+        case 'btn-menu-training':
+          document.getElementById('training-backdrop').classList.add('open');
+          document.getElementById('training-drawer').classList.add('open');
+          break;
+        case 'training-drawer-close':
+        case 'training-backdrop':
+          document.getElementById('training-backdrop').classList.remove('open');
+          document.getElementById('training-drawer').classList.remove('open');
+          break;
+        case 'btn-challenge':
+          document.getElementById('challenge-backdrop').classList.add('open');
+          document.getElementById('challenge-drawer').classList.add('open');
+          break;
+        case 'challenge-drawer-close':
+        case 'challenge-backdrop':
+          document.getElementById('challenge-backdrop').classList.remove('open');
+          document.getElementById('challenge-drawer').classList.remove('open');
+          break;
+        case 'btn-pdf':
+          var prev = document.title;
+          document.title = '';
+          var d = qs('print-date');
+          if (d) d.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+          window.print();
+          setTimeout(function () { document.title = prev; }, 500);
+          break;
+      }
+    });
+  }
+
+  // ── PWA install banner ────────────────────────────────────────
+  var deferredInstallPrompt = null;
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+
+    // Show a subtle install banner at the bottom
+    var existing = document.getElementById('install-banner');
+    if (existing) return;
+
+    var banner = document.createElement('div');
+    banner.id = 'install-banner';
+    banner.innerHTML =
+      '<span style="flex:1;font-size:13px;font-weight:600;color:#fff">Add to Home Screen for the best experience</span>' +
+      '<button id="btn-install" style="padding:7px 14px;background:#fff;color:#075E54;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Install</button>' +
+      '<button id="btn-install-dismiss" style="padding:7px 10px;background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">✕</button>';
+    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#075E54;display:flex;align-items:center;gap:10px;padding:12px 14px;z-index:9999;box-shadow:0 -2px 12px rgba(0,0,0,0.2);max-width:430px;margin:0 auto;';
+    document.body.appendChild(banner);
+
+    document.getElementById('btn-install').addEventListener('click', function () {
+      banner.remove();
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.then(function () { deferredInstallPrompt = null; });
+    });
+    document.getElementById('btn-install-dismiss').addEventListener('click', function () {
+      banner.remove();
+    });
+  });
+
+  window.addEventListener('appinstalled', function () {
+    var b = document.getElementById('install-banner');
+    if (b) b.remove();
+    deferredInstallPrompt = null;
+  });
+
+  // Wake up Vercel functions immediately on page load to avoid cold start lag
+  function warmUpServer() {
+    fetch('/api/agent/filters?step=sites').catch(function () {});
+  }
+
+  // Prefetch zones for every site in parallel so site→zone selection is instant
+  function prefetchAllZones() {
+    SITES.forEach(function (s) {
+      fetch('/api/agent/filters?step=products&site=' + encodeURIComponent(s))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { zonesCache[s] = d.options || []; })
+        .catch(function () {});
+    });
+  }
+
+  function start() {
+    var navType = 'unknown';
+    try { navType = performance.getEntriesByType('navigation')[0].type; } catch(e) {}
+    dbg('start() navType=' + navType);
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/agent-sw.js').catch(function () {});
+    }
+    init();
+    try {
+      if (navType === 'reload') {
+        localStorage.removeItem('agent_session');
+        dbg('reload: cleared session');
+      } else {
+        if (localStorage.getItem('agent_was_reset')) {
+          localStorage.removeItem('agent_was_reset');
+          localStorage.removeItem('agent_session');
+          dbg('was_reset flag: cleared session');
+        } else {
+          restoreSession();
+          dbg('restoreSession called');
+        }
+      }
+    } catch(e) { dbg('start catch: ' + e.message); restoreSession(); }
+    try { updateUI(); } catch(e) { dbg('updateUI err: ' + e.message); lotQuotes = []; selectedLots = []; updateUI(); }
+    warmUpServer();
+    prefetchAllZones();
+    _applyAnnouncementReadState();
+  }
+
+  // If browser restores page from bfcache (back-forward cache), force a real reload
+  // bfcache restoration looks like a normal page but event listeners are broken
+  window.addEventListener('pageshow', function(e) {
+    if (e.persisted) {
+      window.location.reload();
+    }
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
+

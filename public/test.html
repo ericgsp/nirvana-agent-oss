@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="padding:40px; font-family:sans-serif;">
+  <h2>Test 1: inline onclick</h2>
+  <p>Count: <strong id="c1">0</strong></p>
+  <button onclick="document.getElementById('c1').textContent = parseInt(document.getElementById('c1').textContent) + 1"
+    style="padding:20px; font-size:18px; background:green; color:white; border:none; border-radius:8px; width:100%; margin-bottom:30px;">
+    Inline onclick
+  </button>
+
+  <h2>Test 2: addEventListener on button</h2>
+  <p>Count: <strong id="c2">0</strong></p>
+  <button id="btn2"
+    style="padding:20px; font-size:18px; background:blue; color:white; border:none; border-radius:8px; width:100%; margin-bottom:30px;">
+    addEventListener on button
+  </button>
+
+  <h2>Test 3: addEventListener on document</h2>
+  <p>Count: <strong id="c3">0</strong></p>
+  <button id="btn3"
+    style="padding:20px; font-size:18px; background:red; color:white; border:none; border-radius:8px; width:100%; margin-bottom:30px;">
+    addEventListener on document (like React)
+  </button>
+
+  <script>
+    document.getElementById('btn2').addEventListener('click', function() {
+      document.getElementById('c2').textContent = parseInt(document.getElementById('c2').textContent) + 1;
+    });
+
+    // This is exactly how React works — listener on document/root, relies on bubbling
+    document.addEventListener('click', function(e) {
+      if (e.target.id === 'btn3') {
+        document.getElementById('c3').textContent = parseInt(document.getElementById('c3').textContent) + 1;
+      }
+    });
+  </script>
+</body>
+</html>
