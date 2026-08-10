@@ -3699,6 +3699,25 @@
     qs('quote-preview-drawer').classList.remove('open');
   }
 
+  // html2canvas's table layout doesn't reliably honor vertical-align/line-height
+  // (renders correctly on screen, wrong once html2canvas re-lays it out for
+  // capture) — sidestep it entirely by wrapping each cell's content in a flex
+  // box, which html2canvas centers correctly. Mutates in place; harmless since
+  // the drawer's content gets fully rebuilt (innerHTML overwritten) next open.
+  function flexCenterTableCells(root) {
+    var cells = root.querySelectorAll('.qt td, .qt th');
+    cells.forEach(function (cell) {
+      if (cell.dataset.flexCentered) return;
+      var align = window.getComputedStyle(cell).textAlign;
+      var justify = align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'flex-start');
+      var wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display:flex;align-items:center;justify-content:' + justify + ';width:100%;';
+      while (cell.firstChild) wrapper.appendChild(cell.firstChild);
+      cell.appendChild(wrapper);
+      cell.dataset.flexCentered = '1';
+    });
+  }
+
   function exportQuotationPdfNative() {
     return ensurePdfLibsLoaded().then(function () {
       var previewBody = qs('quote-preview-body');
@@ -3706,7 +3725,6 @@
 
       // Don't let the scrollable table wrapper clip columns out of the capture
       var qtScrollEl = previewBody.querySelector('.qt-scroll');
-      var prevOverflow = qtScrollEl ? qtScrollEl.style.overflow : null;
       if (qtScrollEl) {
         qtScrollEl.style.overflow = 'visible';
         // Reset scroll position — if the agent scrolled sideways to review
@@ -3716,7 +3734,12 @@
       }
       previewBody.scrollLeft = 0;
 
-      var fullWidth = Math.max(previewBody.scrollWidth, qtScrollEl ? qtScrollEl.scrollWidth : 0);
+      flexCenterTableCells(previewBody);
+
+      // Small buffer avoids the right-most column getting clipped by
+      // subpixel/rounding differences between scrollWidth and actual layout.
+      var CAPTURE_PAD = 24;
+      var fullWidth = Math.max(previewBody.scrollWidth, qtScrollEl ? qtScrollEl.scrollWidth : 0) + CAPTURE_PAD;
 
       return nextFrame().then(function () {
         return window.html2canvas(previewBody, {
@@ -3729,9 +3752,10 @@
       }).then(function (canvas) {
         var imgData = canvas.toDataURL('image/png');
 
-        // A4 landscape, zero margin
-        var PAGE_W = 297, PAGE_H = 210;
-        var scale = Math.min(PAGE_W / canvas.width, PAGE_H / canvas.height);
+        // A4 landscape, with a real printed-page margin around the content
+        var PAGE_W = 297, PAGE_H = 210, MARGIN = 8;
+        var usableW = PAGE_W - MARGIN * 2, usableH = PAGE_H - MARGIN * 2;
+        var scale = Math.min(usableW / canvas.width, usableH / canvas.height);
         var imgW = canvas.width * scale;
         var imgH = canvas.height * scale;
 
