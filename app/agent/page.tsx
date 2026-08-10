@@ -220,7 +220,7 @@ export default async function AgentPage() {
         .n3-condition { background: #fef3c7; border-left: 4px solid #d97706; padding: 8px 12px; margin: 0; font-size: 13px; color: #92400e; }
         .qt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .qt { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .qt td, .qt th { border: 1px solid #b0b8c1; padding: 6px 9px; white-space: nowrap; vertical-align: middle; }
+        .qt td, .qt th { border: 1px solid #b0b8c1; padding: 6px 9px; white-space: nowrap; vertical-align: middle; line-height: 1.3; }
         .qt tbody tr td:first-child  { border-right: none; }
         .qt tbody tr td:nth-child(2) { border-left: none; border-right: 2px solid #1a3a6b; }
         .qt thead th { background: #1a3a6b; color: #fff; text-align: center; font-weight: 700; font-size: 12px; }
@@ -1229,7 +1229,7 @@ export default async function AgentPage() {
 
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260810e" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260810f" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

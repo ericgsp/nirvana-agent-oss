@@ -3725,10 +3725,6 @@
           useCORS: true,
           width: fullWidth,
           windowWidth: fullWidth,
-          // html2canvas's own table-layout engine has known bugs with
-          // vertical-align (renders correctly on screen, wrong in capture);
-          // foreignObjectRendering uses the WebView's real renderer instead.
-          foreignObjectRendering: true,
         });
       }).then(function (canvas) {
         var imgData = canvas.toDataURL('image/png');
