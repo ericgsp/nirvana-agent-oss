@@ -3,7 +3,10 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 import { fetchProducts, fetchZoneLayout, fetchLayout, fetchQuotation } from "./actions";
+import { generateQuotationPdf } from "@/lib/pdf/generate-quotation-pdf";
+import { shareQuotationPdf } from "@/lib/pdf/share-quotation-pdf";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -775,7 +778,20 @@ export default function AgentPage({ initialSiteOpts = [] }: { initialSiteOpts?: 
           <Link href="/" className="btn-back">←</Link>
           <h1>Nirvana Agent</h1>
           {lotQuotes.length > 0 && (
-            <button className="btn-pdf" onClick={() => {
+            <button className="btn-pdf" onClick={async () => {
+              // Native app: no in-WebView print dialog, so generate a PDF and
+              // hand it to the OS share sheet (Save / Print / share to any app)
+              if (Capacitor.isNativePlatform()) {
+                try {
+                  const blob = await generateQuotationPdf();
+                  await shareQuotationPdf(blob);
+                } catch (err) {
+                  console.error("Failed to generate/share quotation PDF", err);
+                }
+                return;
+              }
+
+              // Web: unchanged — browser print dialog
               // Blank title so browser doesn't print it in the page header
               const prev = document.title;
               document.title = "";

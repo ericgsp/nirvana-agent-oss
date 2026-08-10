@@ -53,3 +53,8 @@ ios/App/Pods/
 ios/App/build/
 ios/DerivedData/
 ios/.build/
+
+# IDE project files (machine-specific)
+.idea/
+android/.idea/
+*.iml
