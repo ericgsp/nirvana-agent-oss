@@ -417,16 +417,9 @@ export default async function AgentPage() {
         #challenge-drawer-close { font-size:22px; line-height:1; color:#94a3b8; background:none; border:none; cursor:pointer; padding:4px; }
         #challenge-scroll { flex:1; overflow-y:auto; padding:8px 0 32px; }
         .drawer-placeholder { padding:40px 20px; text-align:center; color:#94a3b8; font-size:13px; }
-        /* ── Availability drawer ── */
-        #avail-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
-        #avail-backdrop.open { display:block; }
-        #avail-drawer { position:fixed; left:0; right:0; bottom:0; background:#f0f2f5; border-radius:20px 20px 0 0; z-index:1101; max-height:88vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
-        #avail-drawer.open { transform:translateY(0); }
-        #avail-drawer-handle { width:36px; height:4px; background:#cbd5e1; border-radius:2px; margin:12px auto 0; flex-shrink:0; }
-        #avail-drawer-topbar { display:flex; align-items:center; padding:10px 14px 12px; flex-shrink:0; }
-        #avail-drawer-topbar h2 { font-size:15px; font-weight:800; color:#0f172a; flex:1; }
-        #avail-drawer-close { font-size:22px; line-height:1; color:#94a3b8; background:none; border:none; cursor:pointer; padding:4px; }
-        #avail-scroll { flex:1; overflow-y:auto; padding-bottom:32px; }
+        /* ── Inventory tab: product list ↔ layout view ── */
+        #avail-scroll { padding-bottom:20px; }
+        #btn-inventory-back { display:flex; align-items:center; gap:6px; margin:10px 10px 0; padding:9px 13px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; font-size:13px; font-weight:700; color:${G_DARK}; cursor:pointer; touch-action:manipulation; }
         .ad-card { margin:0 10px 10px; background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,0.08); overflow:hidden; }
         .ad-label { display:flex; align-items:center; gap:9px; padding:10px 14px; border-bottom:1px solid #f0f2f5; }
         .ad-dot { width:22px; height:22px; border-radius:50%; background:${G_DARK}; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -534,7 +527,7 @@ export default async function AgentPage() {
           #topbar, .s-label, #zone-filter, #layout-area, .no-print,
           #dp-strip, .avail-banner, #btn-challenge, .s-card:not(#quote-section), .tab-placeholder,
           #tab-home, #tab-inventory, #tab-team, #tab-me,
-          #avail-backdrop, #avail-drawer, #memo-backdrop, #memo-drawer, #forms-backdrop, #forms-drawer, #sites-backdrop, #sites-drawer, #training-backdrop, #training-drawer, #challenge-backdrop, #challenge-drawer, #announcement-backdrop, #announcement-drawer, #poster-modal-backdrop { display: none !important; }
+          #memo-backdrop, #memo-drawer, #forms-backdrop, #forms-drawer, #sites-backdrop, #sites-drawer, #training-backdrop, #training-drawer, #challenge-backdrop, #challenge-drawer, #announcement-backdrop, #announcement-drawer, #poster-modal-backdrop { display: none !important; }
           #tab-quote { display: block !important; }
           #phone { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; }
           #scroll-body { overflow: visible !important; padding: 0 !important; }
@@ -630,21 +623,50 @@ export default async function AgentPage() {
 
           {/* ── Tab: Inventory ── */}
           <div id="tab-inventory" className="tab-panel">
-            <button id="btn-avail" className="avail-banner no-print">
-              <div className="avail-banner-left">
-                <div className="avail-banner-title">Available Products &amp; Promos</div>
-                <div className="avail-banner-sub">Browse by product type · filter by level · sort by price</div>
-              </div>
-              <div className="avail-banner-arrow">›</div>
-            </button>
+            {/* ── List view: browse by price & availability ── */}
+            <div id="inventory-list-view">
+              <div id="avail-scroll"><div id="avail-content"></div></div>
+            </div>
 
-            {/* ── Section 1: Site & Zone ── */}
+            {/* ── Layout view: shown after picking a product from the list (or the Quote tab's direct selector) ── */}
+            <div id="inventory-layout-view" style={{display:"none"}}>
+              <button id="btn-inventory-back" className="no-print">‹ Back to product list</button>
+
+              {/* ── Product Assets (between selector and layout) ── */}
+              <div id="assets-panel" className="no-print">
+                <div style={{padding:"10px 14px",fontSize:"12px",color:"#94a3b8"}}>No product materials</div>
+              </div>
+
+              <div className="s-card">
+                <div className="s-label no-print">
+                  <div style={{flex:1}}>
+                    <div className="s-title">Select Available Product</div>
+                    <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"2px"}}>
+                      <span id="layout-synced-at" style={{fontSize:"10px",color:"#94a3b8"}}></span>
+                    </div>
+                  </div>
+                  <button id="btn-reset" className="btn-reset">↺ Reset</button>
+                  <button id="btn-reload" className="btn-reset" style={{marginLeft:"4px"}}>⟳ Reload</button>
+                </div>
+                <div id="layout-area">
+                  <div className="layout-placeholder">
+                    <span className="lp-icon">🗺️</span>
+                    <span className="lp-title">Zone layout will appear here</span>
+                    <span className="lp-sub">Select a site and zone above</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Tab: Quote ── */}
+          <div id="tab-quote" className="tab-panel">
+            {/* ── Direct selection — fast path for agents who already know what they want,
+                 skipping the Inventory tab's price/availability browsing ── */}
             <div className="s-card">
               <div className="s-label no-print">
                 <div className="s-dot">1</div>
                 <span className="s-title">Select Site &amp; Zone</span>
-                <button id="btn-reset" className="btn-reset">↺ Reset</button>
-                <button id="btn-reload" className="btn-reset" style={{marginLeft:"4px"}}>⟳ Reload</button>
               </div>
               <div id="zone-filter">
                 <div className="f-wrap">
@@ -668,37 +690,11 @@ export default async function AgentPage() {
                   </select>
                 </div>
               </div>
-
-            </div>
-
-            {/* ── Product Assets (between selector and layout) ── */}
-            <div id="assets-panel" className="no-print">
-              <div style={{padding:"10px 14px",fontSize:"12px",color:"#94a3b8"}}>No product materials</div>
-            </div>
-
-            {/* ── Section 2: Niche Layout ── */}
-            <div className="s-card">
-              <div className="s-label no-print">
-                <div className="s-dot">2</div>
-                <div style={{flex:1}}>
-                  <div className="s-title">Select Available Product</div>
-                  <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"2px"}}>
-                    <span id="layout-synced-at" style={{fontSize:"10px",color:"#94a3b8"}}></span>
-                  </div>
-                </div>
-              </div>
-              <div id="layout-area">
-                <div className="layout-placeholder">
-                  <span className="lp-icon">🗺️</span>
-                  <span className="lp-title">Zone layout will appear here</span>
-                  <span className="lp-sub">Select a site and zone above</span>
-                </div>
+              <div className="tab-placeholder" style={{margin:"10px 0 0"}}>
+                <span className="tp-sub">Selecting a zone above jumps you to the Inventory tab to pick a niche/lot from the layout.</span>
               </div>
             </div>
-          </div>
 
-          {/* ── Tab: Quote ── */}
-          <div id="tab-quote" className="tab-panel">
             <div className="s-card" id="quote-section">
               <div className="s-label no-print">
                 <div className="s-dot">3</div>
@@ -1266,21 +1262,8 @@ export default async function AgentPage() {
         </div>
       </div>
 
-      {/* Availability search drawer */}
-      <div id="avail-backdrop"></div>
-      <div id="avail-drawer">
-        <div id="avail-drawer-handle"></div>
-        <div id="avail-drawer-topbar">
-          <h2>What&apos;s Available Now?</h2>
-          <button id="avail-drawer-close">×</button>
-        </div>
-        <div id="avail-scroll">
-          <div id="avail-content"></div>
-        </div>
-      </div>
-
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260811b" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260811c" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

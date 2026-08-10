@@ -500,6 +500,11 @@
     resetLayout(); saveSession(); updateUI();
     loadLayout(site, groupKey);
     renderAssetsPanel();
+    // Direct-selection fast path (Quote tab) — jump to the Inventory tab's
+    // layout view to finish picking a niche/lot, same destination the
+    // Inventory list's own product rows lead to.
+    switchTab('inventory');
+    closeAvailDrawer();
   }
 
   function findGroupForProduct(prod, groups) {
@@ -904,6 +909,7 @@
   // ── Bottom tab bar ────────────────────────────────────────────
   var TAB_IDS = ['home', 'inventory', 'quote', 'team', 'me'];
   var _homeSnapshotLoaded = false;
+  var _inventoryListLoaded = false;
   function switchTab(name) {
     if (TAB_IDS.indexOf(name) < 0) return;
     TAB_IDS.forEach(function (t) {
@@ -918,6 +924,10 @@
     if (name === 'home' && !_homeSnapshotLoaded) {
       _homeSnapshotLoaded = true;
       loadHomeSnapshot();
+    }
+    if (name === 'inventory' && !_inventoryListLoaded) {
+      _inventoryListLoaded = true;
+      openAvailDrawer();
     }
   }
 
@@ -960,16 +970,25 @@
     }).catch(function (err) { dbg('home snapshot failed: ' + err); });
   }
 
+  // Inventory tab has two views sharing one panel: the product list (browse by
+  // price/availability) and the zone layout (niche selection). These two
+  // functions toggle between them -- names kept from when this was a modal
+  // drawer, since applyDrawerSelection() already calls closeAvailDrawer() at
+  // the point selection completes and there's no reason to touch that.
   function openAvailDrawer() {
-    document.getElementById('avail-backdrop').classList.add('open');
-    document.getElementById('avail-drawer').classList.add('open');
+    var listView = document.getElementById('inventory-list-view');
+    var layoutView = document.getElementById('inventory-layout-view');
+    if (listView) listView.style.display = '';
+    if (layoutView) layoutView.style.display = 'none';
     renderDrawer();
     if (!drawerState._typesFetched) fetchDrawerTypes();
   }
 
   function closeAvailDrawer() {
-    document.getElementById('avail-backdrop').classList.remove('open');
-    document.getElementById('avail-drawer').classList.remove('open');
+    var listView = document.getElementById('inventory-list-view');
+    var layoutView = document.getElementById('inventory-layout-view');
+    if (listView) listView.style.display = 'none';
+    if (layoutView) layoutView.style.display = '';
   }
 
   function promoTypeBadge(name) {
@@ -3989,9 +4008,7 @@
       switch (id) {
         case 'btn-reset':         resetAll(); break;
         case 'btn-reload':        window.location.reload(); break;
-        case 'btn-avail':         openAvailDrawer(); break;
-        case 'avail-drawer-close':closeAvailDrawer(); break;
-        case 'avail-backdrop':    closeAvailDrawer(); break;
+        case 'btn-inventory-back': openAvailDrawer(); break;
         case 'btn-menu': {
           var sm = document.getElementById('side-menu');
           var smBackdrop = document.getElementById('side-menu-backdrop');
