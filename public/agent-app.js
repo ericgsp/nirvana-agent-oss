@@ -3665,43 +3665,58 @@
     return p;
   }
 
+  // Mirrors the @media print rules in app/agent/page.tsx (same selector list),
+  // but as a plain class toggle — html2canvas doesn't evaluate @media print,
+  // so scoping the capture to just the quote card has to happen this way instead.
+  function ensurePdfExportStyle() {
+    if (document.getElementById('pdf-export-style')) return;
+    var style = document.createElement('style');
+    style.id = 'pdf-export-style';
+    style.textContent =
+      'body.pdf-export-mode #topbar, body.pdf-export-mode .s-label, body.pdf-export-mode #zone-filter, ' +
+      'body.pdf-export-mode #layout-area, body.pdf-export-mode .no-print, body.pdf-export-mode #dp-strip, ' +
+      'body.pdf-export-mode .avail-banner, body.pdf-export-mode #btn-challenge, ' +
+      'body.pdf-export-mode .s-card:not(#quote-section), body.pdf-export-mode #assets-panel, ' +
+      'body.pdf-export-mode #avail-backdrop, body.pdf-export-mode #avail-drawer, ' +
+      'body.pdf-export-mode #memo-backdrop, body.pdf-export-mode #memo-drawer, ' +
+      'body.pdf-export-mode #forms-backdrop, body.pdf-export-mode #forms-drawer, ' +
+      'body.pdf-export-mode #sites-backdrop, body.pdf-export-mode #sites-drawer, ' +
+      'body.pdf-export-mode #training-backdrop, body.pdf-export-mode #training-drawer, ' +
+      'body.pdf-export-mode #challenge-backdrop, body.pdf-export-mode #challenge-drawer, ' +
+      'body.pdf-export-mode #announcement-backdrop, body.pdf-export-mode #announcement-drawer, ' +
+      'body.pdf-export-mode #poster-modal-backdrop ' +
+      '{ display: none !important; } ' +
+      'body.pdf-export-mode #phone { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; } ' +
+      'body.pdf-export-mode #scroll-body { overflow: visible !important; padding: 0 !important; } ' +
+      'body.pdf-export-mode #quote-section { width: 100% !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; } ' +
+      'body.pdf-export-mode .quote-empty { display: none !important; } ' +
+      'body.pdf-export-mode .qt-scroll { overflow: visible !important; width: 100% !important; } ' +
+      'body.pdf-export-mode .wm-wrap { display: block !important; } ' +
+      'body.pdf-export-mode #print-footer { display: flex !important; justify-content: space-between !important; margin-top: 6px !important; padding-top: 4px !important; border-top: 1px solid #cbd5e1 !important; font-size: 9px !important; color: #64748b !important; width: 100% !important; }';
+    document.head.appendChild(style);
+  }
+
+  function nextFrame() {
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+    });
+  }
+
   function exportQuotationPdfNative() {
     return ensurePdfLibsLoaded().then(function () {
-      var source = qs('quote-section');
-      var footerSource = qs('print-footer');
-      if (!source) throw new Error('Quotation not found');
+      var quoteEl = qs('quote-section');
+      if (!quoteEl) throw new Error('Quotation not found');
 
-      var container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-10000px';
-      container.style.top = '0';
-      container.style.width = source.scrollWidth + 'px';
-      container.style.background = '#fff';
+      ensurePdfExportStyle();
+      var d = qs('print-date');
+      if (d) d.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
 
-      var clone = source.cloneNode(true);
-      clone.style.margin = '0';
-      clone.style.borderRadius = '0';
-      clone.style.boxShadow = 'none';
+      document.body.classList.add('pdf-export-mode');
 
-      if (footerSource) {
-        var footerClone = footerSource.cloneNode(true);
-        footerClone.style.display = 'flex';
-        footerClone.style.justifyContent = 'space-between';
-        footerClone.style.marginTop = '6px';
-        footerClone.style.paddingTop = '4px';
-        footerClone.style.borderTop = '1px solid #cbd5e1';
-        footerClone.style.fontSize = '9px';
-        footerClone.style.color = '#64748b';
-        footerClone.style.width = '100%';
-        var dateEl = footerClone.querySelector('#print-date') || footerClone.querySelector('span');
-        if (dateEl) dateEl.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
-        clone.appendChild(footerClone);
-      }
-
-      container.appendChild(clone);
-      document.body.appendChild(container);
-
-      return window.html2canvas(clone, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(function (canvas) {
+      // Give the browser a couple of frames to apply the layout changes before capturing
+      return nextFrame().then(function () {
+        return window.html2canvas(quoteEl, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      }).then(function (canvas) {
         var imgData = canvas.toDataURL('image/png');
 
         // A4 landscape, zero margin — matches this file's own beforeprint scaling (see below)
@@ -3725,7 +3740,7 @@
           return Share.share({ title: 'Nirvana Quotation', url: written.uri });
         });
       }).finally(function () {
-        container.remove();
+        document.body.classList.remove('pdf-export-mode');
       });
     });
   }
