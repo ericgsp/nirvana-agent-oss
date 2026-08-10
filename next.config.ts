@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
       "./node_modules/playwright-core/**/*",
       "./node_modules/@sparticuz/chromium/**/*",
     ],
+    "/api/agent/quotation-pdf": [
+      "./node_modules/playwright-core/**/*",
+      "./node_modules/@sparticuz/chromium/**/*",
+    ],
   },
 };
 

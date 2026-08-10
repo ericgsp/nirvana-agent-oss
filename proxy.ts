@@ -39,8 +39,7 @@ export async function proxy(request: NextRequest) {
     path === "/agent-app.js" ||
     path === "/agent-sw.js" ||
     path === "/agent-manifest.json" ||
-    path.startsWith("/agent-icon") ||
-    path.startsWith("/vendor/");
+    path.startsWith("/agent-icon");
 
   if (!user && path !== "/login" && path !== "/signup" && !isAgentRoute) {
     const url = request.nextUrl.clone();

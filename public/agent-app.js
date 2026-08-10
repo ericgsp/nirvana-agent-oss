@@ -3640,36 +3640,10 @@
 
   // ── Native PDF export & share ─────────────────────────────────
   // Capacitor's embedded WebView has no print dialog, so window.print() is a
-  // silent no-op there. Instead: rasterize the quote card + footer, build a
-  // PDF, and hand it to the OS share sheet (Save / Print / share to any app).
-  function loadScriptOnce(src) {
-    return new Promise(function (resolve, reject) {
-      var existing = document.querySelector('script[data-vendor="' + src + '"]');
-      if (existing) {
-        if (existing.dataset.loaded) { resolve(); } else { existing.addEventListener('load', function () { resolve(); }); }
-        return;
-      }
-      var s = document.createElement('script');
-      s.src = src;
-      s.dataset.vendor = src;
-      s.onload = function () { s.dataset.loaded = '1'; resolve(); };
-      s.onerror = function () { reject(new Error('Failed to load ' + src)); };
-      document.head.appendChild(s);
-    });
-  }
-
-  function ensurePdfLibsLoaded() {
-    var p = Promise.resolve();
-    if (!window.html2canvas) p = p.then(function () { return loadScriptOnce('/vendor/html2canvas.min.js'); });
-    if (!window.jspdf) p = p.then(function () { return loadScriptOnce('/vendor/jspdf.umd.min.js'); });
-    return p;
-  }
-
-  function nextFrame() {
-    return new Promise(function (resolve) {
-      requestAnimationFrame(function () { requestAnimationFrame(resolve); });
-    });
-  }
+  // silent no-op there. The PDF itself is rendered server-side with a real
+  // headless browser (Playwright/Chromium — see app/api/agent/quotation-pdf)
+  // instead of html2canvas, so it's a true copy of what's on screen rather
+  // than a client-side approximation.
 
   // Opens the preview drawer with a snapshot of the current quote table, so
   // the agent can scroll and review (all columns, not just what fits the
@@ -3699,96 +3673,44 @@
     qs('quote-preview-drawer').classList.remove('open');
   }
 
-  // html2canvas's table layout doesn't reliably honor vertical-align/line-height
-  // (renders correctly on screen, wrong once html2canvas re-lays it out for
-  // capture) — sidestep it entirely by wrapping each cell's content in a flex
-  // box, which html2canvas centers correctly. Mutates in place; harmless since
-  // the drawer's content gets fully rebuilt (innerHTML overwritten) next open.
-  function flexCenterTableCells(root) {
-    var cells = root.querySelectorAll('.qt td, .qt th');
-    // Pass 1: lock each cell's current (correctly-computed-by-the-real-
-    // renderer) height as an explicit pixel value. Percentage heights on
-    // table cells don't reliably resolve for a flex child, so without this
-    // the wrapper below has nothing solid to center against.
-    cells.forEach(function (cell) {
-      if (cell.dataset.flexCentered) return;
-      cell.style.height = cell.offsetHeight + 'px';
-    });
-    // Pass 2: wrap existing content in a flex box that fills that height.
-    // The actual text goes in an inner span (not directly as a flex-item
-    // text node) with white-space explicitly pinned — html2canvas has a
-    // separate bug where bare text nodes as direct flex children can lose
-    // whitespace during its own text measurement/layout pass.
-    cells.forEach(function (cell) {
-      if (cell.dataset.flexCentered) return;
-      var wrapper = document.createElement('div');
-      wrapper.style.cssText = 'display:flex;align-items:center;justify-content:center;width:100%;height:100%;box-sizing:border-box;';
-      var inner = document.createElement('div');
-      inner.style.cssText = 'white-space:pre;';
-      while (cell.firstChild) inner.appendChild(cell.firstChild);
-      wrapper.appendChild(inner);
-      cell.appendChild(wrapper);
-      cell.dataset.flexCentered = '1';
+  function blobToBase64(blob) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onloadend = function () {
+        var result = reader.result;
+        resolve(result.split(',')[1] || '');
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
     });
   }
 
+  // Sends the preview's actual HTML/CSS to the server, which renders it with
+  // a real headless browser and prints that to PDF — the PDF is a true copy
+  // of the preview, not an html2canvas approximation.
   function exportQuotationPdfNative() {
-    return ensurePdfLibsLoaded().then(function () {
-      var previewBody = qs('quote-preview-body');
-      if (!previewBody) throw new Error('Quotation preview not found');
+    var previewBody = qs('quote-preview-body');
+    var previewFooter = qs('quote-preview-footer');
+    if (!previewBody) return Promise.reject(new Error('Quotation preview not found'));
 
-      // Don't let the scrollable table wrapper clip columns out of the capture
-      var qtScrollEl = previewBody.querySelector('.qt-scroll');
-      if (qtScrollEl) {
-        qtScrollEl.style.overflow = 'visible';
-        // Reset scroll position — if the agent scrolled sideways to review
-        // columns before tapping Share, a leftover scroll offset here would
-        // shift/clip what gets captured.
-        qtScrollEl.scrollLeft = 0;
-      }
-      previewBody.scrollLeft = 0;
+    var html = previewBody.outerHTML + (previewFooter ? previewFooter.outerHTML : '');
+    var css = Array.prototype.map.call(document.querySelectorAll('style'), function (s) { return s.textContent; }).join('\n');
 
-      flexCenterTableCells(previewBody);
-
-      // Small buffer avoids the right-most column getting clipped by
-      // subpixel/rounding differences between scrollWidth and actual layout.
-      var CAPTURE_PAD = 24;
-      var fullWidth = Math.max(previewBody.scrollWidth, qtScrollEl ? qtScrollEl.scrollWidth : 0) + CAPTURE_PAD;
-
-      return nextFrame().then(function () {
-        return window.html2canvas(previewBody, {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          width: fullWidth,
-          windowWidth: fullWidth,
-        });
-      }).then(function (canvas) {
-        var imgData = canvas.toDataURL('image/png');
-
-        // A4 landscape, with a real printed-page margin around the content
-        var PAGE_W = 297, PAGE_H = 210, MARGIN = 8;
-        var usableW = PAGE_W - MARGIN * 2, usableH = PAGE_H - MARGIN * 2;
-        var scale = Math.min(usableW / canvas.width, usableH / canvas.height);
-        var imgW = canvas.width * scale;
-        var imgH = canvas.height * scale;
-
-        var jsPDF = window.jspdf.jsPDF;
-        var pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
-        var x = (PAGE_W - imgW) / 2;
-        var y = (PAGE_H - imgH) / 2;
-        pdf.addImage(imgData, 'PNG', x, y, imgW, imgH);
-
-        var pdfBase64 = pdf.output('datauristring').split(',')[1];
-        var fileName = 'quotation-' + Date.now() + '.pdf';
-
-        var Filesystem = window.Capacitor.Plugins.Filesystem;
-        var Share = window.Capacitor.Plugins.Share;
-        return Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: 'CACHE' }).then(function (written) {
-          return Share.share({ title: 'Nirvana Quotation', url: written.uri });
-        });
-      }).finally(function () {
-        if (qtScrollEl) qtScrollEl.style.overflow = prevOverflow || '';
+    return fetch('/api/agent/quotation-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html: html, css: css }),
+    }).then(function (res) {
+      if (!res.ok) throw new Error('Server returned ' + res.status);
+      return res.blob();
+    }).then(function (blob) {
+      return blobToBase64(blob);
+    }).then(function (pdfBase64) {
+      var fileName = 'quotation-' + Date.now() + '.pdf';
+      var Filesystem = window.Capacitor.Plugins.Filesystem;
+      var Share = window.Capacitor.Plugins.Share;
+      return Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: 'CACHE' }).then(function (written) {
+        return Share.share({ title: 'Nirvana Quotation', url: written.uri });
       });
     });
   }
@@ -4076,11 +3998,18 @@
         case 'quote-preview-backdrop':
           closeQuotePreviewDrawer();
           break;
-        case 'quote-preview-share':
-          exportQuotationPdfNative().catch(function (err) {
+        case 'quote-preview-share': {
+          var shareBtn = qs('quote-preview-share');
+          var shareBtnLabel = shareBtn ? shareBtn.textContent : 'Share as PDF';
+          if (shareBtn) { shareBtn.disabled = true; shareBtn.textContent = 'Generating…'; }
+          exportQuotationPdfNative().then(function () {
+            if (shareBtn) { shareBtn.textContent = shareBtnLabel; shareBtn.disabled = false; }
+          }, function (err) {
             dbg('PDF export failed: ' + (err && err.message ? err.message : err));
+            if (shareBtn) { shareBtn.textContent = 'Failed — check connection & retry'; shareBtn.disabled = false; }
           });
           break;
+        }
         case 'btn-menu': {
           var sm = document.getElementById('side-menu');
           if (sm) sm.classList.toggle('open');
