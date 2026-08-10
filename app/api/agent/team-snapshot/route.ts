@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
 import { getMyProfile, type AgentProfile } from "@/lib/supabase/get-hierarchy";
@@ -88,4 +89,47 @@ export async function GET() {
     scope: seesEverything ? "org" : "team",
     members,
   });
+}
+
+// POST — set a downline member's goal for the current period. Only the
+// caller's own visible downline can be targeted (same scoping as GET) --
+// a BDD can set a goal for their direct report, but not for someone else's.
+export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+  const body = await req.json().catch(() => null);
+  const targetUserId = body?.user_id;
+  const targetAmount = body?.target_amount;
+  if (typeof targetUserId !== "string" || typeof targetAmount !== "number" || targetAmount <= 0) {
+    return Response.json({ error: "user_id and a positive target_amount are required" }, { status: 400 });
+  }
+
+  const me = await getMyProfile();
+  const role = await getUserRole();
+  const seesEverything = me?.tier === "CBDD" || role === "admin";
+
+  if (!seesEverything) {
+    const { data: targetRow } = await supabaseAdmin
+      .from("agent_profiles")
+      .select("user_id")
+      .eq("user_id", targetUserId)
+      .eq("leader_id", user.id)
+      .maybeSingle();
+    if (!targetRow) {
+      return Response.json({ error: "You can only set goals for your direct team" }, { status: 403 });
+    }
+  }
+
+  const period = currentPeriod();
+  const { error } = await supabaseAdmin
+    .from("sales_goals")
+    .upsert(
+      { user_id: targetUserId, period, target_amount: targetAmount, set_by: user.id },
+      { onConflict: "user_id,period" }
+    );
+
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ ok: true });
 }

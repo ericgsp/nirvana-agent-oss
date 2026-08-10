@@ -152,6 +152,18 @@ export default async function AgentPage() {
         #sold-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #sold-modal-cancel { background:#f1f5f9; color:#475569; }
         #sold-modal-confirm { background:${G_TEAL}; color:#fff; }
+
+        #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #goal-modal-backdrop.open { display:flex; }
+        #goal-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #goal-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #goal-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        #goal-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
+        #goal-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #goal-modal-cancel { background:#f1f5f9; color:#475569; }
+        #goal-modal-confirm { background:${G_TEAL}; color:#fff; }
+        .team-set-goal-btn { flex-shrink: 0; padding: 4px 10px; border-radius: 999px; border: 1px solid ${G_TEAL}; background: transparent; color: ${G_TEAL}; font-size: 10.5px; font-weight: 700; }
         .avail-banner { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 9px 13px; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(7,94,84,0.3); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-appearance: none; box-sizing: border-box; width: calc(100% - 20px); }
         .avail-banner:active { opacity: 0.88; }
         .avail-banner-left { flex: 1; }
@@ -1260,6 +1272,20 @@ export default async function AgentPage() {
         <div id="poster-modal-notice" style={{display:'none'}}></div>
       </div>
 
+      {/* Set Goal modal — Team tab */}
+      <div id="goal-modal-backdrop">
+        <div id="goal-modal-box">
+          <div id="goal-modal-title">Set Monthly Goal</div>
+          <div id="goal-modal-sub"></div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Target amount (RM)</div>
+          <input id="goal-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
+          <div id="goal-modal-actions">
+            <button id="goal-modal-cancel">Cancel</button>
+            <button id="goal-modal-confirm">Save Goal</button>
+          </div>
+        </div>
+      </div>
+
       {/* Mark as Sold modal — Me tab */}
       <div id="sold-modal-backdrop">
         <div id="sold-modal-box">
@@ -1320,7 +1346,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260811e" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260811f" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

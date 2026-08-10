@@ -913,6 +913,7 @@
   var _teamLoaded = false;
   var _meLoaded = false;
   var _soldModalRef = null;
+  var _goalModalUserId = null;
   var TIER_COLOR = {
     CBDD: { bg: '#ede9fe', fg: '#5b21b6' },
     BDD: { bg: '#dcfce7', fg: '#15803d' },
@@ -1040,6 +1041,38 @@
     }).catch(function (err) { dbg('mark sold failed: ' + err); });
   }
 
+  function openGoalModal(userId, label) {
+    _goalModalUserId = userId;
+    var sub = document.getElementById('goal-modal-sub');
+    var amt = document.getElementById('goal-modal-amount');
+    if (sub) sub.textContent = label || '';
+    if (amt) amt.value = '';
+    var backdrop = document.getElementById('goal-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeGoalModal() {
+    _goalModalUserId = null;
+    var backdrop = document.getElementById('goal-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function confirmGoal() {
+    var amt = document.getElementById('goal-modal-amount');
+    var amount = amt ? parseFloat(amt.value) : NaN;
+    if (!_goalModalUserId || !amount || amount <= 0) { alert('Enter a valid target amount.'); return; }
+    fetch('/api/agent/team-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: _goalModalUserId, target_amount: amount })
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeGoalModal();
+      _teamLoaded = false;
+      loadTeamSnapshot();
+    }).catch(function (err) { dbg('set goal failed: ' + err); });
+  }
+
   function loadTeamSnapshot() {
     var banner = document.getElementById('team-scope-banner');
     var listEl = document.getElementById('team-list');
@@ -1062,6 +1095,7 @@
             var color = TIER_COLOR[m.tier] || TIER_COLOR.AGENT;
             var name = esc(m.display_name || m.agent_code || 'Agent');
             var badge = '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(m.tier) + '</span>';
+            var setGoalBtn = '<button class="team-set-goal-btn" data-user-id="' + esc(m.user_id) + '" data-label="' + name + '">' + (m.goal ? 'Edit Goal' : 'Set Goal') + '</button>';
             var goalHtml;
             if (m.goal) {
               var pct = m.goal.target_amount > 0 ? Math.min(100, Math.round(m.goal.actual_amount / m.goal.target_amount * 100)) : 0;
@@ -1076,6 +1110,7 @@
               '<div class="team-row-top">' + badge +
                 '<span class="team-row-name">' + name + '</span>' +
                 (m.agent_code ? '<span class="team-row-code">' + esc(m.agent_code) + '</span>' : '') +
+                setGoalBtn +
               '</div>' + goalHtml +
             '</div>';
           }).join('');
@@ -4165,6 +4200,13 @@
         return;
       }
 
+      // "Set Goal" / "Edit Goal" button on a team-member row (Team tab)
+      var goalBtn = e.target && e.target.closest && e.target.closest('.team-set-goal-btn');
+      if (goalBtn) {
+        openGoalModal(goalBtn.dataset.userId, goalBtn.dataset.label);
+        return;
+      }
+
       switch (id) {
         case 'btn-reset':         resetAll(); break;
         case 'btn-reload':        window.location.reload(); break;
@@ -4228,6 +4270,15 @@
           break;
         case 'sold-modal-confirm':
           confirmSold();
+          break;
+        case 'goal-modal-cancel':
+          closeGoalModal();
+          break;
+        case 'goal-modal-backdrop':
+          if (e.target.id === 'goal-modal-backdrop') closeGoalModal();
+          break;
+        case 'goal-modal-confirm':
+          confirmGoal();
           break;
         case 'btn-menu-announcement':
         case 'home-whats-new-teaser':
