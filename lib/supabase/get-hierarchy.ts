@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
+import { getUserRole } from "@/lib/supabase/get-role";
 
 export type Tier = "CBDD" | "BDD" | "DSD" | "SD" | "AGENT";
 
@@ -29,19 +30,23 @@ export async function getMyProfile(): Promise<AgentProfile | null> {
 }
 
 // My direct downline only -- never the tier above, never a peer's team.
-// CBDD is special-cased to see the entire org.
+// Two ways to see the entire org instead of just a direct downline:
+// tier === CBDD, or role === "admin" (admin access always implies full org
+// visibility here, independent of whatever tier that admin happens to hold).
 export async function getMyDirectDownline(): Promise<AgentProfile[]> {
   const me = await getMyProfile();
   if (!me) return [];
+
+  const role = await getUserRole();
+  const seesEverything = me.tier === "CBDD" || role === "admin";
 
   const query = supabaseAdmin
     .from("agent_profiles")
     .select("user_id, tier, leader_id, agent_code, display_name");
 
-  const { data } =
-    me.tier === "CBDD"
-      ? await query.neq("user_id", me.user_id)
-      : await query.eq("leader_id", me.user_id);
+  const { data } = seesEverything
+    ? await query.neq("user_id", me.user_id)
+    : await query.eq("leader_id", me.user_id);
 
   return (data as AgentProfile[]) ?? [];
 }
