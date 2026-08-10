@@ -3707,7 +3707,14 @@
       // Don't let the scrollable table wrapper clip columns out of the capture
       var qtScrollEl = previewBody.querySelector('.qt-scroll');
       var prevOverflow = qtScrollEl ? qtScrollEl.style.overflow : null;
-      if (qtScrollEl) qtScrollEl.style.overflow = 'visible';
+      if (qtScrollEl) {
+        qtScrollEl.style.overflow = 'visible';
+        // Reset scroll position — if the agent scrolled sideways to review
+        // columns before tapping Share, a leftover scroll offset here would
+        // shift/clip what gets captured.
+        qtScrollEl.scrollLeft = 0;
+      }
+      previewBody.scrollLeft = 0;
 
       var fullWidth = Math.max(previewBody.scrollWidth, qtScrollEl ? qtScrollEl.scrollWidth : 0);
 
@@ -3718,6 +3725,10 @@
           useCORS: true,
           width: fullWidth,
           windowWidth: fullWidth,
+          // html2canvas's own table-layout engine has known bugs with
+          // vertical-align (renders correctly on screen, wrong in capture);
+          // foreignObjectRendering uses the WebView's real renderer instead.
+          foreignObjectRendering: true,
         });
       }).then(function (canvas) {
         var imgData = canvas.toDataURL('image/png');
