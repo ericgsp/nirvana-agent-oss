@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">supamobily</string>
+    <string name="title_activity_main">supamobily</string>
+    <string name="package_name">com.dggroup.supamobily</string>
+    <string name="custom_url_scheme">com.dggroup.supamobily</string>
+</resources>
