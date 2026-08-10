@@ -102,9 +102,34 @@ export async function GET() {
   });
 }
 
-// POST — mark a recent quotation as sold, writes to sales_log
+// POST — mark a recent quotation as sold (writes to sales_log), or set the
+// caller's own goal for the current period (action: "set_goal"). Self-service
+// goal-setting exists because requiring a leader to key in a target for every
+// downline agent doesn't scale (a leader with hundreds of agents) -- agents
+// commit to their own number and can revise it anytime.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
+
+  if (body?.action === "set_goal") {
+    const targetAmount = body?.target_amount;
+    if (typeof targetAmount !== "number" || targetAmount <= 0) {
+      return Response.json({ error: "A positive target_amount is required" }, { status: 400 });
+    }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const period = currentPeriod();
+    const { error } = await supabaseAdmin
+      .from("sales_goals")
+      .upsert(
+        { user_id: user.id, period, target_amount: targetAmount, set_by: user.id },
+        { onConflict: "user_id,period" }
+      );
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
   const quotationRef = body?.quotationRef, amount = body?.amount, soldAt = body?.soldAt;
   if (typeof quotationRef !== "string" || typeof amount !== "number" || amount <= 0) {
     return Response.json({ error: "quotationRef and a positive amount are required" }, { status: 400 });

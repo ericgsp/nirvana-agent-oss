@@ -914,6 +914,7 @@
   var _meLoaded = false;
   var _soldModalRef = null;
   var _goalModalUserId = null;
+  var _goalModalSelf = false;
   var TIER_COLOR = {
     CBDD: { bg: '#ede9fe', fg: '#5b21b6' },
     BDD: { bg: '#dcfce7', fg: '#15803d' },
@@ -962,12 +963,14 @@
               '<div class="home-goal-figs"><div class="home-goal-actual">RM ' + fmt(data.goal.actual_amount) + '</div>' +
                 '<div class="home-goal-of">of RM ' + fmt(data.goal.target_amount) + '</div></div>' +
               '<div class="home-goal-track"><div style="width:' + pct + '%"></div></div>' +
+              '<button class="me-set-goal-btn" id="btn-set-my-goal">Edit my goal</button>' +
             '</div>';
         } else {
           goalCard.innerHTML =
             '<div class="home-stat-row">' +
               '<div class="home-stat-card"><div class="home-stat-num">' + (data.recentQuotes ? data.recentQuotes.length : 0) + '</div><div class="home-stat-cap">Quotes generated recently</div></div>' +
-            '</div>';
+            '</div>' +
+            '<button class="me-set-goal-btn me-set-goal-btn-outline" id="btn-set-my-goal">Set my goal for this month</button>';
         }
       }
 
@@ -1041,8 +1044,9 @@
     }).catch(function (err) { dbg('mark sold failed: ' + err); });
   }
 
-  function openGoalModal(userId, label) {
+  function openGoalModal(userId, label, isSelf) {
     _goalModalUserId = userId;
+    _goalModalSelf = !!isSelf;
     var sub = document.getElementById('goal-modal-sub');
     var amt = document.getElementById('goal-modal-amount');
     if (sub) sub.textContent = label || '';
@@ -1053,6 +1057,7 @@
 
   function closeGoalModal() {
     _goalModalUserId = null;
+    _goalModalSelf = false;
     var backdrop = document.getElementById('goal-modal-backdrop');
     if (backdrop) backdrop.classList.remove('open');
   }
@@ -1060,16 +1065,23 @@
   function confirmGoal() {
     var amt = document.getElementById('goal-modal-amount');
     var amount = amt ? parseFloat(amt.value) : NaN;
-    if (!_goalModalUserId || !amount || amount <= 0) { alert('Enter a valid target amount.'); return; }
-    fetch('/api/agent/team-snapshot', {
+    if ((!_goalModalSelf && !_goalModalUserId) || !amount || amount <= 0) { alert('Enter a valid target amount.'); return; }
+
+    var url = _goalModalSelf ? '/api/agent/me-snapshot' : '/api/agent/team-snapshot';
+    var payload = _goalModalSelf
+      ? { action: 'set_goal', target_amount: amount }
+      : { user_id: _goalModalUserId, target_amount: amount };
+
+    fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: _goalModalUserId, target_amount: amount })
+      body: JSON.stringify(payload)
     }).then(function (res) { return res.json(); }).then(function (data) {
       if (data.error) { alert(data.error); return; }
+      var wasSelf = _goalModalSelf;
       closeGoalModal();
-      _teamLoaded = false;
-      loadTeamSnapshot();
+      if (wasSelf) { _meLoaded = false; loadMeSnapshot(); }
+      else { _teamLoaded = false; loadTeamSnapshot(); }
     }).catch(function (err) { dbg('set goal failed: ' + err); });
   }
 
@@ -4279,6 +4291,9 @@
           break;
         case 'goal-modal-confirm':
           confirmGoal();
+          break;
+        case 'btn-set-my-goal':
+          openGoalModal(null, 'Your monthly goal', true);
           break;
         case 'btn-menu-announcement':
         case 'home-whats-new-teaser':
