@@ -1,6 +1,7 @@
 "use server";
 
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
+import { createClient } from "@/lib/supabase/server";
 
 // ── Promo matching ────────────────────────────────────────────────────────────
 
@@ -404,4 +405,19 @@ export async function fetchQuotation(site: string, product: string, block: strin
     block, section, lot_type: firstRow?.lot_type ?? derivedLotType ?? "",
     levels: levelRows,
   };
+}
+
+// ── Recent quotes (Home tab) ────────────────────────────────────────────────
+// Logged once per deliberate "Print/Share" tap, not per lot selection —
+// /agent is usable without login, so a missing user just means the quote
+// isn't attributed to anyone (still fine to log for aggregate purposes).
+export async function logQuoteView(site: string, product: string, section: string, netTotal: number) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  await supabaseAdmin.from("recent_quotes").insert({
+    user_id: user?.id ?? null,
+    site, product, section,
+    net_total: netTotal,
+  });
 }

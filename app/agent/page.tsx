@@ -85,6 +85,32 @@ export default async function AgentPage() {
         .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: #94a3b8; background: none; border: none; padding: 4px 0; cursor: pointer; touch-action: manipulation; }
         .tab-btn.active { color: ${G_TEAL}; }
         .tab-btn-icon { font-size: 18px; line-height: 1; }
+
+        /* ── Home tab ── */
+        #home-whats-new-teaser { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 10px 13px; background: #FEFCE8; border: 1px solid #FDE047; border-radius: 12px; width: calc(100% - 20px); box-sizing: border-box; cursor: pointer; touch-action: manipulation; text-align: left; }
+        .hwn-icon { font-size: 15px; }
+        .hwn-body { flex: 1; min-width: 0; }
+        .hwn-title { font-size: 12px; font-weight: 800; color: #854D0E; }
+        .hwn-sub { font-size: 10.5px; color: #8A6A2E; margin-top: 1px; }
+        .hwn-arrow { font-size: 18px; color: #B4922E; }
+        #home-goal-card { margin: 10px 10px 0; }
+        .home-goal { padding: 16px; border-radius: 16px; color: #fff; background: linear-gradient(150deg, ${G_DARK} 0%, ${G_TEAL} 130%); }
+        .home-goal-cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; font-weight: 700; }
+        .home-goal-figs { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
+        .home-goal-actual { font-size: 22px; font-weight: 700; }
+        .home-goal-of { font-size: 12px; opacity: 0.8; }
+        .home-goal-track { height: 7px; border-radius: 4px; background: rgba(255,255,255,0.22); margin-top: 12px; overflow: hidden; }
+        .home-goal-track > div { height: 100%; background: #fff; border-radius: 4px; }
+        .home-stat-row { display: flex; gap: 10px; }
+        .home-stat-card { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; text-align: center; }
+        .home-stat-num { font-size: 20px; font-weight: 700; color: ${G_DARK}; }
+        .home-stat-cap { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+        #home-recent-quotes { padding: 0 10px 10px; }
+        .home-quote-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; margin-top: 8px; }
+        .hqr-main { font-size: 12.5px; font-weight: 700; color: #0f172a; }
+        .hqr-sub { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
+        .hqr-total { font-size: 12.5px; font-weight: 700; color: ${G_TEAL}; }
+        .home-empty { text-align: center; color: #94a3b8; font-size: 12px; padding: 18px 10px; }
         .avail-banner { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 9px 13px; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(7,94,84,0.3); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-appearance: none; box-sizing: border-box; width: calc(100% - 20px); }
         .avail-banner:active { opacity: 0.88; }
         .avail-banner-left { flex: 1; }
@@ -584,11 +610,22 @@ export default async function AgentPage() {
               </div>
               <div className="btn-challenge-arrow">›</div>
             </button>
-            <div className="tab-placeholder">
-              <span className="tp-icon">🏠</span>
-              <span className="tp-title">Home</span>
-              <span className="tp-sub">What&apos;s New, your sales-vs-goal snapshot, and recent quotes are coming here next.</span>
+
+            <button id="home-whats-new-teaser">
+              <span className="hwn-icon">💡</span>
+              <div className="hwn-body">
+                <div className="hwn-title">What&apos;s New</div>
+                <div className="hwn-sub">Tap to see this month&apos;s updates</div>
+              </div>
+              <span className="hwn-arrow">›</span>
+            </button>
+
+            <div id="home-goal-card"></div>
+
+            <div className="s-label no-print" style={{marginTop:"6px"}}>
+              <span className="s-title">Recent Quotes</span>
             </div>
+            <div id="home-recent-quotes"></div>
           </div>
 
           {/* ── Tab: Inventory ── */}
@@ -1243,7 +1280,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260811a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260811b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

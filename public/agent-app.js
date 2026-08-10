@@ -903,6 +903,7 @@
 
   // ── Bottom tab bar ────────────────────────────────────────────
   var TAB_IDS = ['home', 'inventory', 'quote', 'team', 'me'];
+  var _homeSnapshotLoaded = false;
   function switchTab(name) {
     if (TAB_IDS.indexOf(name) < 0) return;
     TAB_IDS.forEach(function (t) {
@@ -914,6 +915,49 @@
     });
     var scrollBody = document.getElementById('scroll-body');
     if (scrollBody) scrollBody.scrollTop = 0;
+    if (name === 'home' && !_homeSnapshotLoaded) {
+      _homeSnapshotLoaded = true;
+      loadHomeSnapshot();
+    }
+  }
+
+  function loadHomeSnapshot() {
+    fetch('/api/agent/home-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      var goalCard = document.getElementById('home-goal-card');
+      if (goalCard) {
+        if (data.goal) {
+          var pct = data.goal.target_amount > 0 ? Math.min(100, Math.round(data.goal.actual_amount / data.goal.target_amount * 100)) : 0;
+          goalCard.innerHTML =
+            '<div class="home-goal">' +
+              '<div class="home-goal-cap">Sales vs goal · ' + esc(data.goal.period) + '</div>' +
+              '<div class="home-goal-figs"><div class="home-goal-actual">RM ' + fmt(data.goal.actual_amount) + '</div>' +
+                '<div class="home-goal-of">of RM ' + fmt(data.goal.target_amount) + '</div></div>' +
+              '<div class="home-goal-track"><div style="width:' + pct + '%"></div></div>' +
+            '</div>';
+        } else {
+          goalCard.innerHTML =
+            '<div class="home-stat-row">' +
+              '<div class="home-stat-card"><div class="home-stat-num">' + (data.quotesThisWeek || 0) + '</div><div class="home-stat-cap">Quotes this week</div></div>' +
+            '</div>';
+        }
+      }
+
+      var listEl = document.getElementById('home-recent-quotes');
+      if (listEl) {
+        if (!data.recentQuotes || !data.recentQuotes.length) {
+          listEl.innerHTML = '<div class="home-empty">No quotes generated yet — they&apos;ll show up here once you print or share one.</div>';
+        } else {
+          listEl.innerHTML = data.recentQuotes.map(function (q) {
+            var when = new Date(q.created_at).toLocaleDateString('en-MY', { day: '2-digit', month: 'short' });
+            return '<div class="home-quote-row">' +
+              '<div><div class="hqr-main">' + esc(q.product || q.site || 'Quotation') + '</div>' +
+              '<div class="hqr-sub">' + esc(q.site || '') + (q.section ? ' · ' + esc(q.section) : '') + '</div></div>' +
+              '<div class="hqr-total">' + when + '</div>' +
+            '</div>';
+          }).join('');
+        }
+      }
+    }).catch(function (err) { dbg('home snapshot failed: ' + err); });
   }
 
   function openAvailDrawer() {
@@ -4000,6 +4044,7 @@
           }
           break;
         case 'btn-menu-announcement':
+        case 'home-whats-new-teaser':
           document.getElementById('announcement-backdrop').classList.add('open');
           document.getElementById('announcement-drawer').classList.add('open');
           _loadAnnouncementEdm();
@@ -4049,6 +4094,13 @@
           document.title = '';
           var pd = qs('print-date');
           if (pd) pd.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+          if (lotQuotes.length) {
+            fetch('/api/agent/home-snapshot', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ site: site, product: product, section: lotQuotes.length + ' lot(s)' }),
+            }).then(function () { _homeSnapshotLoaded = false; }).catch(function (err) { dbg('log quote failed: ' + err); });
+          }
           if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
             window.Capacitor.Plugins.NativePrint.print().catch(function (err) {
               dbg('Native print failed: ' + (err && err.message ? err.message : err));
