@@ -1233,7 +1233,7 @@ export default async function AgentPage() {
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
-      <script src="/agent-nlp.js?v=20260724a"     suppressHydrationWarning />
+      <script src="/agent-nlp.js?v=20260810a"     suppressHydrationWarning />
       <script src="/agent-n3.js?v=20260714"      suppressHydrationWarning />
       {/* Bundle promo module — Purchase with Purchase */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}

@@ -80,7 +80,6 @@
       h += '<th class="tc-val nlp-th" style="min-width:130px;background:' + esc(p.nlpColor) + ';padding:6px 4px;border-radius:4px">'
         + '<div style="font-size:10px;font-weight:700;color:#1a3a6b">' + esc(p.planName) + '</div>'
         + (p.nlpZhName ? '<div style="font-size:10px;font-weight:700;color:#1a3a6b;margin-top:2px">' + esc(p.nlpZhName) + '</div>' : '')
-        + (p.nlpReligion ? '<div style="font-size:9px;font-weight:600;color:#1a3a6b;margin-top:2px;opacity:0.75">' + esc(p.nlpReligion) + '</div>' : '')
         + '</th>';
     });
     h += '</tr></thead><tbody>';
