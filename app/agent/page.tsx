@@ -128,6 +128,10 @@ export default async function AgentPage() {
         #me-goal-card { margin: 10px 10px 0; }
         .me-set-goal-btn { display: block; width: 100%; margin-top: 10px; padding: 9px; border-radius: 10px; border: none; background: rgba(255,255,255,0.18); color: #fff; font-size: 12px; font-weight: 700; }
         .me-set-goal-btn-outline { background: transparent; border: 1px solid ${G_TEAL}; color: ${G_TEAL}; margin-top: 8px; }
+        .me-goal-btn-row { display: flex; gap: 8px; margin-top: 10px; }
+        .me-goal-btn-row .me-set-goal-btn { margin-top: 0; flex: 1; }
+        .me-goal-btn-danger { background: rgba(255,255,255,0.10); color: #fecaca; }
+        .team-remove-goal-btn { display: block; margin-top: 8px; padding: 5px 0; border: none; background: transparent; color: #b91c1c; font-size: 10.5px; font-weight: 700; text-align: left; }
         #me-team-card { margin: 10px 10px 0; }
         .me-team-card { padding: 14px; border-radius: 16px; background: #fff; border: 1px solid #e2e8f0; }
         .me-team-cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; font-weight: 700; }
@@ -1348,7 +1352,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260811g" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260811h" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

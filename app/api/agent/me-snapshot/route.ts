@@ -130,6 +130,21 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: true });
   }
 
+  if (body?.action === "delete_goal") {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const period = currentPeriod();
+    const { error } = await supabaseAdmin
+      .from("sales_goals")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("period", period);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
   const quotationRef = body?.quotationRef, amount = body?.amount, soldAt = body?.soldAt;
   if (typeof quotationRef !== "string" || typeof amount !== "number" || amount <= 0) {
     return Response.json({ error: "quotationRef and a positive amount are required" }, { status: 400 });

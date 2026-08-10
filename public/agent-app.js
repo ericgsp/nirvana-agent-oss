@@ -963,7 +963,10 @@
               '<div class="home-goal-figs"><div class="home-goal-actual">RM ' + fmt(data.goal.actual_amount) + '</div>' +
                 '<div class="home-goal-of">of RM ' + fmt(data.goal.target_amount) + '</div></div>' +
               '<div class="home-goal-track"><div style="width:' + pct + '%"></div></div>' +
-              '<button class="me-set-goal-btn" id="btn-set-my-goal">Edit my goal</button>' +
+              '<div class="me-goal-btn-row">' +
+                '<button class="me-set-goal-btn" id="btn-set-my-goal">Edit my goal</button>' +
+                '<button class="me-set-goal-btn me-goal-btn-danger" id="btn-remove-my-goal">Remove</button>' +
+              '</div>' +
             '</div>';
         } else {
           goalCard.innerHTML =
@@ -1114,7 +1117,8 @@
               goalHtml =
                 '<div class="team-goal-cap">Sales vs goal · ' + esc(m.goal.period) + '</div>' +
                 '<div class="team-goal-figs"><span>RM ' + fmt(m.goal.actual_amount) + '</span><span>of RM ' + fmt(m.goal.target_amount) + '</span></div>' +
-                '<div class="team-goal-track"><div style="width:' + pct + '%"></div></div>';
+                '<div class="team-goal-track"><div style="width:' + pct + '%"></div></div>' +
+                '<button class="team-remove-goal-btn" data-user-id="' + esc(m.user_id) + '">Remove goal</button>';
             } else {
               goalHtml = '<div class="team-no-goal">No goal set</div>';
             }
@@ -4219,6 +4223,23 @@
         return;
       }
 
+      // "Remove goal" button on a team-member row (Team tab)
+      var removeGoalBtn = e.target && e.target.closest && e.target.closest('.team-remove-goal-btn');
+      if (removeGoalBtn) {
+        if (confirm('Remove this goal? The member can still set their own anytime.')) {
+          fetch('/api/agent/team-snapshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete_goal', user_id: removeGoalBtn.dataset.userId })
+          }).then(function (res) { return res.json(); }).then(function (data) {
+            if (data.error) { alert(data.error); return; }
+            _teamLoaded = false;
+            loadTeamSnapshot();
+          }).catch(function (err) { dbg('delete goal failed: ' + err); });
+        }
+        return;
+      }
+
       switch (id) {
         case 'btn-reset':         resetAll(); break;
         case 'btn-reload':        window.location.reload(); break;
@@ -4294,6 +4315,19 @@
           break;
         case 'btn-set-my-goal':
           openGoalModal(null, 'Your monthly goal', true);
+          break;
+        case 'btn-remove-my-goal':
+          if (confirm('Remove your goal for this month? You can set a new one anytime.')) {
+            fetch('/api/agent/me-snapshot', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'delete_goal' })
+            }).then(function (res) { return res.json(); }).then(function (data) {
+              if (data.error) { alert(data.error); return; }
+              _meLoaded = false;
+              loadMeSnapshot();
+            }).catch(function (err) { dbg('delete goal failed: ' + err); });
+          }
           break;
         case 'btn-menu-announcement':
         case 'home-whats-new-teaser':

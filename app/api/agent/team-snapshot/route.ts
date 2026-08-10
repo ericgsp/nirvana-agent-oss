@@ -102,7 +102,8 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const targetUserId = body?.user_id;
   const targetAmount = body?.target_amount;
-  if (typeof targetUserId !== "string" || typeof targetAmount !== "number" || targetAmount <= 0) {
+  const isDelete = body?.action === "delete_goal";
+  if (typeof targetUserId !== "string" || (!isDelete && (typeof targetAmount !== "number" || targetAmount <= 0))) {
     return Response.json({ error: "user_id and a positive target_amount are required" }, { status: 400 });
   }
 
@@ -118,11 +119,22 @@ export async function POST(req: NextRequest) {
       .eq("leader_id", user.id)
       .maybeSingle();
     if (!targetRow) {
-      return Response.json({ error: "You can only set goals for your direct team" }, { status: 403 });
+      return Response.json({ error: "You can only manage goals for your direct team" }, { status: 403 });
     }
   }
 
   const period = currentPeriod();
+
+  if (isDelete) {
+    const { error } = await supabaseAdmin
+      .from("sales_goals")
+      .delete()
+      .eq("user_id", targetUserId)
+      .eq("period", period);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
   const { error } = await supabaseAdmin
     .from("sales_goals")
     .upsert(
