@@ -910,6 +910,14 @@
   var TAB_IDS = ['home', 'inventory', 'quote', 'team', 'me'];
   var _homeSnapshotLoaded = false;
   var _inventoryListLoaded = false;
+  var _teamLoaded = false;
+  var TIER_COLOR = {
+    CBDD: { bg: '#ede9fe', fg: '#5b21b6' },
+    BDD: { bg: '#dcfce7', fg: '#15803d' },
+    DSD: { bg: '#dbeafe', fg: '#1d4ed8' },
+    SD: { bg: '#fef3c7', fg: '#92400e' },
+    AGENT: { bg: '#f1f5f9', fg: '#475569' }
+  };
   function switchTab(name) {
     if (TAB_IDS.indexOf(name) < 0) return;
     TAB_IDS.forEach(function (t) {
@@ -929,6 +937,54 @@
       _inventoryListLoaded = true;
       openAvailDrawer();
     }
+    if (name === 'team' && !_teamLoaded) {
+      _teamLoaded = true;
+      loadTeamSnapshot();
+    }
+  }
+
+  function loadTeamSnapshot() {
+    var banner = document.getElementById('team-scope-banner');
+    var listEl = document.getElementById('team-list');
+    fetch('/api/agent/team-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      if (!data.access) {
+        if (banner) banner.innerHTML = '';
+        if (listEl) listEl.innerHTML = '<div class="home-empty">Team view isn&apos;t set up for your account yet. Ask an admin to assign your tier and leader in /users.</div>';
+        return;
+      }
+      if (banner) {
+        banner.textContent = data.scope === 'org'
+          ? 'Showing the full organisation'
+          : 'Showing your direct team';
+      }
+      if (listEl) {
+        if (!data.members || !data.members.length) {
+          listEl.innerHTML = '<div class="home-empty">No team members found yet.</div>';
+        } else {
+          listEl.innerHTML = data.members.map(function (m) {
+            var color = TIER_COLOR[m.tier] || TIER_COLOR.AGENT;
+            var name = esc(m.display_name || m.agent_code || 'Agent');
+            var badge = '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(m.tier) + '</span>';
+            var goalHtml;
+            if (m.goal) {
+              var pct = m.goal.target_amount > 0 ? Math.min(100, Math.round(m.goal.actual_amount / m.goal.target_amount * 100)) : 0;
+              goalHtml =
+                '<div class="team-goal-cap">Sales vs goal · ' + esc(m.goal.period) + '</div>' +
+                '<div class="team-goal-figs"><span>RM ' + fmt(m.goal.actual_amount) + '</span><span>of RM ' + fmt(m.goal.target_amount) + '</span></div>' +
+                '<div class="team-goal-track"><div style="width:' + pct + '%"></div></div>';
+            } else {
+              goalHtml = '<div class="team-no-goal">No goal set</div>';
+            }
+            return '<div class="team-row">' +
+              '<div class="team-row-top">' + badge +
+                '<span class="team-row-name">' + name + '</span>' +
+                (m.agent_code ? '<span class="team-row-code">' + esc(m.agent_code) + '</span>' : '') +
+              '</div>' + goalHtml +
+            '</div>';
+          }).join('');
+        }
+      }
+    }).catch(function (err) { dbg('team snapshot failed: ' + err); });
   }
 
   function loadHomeSnapshot() {

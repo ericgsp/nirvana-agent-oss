@@ -111,6 +111,19 @@ export default async function AgentPage() {
         .hqr-sub { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
         .hqr-total { font-size: 12.5px; font-weight: 700; color: ${G_TEAL}; }
         .home-empty { text-align: center; color: #94a3b8; font-size: 12px; padding: 18px 10px; }
+
+        #team-scope-banner { margin: 10px 10px 0; padding: 10px 14px; border-radius: 12px; background: #f1f5f9; color: #475569; font-size: 11.5px; font-weight: 600; }
+        #team-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .team-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
+        .team-row-top { display: flex; align-items: center; gap: 8px; }
+        .team-tier-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+        .team-row-name { font-size: 13px; font-weight: 700; color: ${G_DARK}; flex: 1; }
+        .team-row-code { font-size: 10px; color: #94a3b8; }
+        .team-goal-cap { font-size: 10px; color: #94a3b8; margin-top: 8px; }
+        .team-goal-figs { display: flex; justify-content: space-between; font-size: 11px; color: #475569; margin-top: 2px; }
+        .team-goal-track { height: 6px; border-radius: 4px; background: #e2e8f0; margin-top: 6px; overflow: hidden; }
+        .team-goal-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
+        .team-no-goal { font-size: 11px; color: #94a3b8; margin-top: 8px; font-style: italic; }
         .avail-banner { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 9px 13px; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(7,94,84,0.3); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-appearance: none; box-sizing: border-box; width: calc(100% - 20px); }
         .avail-banner:active { opacity: 0.88; }
         .avail-banner-left { flex: 1; }
@@ -713,11 +726,8 @@ export default async function AgentPage() {
 
           {/* ── Tab: Team ── */}
           <div id="tab-team" className="tab-panel">
-            <div className="tab-placeholder">
-              <span className="tp-icon">◈</span>
-              <span className="tp-title">Team</span>
-              <span className="tp-sub">Your direct team&apos;s progress will appear here, scoped to your tier.</span>
-            </div>
+            <div id="team-scope-banner" className="no-print"></div>
+            <div id="team-list"></div>
           </div>
 
           {/* ── Tab: Me ── */}
@@ -1265,7 +1275,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260811c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260811d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
