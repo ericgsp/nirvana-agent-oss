@@ -124,6 +124,34 @@ export default async function AgentPage() {
         .team-goal-track { height: 6px; border-radius: 4px; background: #e2e8f0; margin-top: 6px; overflow: hidden; }
         .team-goal-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
         .team-no-goal { font-size: 11px; color: #94a3b8; margin-top: 8px; font-style: italic; }
+
+        #me-goal-card { margin: 10px 10px 0; }
+        #me-team-card { margin: 10px 10px 0; }
+        .me-team-card { padding: 14px; border-radius: 16px; background: #fff; border: 1px solid #e2e8f0; }
+        .me-team-cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; font-weight: 700; }
+        .me-team-figs { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
+        .me-team-actual { font-size: 18px; font-weight: 700; color: ${G_DARK}; }
+        .me-team-of { font-size: 12px; color: #94a3b8; }
+        .me-team-track { height: 6px; border-radius: 4px; background: #e2e8f0; margin-top: 10px; overflow: hidden; }
+        .me-team-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
+        .me-team-note { font-size: 10.5px; color: #94a3b8; margin-top: 6px; }
+        #me-quotes-list { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+        .me-quote-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .mqr-main { font-size: 12.5px; font-weight: 700; color: ${G_DARK}; }
+        .mqr-sub { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
+        .mqr-sold-btn { flex-shrink: 0; padding: 6px 12px; border-radius: 999px; border: none; background: ${G_TEAL}; color: #fff; font-size: 11px; font-weight: 700; }
+        .mqr-sold-tag { flex-shrink: 0; padding: 5px 10px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 10.5px; font-weight: 700; }
+
+        #sold-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #sold-modal-backdrop.open { display:flex; }
+        #sold-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #sold-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #sold-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        #sold-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
+        #sold-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #sold-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #sold-modal-cancel { background:#f1f5f9; color:#475569; }
+        #sold-modal-confirm { background:${G_TEAL}; color:#fff; }
         .avail-banner { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 9px 13px; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(7,94,84,0.3); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-appearance: none; box-sizing: border-box; width: calc(100% - 20px); }
         .avail-banner:active { opacity: 0.88; }
         .avail-banner-left { flex: 1; }
@@ -732,11 +760,14 @@ export default async function AgentPage() {
 
           {/* ── Tab: Me ── */}
           <div id="tab-me" className="tab-panel">
-            <div className="tab-placeholder">
-              <span className="tp-icon">◎</span>
-              <span className="tp-title">Me</span>
-              <span className="tp-sub">Your personal sales-vs-goal performance is coming here.</span>
+            <div id="me-goal-card"></div>
+
+            <div id="me-team-card"></div>
+
+            <div className="s-label no-print" style={{marginTop:"6px"}}>
+              <span className="s-title">Your Quotes</span>
             </div>
+            <div id="me-quotes-list"></div>
           </div>
 
         </div>
@@ -1229,6 +1260,20 @@ export default async function AgentPage() {
         <div id="poster-modal-notice" style={{display:'none'}}></div>
       </div>
 
+      {/* Mark as Sold modal — Me tab */}
+      <div id="sold-modal-backdrop">
+        <div id="sold-modal-box">
+          <div id="sold-modal-title">Mark as Sold</div>
+          <div id="sold-modal-sub"></div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Final amount (RM)</div>
+          <input id="sold-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
+          <div id="sold-modal-actions">
+            <button id="sold-modal-cancel">Cancel</button>
+            <button id="sold-modal-confirm">Confirm Sold</button>
+          </div>
+        </div>
+      </div>
+
       {/* Monthly Challenge drawer */}
       <div id="challenge-backdrop"></div>
       <div id="challenge-drawer">
@@ -1275,7 +1320,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260811d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260811e" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

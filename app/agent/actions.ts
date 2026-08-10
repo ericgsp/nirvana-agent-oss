@@ -421,3 +421,23 @@ export async function logQuoteView(site: string, product: string, section: strin
     net_total: netTotal,
   });
 }
+
+// ── Mark as Sold (Me tab) ────────────────────────────────────────────────────
+// Manual v1 sales recording -- an agent marks their own generated quotation
+// "Sold" with the final amount. Always attributed to the logged-in caller,
+// never an arbitrary user_id from the client.
+export async function markSold(quotationRef: string, amount: number, soldAt?: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "Not logged in" };
+
+  await supabaseAdmin.from("sales_log").insert({
+    user_id: user.id,
+    quotation_ref: quotationRef,
+    amount,
+    sold_at: soldAt ?? new Date().toISOString().slice(0, 10),
+    recorded_by: user.id,
+  });
+
+  return { ok: true as const };
+}

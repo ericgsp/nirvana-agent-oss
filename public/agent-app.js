@@ -911,6 +911,8 @@
   var _homeSnapshotLoaded = false;
   var _inventoryListLoaded = false;
   var _teamLoaded = false;
+  var _meLoaded = false;
+  var _soldModalRef = null;
   var TIER_COLOR = {
     CBDD: { bg: '#ede9fe', fg: '#5b21b6' },
     BDD: { bg: '#dcfce7', fg: '#15803d' },
@@ -941,6 +943,101 @@
       _teamLoaded = true;
       loadTeamSnapshot();
     }
+    if (name === 'me' && !_meLoaded) {
+      _meLoaded = true;
+      loadMeSnapshot();
+    }
+  }
+
+  function loadMeSnapshot() {
+    fetch('/api/agent/me-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      var goalCard = document.getElementById('me-goal-card');
+      if (goalCard) {
+        if (data.goal) {
+          var pct = data.goal.target_amount > 0 ? Math.min(100, Math.round(data.goal.actual_amount / data.goal.target_amount * 100)) : 0;
+          goalCard.innerHTML =
+            '<div class="home-goal">' +
+              '<div class="home-goal-cap">Your sales vs goal · ' + esc(data.goal.period) + '</div>' +
+              '<div class="home-goal-figs"><div class="home-goal-actual">RM ' + fmt(data.goal.actual_amount) + '</div>' +
+                '<div class="home-goal-of">of RM ' + fmt(data.goal.target_amount) + '</div></div>' +
+              '<div class="home-goal-track"><div style="width:' + pct + '%"></div></div>' +
+            '</div>';
+        } else {
+          goalCard.innerHTML =
+            '<div class="home-stat-row">' +
+              '<div class="home-stat-card"><div class="home-stat-num">' + (data.recentQuotes ? data.recentQuotes.length : 0) + '</div><div class="home-stat-cap">Quotes generated recently</div></div>' +
+            '</div>';
+        }
+      }
+
+      var teamCard = document.getElementById('me-team-card');
+      if (teamCard) {
+        if (data.team && data.team.goalCount > 0) {
+          var tpct = data.team.targetTotal > 0 ? Math.min(100, Math.round(data.team.actualTotal / data.team.targetTotal * 100)) : 0;
+          teamCard.innerHTML =
+            '<div class="me-team-card">' +
+              '<div class="me-team-cap">Your team\'s attainment · ' + data.team.goalCount + ' with goals set</div>' +
+              '<div class="me-team-figs"><div class="me-team-actual">RM ' + fmt(data.team.actualTotal) + '</div>' +
+                '<div class="me-team-of">of RM ' + fmt(data.team.targetTotal) + '</div></div>' +
+              '<div class="me-team-track"><div style="width:' + tpct + '%"></div></div>' +
+              '<div class="me-team-note">' + data.team.memberCount + ' team member(s) total</div>' +
+            '</div>';
+        } else if (data.team) {
+          teamCard.innerHTML = '';
+        } else {
+          teamCard.innerHTML = '';
+        }
+      }
+
+      var listEl = document.getElementById('me-quotes-list');
+      if (listEl) {
+        if (!data.recentQuotes || !data.recentQuotes.length) {
+          listEl.innerHTML = '<div class="home-empty">No quotes generated yet — they&apos;ll show up here once you print or share one.</div>';
+        } else {
+          listEl.innerHTML = data.recentQuotes.map(function (q) {
+            var label = esc(q.product || q.site || 'Quotation');
+            var ref = esc((q.site || '') + '|' + (q.product || '') + '|' + (q.section || '') + '|' + q.id);
+            return '<div class="me-quote-row">' +
+              '<div><div class="mqr-main">' + label + '</div>' +
+              '<div class="mqr-sub">' + esc(q.site || '') + (q.section ? ' · ' + esc(q.section) : '') + '</div></div>' +
+              '<button class="mqr-sold-btn" data-ref="' + ref + '" data-label="' + label + '" data-net-total="' + (q.net_total || 0) + '">Mark Sold</button>' +
+            '</div>';
+          }).join('');
+        }
+      }
+    }).catch(function (err) { dbg('me snapshot failed: ' + err); });
+  }
+
+  function openSoldModal(ref, label, netTotal) {
+    _soldModalRef = ref;
+    var sub = document.getElementById('sold-modal-sub');
+    var amt = document.getElementById('sold-modal-amount');
+    if (sub) sub.textContent = label || '';
+    if (amt) amt.value = netTotal ? netTotal : '';
+    var backdrop = document.getElementById('sold-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeSoldModal() {
+    _soldModalRef = null;
+    var backdrop = document.getElementById('sold-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function confirmSold() {
+    var amt = document.getElementById('sold-modal-amount');
+    var amount = amt ? parseFloat(amt.value) : NaN;
+    if (!_soldModalRef || !amount || amount <= 0) { alert('Enter a valid final amount.'); return; }
+    fetch('/api/agent/me-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quotationRef: _soldModalRef, amount: amount })
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeSoldModal();
+      _meLoaded = false;
+      loadMeSnapshot();
+    }).catch(function (err) { dbg('mark sold failed: ' + err); });
   }
 
   function loadTeamSnapshot() {
@@ -4061,6 +4158,13 @@
         return;
       }
 
+      // "Mark as Sold" button on a recent-quote row (Me tab)
+      var soldBtn = e.target && e.target.closest && e.target.closest('.mqr-sold-btn');
+      if (soldBtn) {
+        openSoldModal(soldBtn.dataset.ref, soldBtn.dataset.label, parseFloat(soldBtn.dataset.netTotal) || 0);
+        return;
+      }
+
       switch (id) {
         case 'btn-reset':         resetAll(); break;
         case 'btn-reload':        window.location.reload(); break;
@@ -4115,6 +4219,15 @@
             document.getElementById('poster-modal-register').style.display = 'none';
             document.getElementById('poster-modal-notice').style.display = 'none';
           }
+          break;
+        case 'sold-modal-cancel':
+          closeSoldModal();
+          break;
+        case 'sold-modal-backdrop':
+          if (e.target.id === 'sold-modal-backdrop') closeSoldModal();
+          break;
+        case 'sold-modal-confirm':
+          confirmSold();
           break;
         case 'btn-menu-announcement':
         case 'home-whats-new-teaser':
