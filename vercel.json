@@ -5,9 +5,6 @@
     },
     "app/api/product-sync/download-item/route.ts": {
       "maxDuration": 300
-    },
-    "app/api/agent/quotation-pdf/route.ts": {
-      "maxDuration": 300
     }
   }
 }

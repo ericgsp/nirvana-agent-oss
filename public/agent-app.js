@@ -3638,84 +3638,12 @@
     renderLayoutArea(); renderQuoteSection();
   }
 
-  // ── Native PDF export & share ─────────────────────────────────
-  // Capacitor's embedded WebView has no print dialog, so window.print() is a
-  // silent no-op there. The PDF itself is rendered server-side with a real
-  // headless browser (Playwright/Chromium — see app/api/agent/quotation-pdf)
-  // instead of html2canvas, so it's a true copy of what's on screen rather
-  // than a client-side approximation.
-
-  // Opens the preview drawer with a snapshot of the current quote table, so
-  // the agent can scroll and review (all columns, not just what fits the
-  // phone screen) before deciding to share it as a PDF.
-  function openQuotePreviewDrawer() {
-    var quoteBody = qs('quote-body');
-    var previewBody = qs('quote-preview-body');
-    if (!quoteBody || !previewBody) return;
-
-    previewBody.innerHTML = quoteBody.innerHTML;
-
-    // Respect whichever columns the agent has toggled off (same source the
-    // print flow uses), applied directly instead of gated on a print event.
-    Object.keys(hiddenCols).forEach(function (lc) {
-      previewBody.querySelectorAll('[data-col="' + lc + '"]').forEach(function (el) { el.classList.add('col-hidden'); });
-    });
-
-    var d = qs('quote-preview-date');
-    if (d) d.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
-
-    qs('quote-preview-backdrop').classList.add('open');
-    qs('quote-preview-drawer').classList.add('open');
-  }
-
-  function closeQuotePreviewDrawer() {
-    qs('quote-preview-backdrop').classList.remove('open');
-    qs('quote-preview-drawer').classList.remove('open');
-  }
-
-  function blobToBase64(blob) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onloadend = function () {
-        var result = reader.result;
-        resolve(result.split(',')[1] || '');
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  }
-
-  // Sends the preview's actual HTML/CSS to the server, which renders it with
-  // a real headless browser and prints that to PDF — the PDF is a true copy
-  // of the preview, not an html2canvas approximation.
-  function exportQuotationPdfNative() {
-    var previewBody = qs('quote-preview-body');
-    var previewFooter = qs('quote-preview-footer');
-    if (!previewBody) return Promise.reject(new Error('Quotation preview not found'));
-
-    var html = previewBody.outerHTML + (previewFooter ? previewFooter.outerHTML : '');
-    var css = Array.prototype.map.call(document.querySelectorAll('style'), function (s) { return s.textContent; }).join('\n');
-
-    return fetch('/api/agent/quotation-pdf', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ html: html, css: css }),
-    }).then(function (res) {
-      if (!res.ok) throw new Error('Server returned ' + res.status);
-      return res.blob();
-    }).then(function (blob) {
-      return blobToBase64(blob);
-    }).then(function (pdfBase64) {
-      var fileName = 'quotation-' + Date.now() + '.pdf';
-      var Filesystem = window.Capacitor.Plugins.Filesystem;
-      var Share = window.Capacitor.Plugins.Share;
-      return Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: 'CACHE' }).then(function (written) {
-        return Share.share({ title: 'Nirvana Quotation', url: written.uri });
-      });
-    });
-  }
-
   // ── Print ──────────────────────────────────────────────────────
+  // Capacitor's WebView has no window.print() dialog wired up. On native
+  // platforms, the btn-pdf handler below calls the NativePrint Capacitor
+  // plugin (android/.../NativePrintPlugin.java) instead, which hands the
+  // live WebView to Android's own PrintManager — same @media print CSS,
+  // same beforeprint/afterprint events below, just a different trigger.
   window.addEventListener('beforeprint', function () {
     var el = qs('quote-section');
     if (!el) return;
@@ -3994,22 +3922,6 @@
         case 'btn-avail':         openAvailDrawer(); break;
         case 'avail-drawer-close':closeAvailDrawer(); break;
         case 'avail-backdrop':    closeAvailDrawer(); break;
-        case 'quote-preview-close':
-        case 'quote-preview-backdrop':
-          closeQuotePreviewDrawer();
-          break;
-        case 'quote-preview-share': {
-          var shareBtn = qs('quote-preview-share');
-          var shareBtnLabel = shareBtn ? shareBtn.textContent : 'Share as PDF';
-          if (shareBtn) { shareBtn.disabled = true; shareBtn.textContent = 'Generating…'; }
-          exportQuotationPdfNative().then(function () {
-            if (shareBtn) { shareBtn.textContent = shareBtnLabel; shareBtn.disabled = false; }
-          }, function (err) {
-            dbg('PDF export failed: ' + (err && err.message ? err.message : err));
-            if (shareBtn) { shareBtn.textContent = 'Failed — check connection & retry'; shareBtn.disabled = false; }
-          });
-          break;
-        }
         case 'btn-menu': {
           var sm = document.getElementById('side-menu');
           if (sm) sm.classList.toggle('open');
@@ -4105,16 +4017,20 @@
           document.getElementById('challenge-drawer').classList.remove('open');
           break;
         case 'btn-pdf':
-          if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-            openQuotePreviewDrawer();
-            break;
-          }
-          var prev = document.title;
+          var prevTitle = document.title;
           document.title = '';
-          var d = qs('print-date');
-          if (d) d.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
-          window.print();
-          setTimeout(function () { document.title = prev; }, 500);
+          var pd = qs('print-date');
+          if (pd) pd.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+          if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            window.Capacitor.Plugins.NativePrint.print().catch(function (err) {
+              dbg('Native print failed: ' + (err && err.message ? err.message : err));
+            }).then(function () {
+              document.title = prevTitle;
+            });
+          } else {
+            window.print();
+            setTimeout(function () { document.title = prevTitle; }, 500);
+          }
           break;
       }
     });

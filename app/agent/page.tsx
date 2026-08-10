@@ -249,25 +249,6 @@ export default async function AgentPage() {
         .wm-wrap  { display: none; position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='120'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' transform='rotate(-35 110 60)' font-family='Arial,sans-serif' font-size='22' font-weight='900' letter-spacing='3' fill='rgba(26%2C58%2C107%2C0.07)' text-decoration='none'%3EBDD1228%3C/text%3E%3C/svg%3E"); background-repeat: repeat; }
         .wm-text  { display: none; }
         #print-footer { display: none; }
-        /* ── Quotation preview drawer (native app only) ── */
-        #quote-preview-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
-        #quote-preview-backdrop.open { display:block; }
-        #quote-preview-drawer { position:fixed; left:0; right:0; bottom:0; background:#f0f2f5; border-radius:20px 20px 0 0; z-index:1101; max-height:92vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
-        #quote-preview-drawer.open { transform:translateY(0); }
-        #quote-preview-handle { width:36px; height:4px; background:#cbd5e1; border-radius:2px; margin:12px auto 0; flex-shrink:0; }
-        #quote-preview-topbar { display:flex; align-items:center; padding:10px 14px 12px; flex-shrink:0; }
-        #quote-preview-topbar h2 { font-size:15px; font-weight:800; color:#0f172a; flex:1; }
-        #quote-preview-close { font-size:22px; line-height:1; color:#94a3b8; background:none; border:none; cursor:pointer; padding:4px; }
-        #quote-preview-scroll { flex:1; overflow-y:auto; padding:0 10px 12px; }
-        #quote-preview-hint { font-size:11px; color:#94a3b8; text-align:center; padding:0 0 8px; }
-        #quote-preview-body { position:relative; background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,0.08); overflow:hidden; }
-        #quote-preview-body .wm-wrap { display: block; }
-        #quote-preview-body .col-hidden { display: none !important; }
-        #quote-preview-body .no-print { display: none !important; }
-        #quote-preview-footer { display:flex; justify-content:space-between; align-items:center; margin-top:6px; padding:4px 14px 10px; font-size:10px; color:#64748b; }
-        #quote-preview-actions { flex-shrink:0; padding:10px 14px calc(14px + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid #e2e8f0; }
-        #quote-preview-share { width:100%; padding:13px; background:#1a3a6b; color:#fff; border:none; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; }
-        #quote-preview-share:active { background:#122a4e; }
         /* ── Memo drawer ── */
         #memo-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
         #memo-backdrop.open { display:block; }
@@ -1206,30 +1187,8 @@ export default async function AgentPage() {
         </div>
       </div>
 
-      {/* Quotation preview drawer — native app only, opened instead of window.print() */}
-      <div id="quote-preview-backdrop"></div>
-      <div id="quote-preview-drawer">
-        <div id="quote-preview-handle"></div>
-        <div id="quote-preview-topbar">
-          <h2>Preview Quotation</h2>
-          <button id="quote-preview-close">×</button>
-        </div>
-        <div id="quote-preview-scroll">
-          <div id="quote-preview-hint">Scroll sideways to review all columns</div>
-          <div id="quote-preview-body"></div>
-          <div id="quote-preview-footer">
-            <span id="quote-preview-date"></span>
-            <span>Page 1</span>
-          </div>
-        </div>
-        <div id="quote-preview-actions">
-          <button id="quote-preview-share">Share as PDF</button>
-        </div>
-      </div>
-
-
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260810k" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260810l" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
