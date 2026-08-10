@@ -245,8 +245,9 @@ export default async function AgentPage() {
         .promo-collapse-arrow { margin-left: auto; font-size: 9px; }
         .promo-note         { padding: 5px 14px; background: #fffbeb; border-top: 1px solid #fde68a; font-size: 10px; font-weight: 600; color: #78350f; }
         .promo-note-instant { background: #eff6ff; border-bottom: 1px solid #bfdbfe; border-top: none; color: #1e40af; }
-        .qt-header { padding: 14px 14px 10px; text-align: center; border-bottom: 2px solid #1a3a6b; }
-        .qt-header .h-brand    { font-size: 16px; font-weight: 700; color: #1a3a6b; }
+        #quote-section { overflow: hidden; }
+        .qt-header { padding: 16px 14px 12px; text-align: center; border-bottom: 2px solid #1a3a6b; }
+        .qt-header .h-brand    { font-size: 17px; font-weight: 700; color: #1a3a6b; letter-spacing: -0.01em; }
         .qt-header .h-site-zh  { font-size: 14px; color: #0f172a; margin-top: 1px; }
         .qt-header .h-product  { font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 6px; }
         .qt-header .h-lot      { font-size: 13px; font-weight: 700; color: #1a3a6b; margin-top: 2px; }
@@ -258,10 +259,10 @@ export default async function AgentPage() {
         .n3-condition { background: #fef3c7; border-left: 4px solid #d97706; padding: 8px 12px; margin: 0; font-size: 13px; color: #92400e; }
         .qt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .qt { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .qt td, .qt th { border: 1px solid #b0b8c1; padding: 6px 9px; white-space: nowrap; vertical-align: middle; line-height: 1.3; }
+        .qt td, .qt th { border: 1px solid #b0b8c1; padding: 7px 10px; white-space: nowrap; vertical-align: middle; line-height: 1.3; }
         .qt tbody tr td:first-child  { border-right: none; }
         .qt tbody tr td:nth-child(2) { border-left: none; border-right: 2px solid #1a3a6b; }
-        .qt thead th { background: #1a3a6b; color: #fff; text-align: center; font-weight: 700; font-size: 12px; }
+        .qt thead th { background: #1a3a6b; color: #fff; text-align: center; font-weight: 700; font-size: 12px; letter-spacing: 0.01em; }
         .qt thead th.tc-lbl { text-align: left; min-width: 135px; }
         .qt thead th.tc-zh  { text-align: left; min-width: 95px; }
         .qt thead th.tc-val { min-width: 65px; }
@@ -277,11 +278,12 @@ export default async function AgentPage() {
         .qt tr.tred td    { color: #dc2626; font-weight: 700; }
         .qt tr.ttenure td { background: #c6efce; color: #0f172a; font-weight: 700; }
         .qt tr.tnet-rule td { background: #fff; height: 3px; padding: 0; border: none; }
-        .qt tr.tnet td  { background: #1a3a6b; color: #fff; font-weight: 700; font-size: 13px; border-color: rgba(255,255,255,0.4); }
+        .qt tr.tnet td  { background: #1a3a6b; color: #fff; font-weight: 700; font-size: 14px; border-color: rgba(255,255,255,0.4); }
+        @media screen { .qt tr.tnet td { box-shadow: inset 0 2px 0 ${G_TEAL}; } }
         .qt tr.tnet td.tv { border-left: 3px solid #fff; }
         .qt tr.tdr td  { background: #ffeb9c; color: #9c5700; font-weight: 700; }
         .qt tr.tsep td { background: #f8fafc; border: none; height: 4px; padding: 0; }
-        .qt-footer { padding: 10px 14px 14px; font-size: 11.5px; color: #334155; border-top: 2px solid #1a3a6b; }
+        .qt-footer { padding: 12px 14px 16px; font-size: 11.5px; color: #334155; border-top: 2px solid #1a3a6b; }
         .qt-footer p { margin: 2px 0; line-height: 1.5; }
         .qt-footer .f-valid { font-weight: 700; margin-bottom: 4px; }
         .wm-wrap  { display: none; position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='120'%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' transform='rotate(-35 110 60)' font-family='Arial,sans-serif' font-size='22' font-weight='900' letter-spacing='3' fill='rgba(26%2C58%2C107%2C0.07)' text-decoration='none'%3EBDD1228%3C/text%3E%3C/svg%3E"); background-repeat: repeat; }
