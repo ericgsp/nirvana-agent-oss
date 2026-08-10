@@ -215,12 +215,12 @@ export default async function AgentPage() {
         .qt-header .h-category { font-size: 13px; color: #0f172a; margin-top: 1px; }
         .qt-header .h-size     { font-size: 12px; color: #0f172a; margin-top: 1px; }
         .qt-header .h-section  { font-size: 14px; font-weight: 700; color: #dc2626; margin-top: 4px; }
-        .qt-header .h-promo-badge { display: inline-block; margin-top: 6px; background: #dc2626; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 10px; border-radius: 999px; }
+        .qt-header .h-promo-badge { display: inline-flex; align-items: center; justify-content: center; margin-top: 6px; background: #dc2626; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 2px 10px; border-radius: 999px; line-height: 1.4; }
         .qt-header .h-info { font-size: 12px; color: #475569; margin-top: 5px; }
         .n3-condition { background: #fef3c7; border-left: 4px solid #d97706; padding: 8px 12px; margin: 0; font-size: 13px; color: #92400e; }
         .qt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         .qt { width: 100%; border-collapse: collapse; font-size: 13px; }
-        .qt td, .qt th { border: 1px solid #b0b8c1; padding: 6px 9px; white-space: nowrap; }
+        .qt td, .qt th { border: 1px solid #b0b8c1; padding: 6px 9px; white-space: nowrap; vertical-align: middle; }
         .qt tbody tr td:first-child  { border-right: none; }
         .qt tbody tr td:nth-child(2) { border-left: none; border-right: 2px solid #1a3a6b; }
         .qt thead th { background: #1a3a6b; color: #fff; text-align: center; font-weight: 700; font-size: 12px; }
@@ -263,6 +263,7 @@ export default async function AgentPage() {
         #quote-preview-body { position:relative; background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,0.08); overflow:hidden; }
         #quote-preview-body .wm-wrap { display: block; }
         #quote-preview-body .col-hidden { display: none !important; }
+        #quote-preview-body .no-print { display: none !important; }
         #quote-preview-footer { display:flex; justify-content:space-between; align-items:center; margin-top:6px; padding:4px 14px 10px; font-size:10px; color:#64748b; }
         #quote-preview-actions { flex-shrink:0; padding:10px 14px calc(14px + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid #e2e8f0; }
         #quote-preview-share { width:100%; padding:13px; background:#1a3a6b; color:#fff; border:none; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; }
@@ -1228,7 +1229,7 @@ export default async function AgentPage() {
 
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260810c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260810d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
