@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
+type Tier = "CBDD" | "BDD" | "DSD" | "SD" | "AGENT";
+
 type User = {
   id: string;
   email: string;
@@ -10,11 +12,24 @@ type User = {
   role: "admin" | "agent" | null;
   device_bound_at: string | null;
   device_user_agent: string | null;
+  tier: Tier | null;
+  leader_id: string | null;
+  agent_code: string | null;
+  display_name: string | null;
 };
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Admin",
   agent: "Agent",
+};
+
+const TIERS: Tier[] = ["CBDD", "BDD", "DSD", "SD", "AGENT"];
+const TIER_COLOR: Record<Tier, { bg: string; fg: string }> = {
+  CBDD: { bg: "#ede9fe", fg: "#5b21b6" },
+  BDD:  { bg: "#dcfce7", fg: "#15803d" },
+  DSD:  { bg: "#dbeafe", fg: "#1d4ed8" },
+  SD:   { bg: "#fef3c7", fg: "#92400e" },
+  AGENT:{ bg: "#f1f5f9", fg: "#475569" },
 };
 
 export default function UsersPage() {
@@ -29,6 +44,12 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+
+  // Inline "assign tier" editor -- one row open at a time
+  const [tierEditId, setTierEditId] = useState<string | null>(null);
+  const [tierDraft, setTierDraft] = useState<{ tier: Tier; leader_id: string; agent_code: string; display_name: string }>({
+    tier: "AGENT", leader_id: "", agent_code: "", display_name: "",
+  });
 
   async function loadUsers() {
     setLoading(true);
@@ -76,6 +97,47 @@ export default function UsersPage() {
       setError(d.error ?? "Failed to save");
     } else {
       setUsers(prev => prev.map(u => u.id === user_id ? { ...u, role } : u));
+    }
+    setSaving(null);
+  }
+
+  function openTierEditor(user: User) {
+    setTierEditId(user.id);
+    setTierDraft({
+      tier: user.tier ?? "AGENT",
+      leader_id: user.leader_id ?? "",
+      agent_code: user.agent_code ?? "",
+      display_name: user.display_name ?? "",
+    });
+  }
+
+  async function saveTier(user_id: string) {
+    setSaving(user_id);
+    setError(null);
+    const res = await fetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "set_tier",
+        user_id,
+        tier: tierDraft.tier,
+        leader_id: tierDraft.tier === "CBDD" ? null : tierDraft.leader_id,
+        agent_code: tierDraft.agent_code,
+        display_name: tierDraft.display_name,
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      setError(d.error ?? "Failed to save");
+    } else {
+      setUsers(prev => prev.map(u => u.id === user_id ? {
+        ...u,
+        tier: tierDraft.tier,
+        leader_id: tierDraft.tier === "CBDD" ? null : tierDraft.leader_id,
+        agent_code: tierDraft.agent_code,
+        display_name: tierDraft.display_name,
+      } : u));
+      setTierEditId(null);
     }
     setSaving(null);
   }
@@ -175,6 +237,7 @@ export default function UsersPage() {
                   <th style={{ padding: "12px 20px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Email</th>
                   <th style={{ padding: "12px 20px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Current Role</th>
                   <th style={{ padding: "12px 20px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Device Bound</th>
+                  <th style={{ padding: "12px 20px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>MLM Tier / Leader</th>
                   <th style={{ padding: "12px 20px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em" }}>Actions</th>
                 </tr>
               </thead>
@@ -223,6 +286,79 @@ export default function UsersPage() {
                         )
                       ) : (
                         <span style={{ fontSize: "13px", color: "#94a3b8" }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "14px 20px" }}>
+                      {tierEditId === user.id ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: "220px" }}>
+                          <select
+                            value={tierDraft.tier}
+                            onChange={e => setTierDraft(d => ({ ...d, tier: e.target.value as Tier }))}
+                            style={{ border: "1px solid #d1d5db", borderRadius: "6px", padding: "5px 8px", fontSize: "13px" }}
+                          >
+                            {TIERS.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                          {tierDraft.tier !== "CBDD" && (
+                            <select
+                              value={tierDraft.leader_id}
+                              onChange={e => setTierDraft(d => ({ ...d, leader_id: e.target.value }))}
+                              style={{ border: "1px solid #d1d5db", borderRadius: "6px", padding: "5px 8px", fontSize: "13px" }}
+                            >
+                              <option value="">Select leader…</option>
+                              {users.filter(u => u.id !== user.id).map(u => (
+                                <option key={u.id} value={u.id}>{u.display_name || u.email} {u.tier ? `(${u.tier})` : ""}</option>
+                              ))}
+                            </select>
+                          )}
+                          <input
+                            placeholder="Display name"
+                            value={tierDraft.display_name}
+                            onChange={e => setTierDraft(d => ({ ...d, display_name: e.target.value }))}
+                            style={{ border: "1px solid #d1d5db", borderRadius: "6px", padding: "5px 8px", fontSize: "13px" }}
+                          />
+                          <input
+                            placeholder="Agent code (optional)"
+                            value={tierDraft.agent_code}
+                            onChange={e => setTierDraft(d => ({ ...d, agent_code: e.target.value }))}
+                            style={{ border: "1px solid #d1d5db", borderRadius: "6px", padding: "5px 8px", fontSize: "13px" }}
+                          />
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              disabled={saving === user.id}
+                              onClick={() => saveTier(user.id)}
+                              style={{ padding: "5px 12px", borderRadius: "6px", fontSize: "12.5px", fontWeight: 600, border: "none", background: "#0f172a", color: "#fff", cursor: "pointer" }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setTierEditId(null)}
+                              style={{ padding: "5px 12px", borderRadius: "6px", fontSize: "12.5px", fontWeight: 600, border: "1px solid #e2e8f0", background: "#fff", color: "#64748b", cursor: "pointer" }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-start" }}>
+                          {user.tier ? (
+                            <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "999px", fontSize: "11.5px", fontWeight: 700, background: TIER_COLOR[user.tier].bg, color: TIER_COLOR[user.tier].fg }}>
+                              {user.tier}
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: "13px", color: "#94a3b8" }}>Not assigned</span>
+                          )}
+                          {user.leader_id && (
+                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                              reports to {users.find(u => u.id === user.leader_id)?.display_name || users.find(u => u.id === user.leader_id)?.email || "—"}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => openTierEditor(user)}
+                            style={{ fontSize: "11.5px", color: "#1d4ed8", background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
+                          >
+                            {user.tier ? "Edit" : "Assign tier"}
+                          </button>
+                        </div>
                       )}
                     </td>
                     <td style={{ padding: "14px 20px" }}>
