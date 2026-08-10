@@ -901,6 +901,21 @@
     picker.classList.add('open');
   }
 
+  // ── Bottom tab bar ────────────────────────────────────────────
+  var TAB_IDS = ['home', 'inventory', 'quote', 'team', 'me'];
+  function switchTab(name) {
+    if (TAB_IDS.indexOf(name) < 0) return;
+    TAB_IDS.forEach(function (t) {
+      var panel = document.getElementById('tab-' + t);
+      if (panel) panel.classList.toggle('tab-active', t === name);
+    });
+    document.querySelectorAll('.tab-btn').forEach(function (btn) {
+      btn.classList.toggle('active', btn.dataset.tab === name);
+    });
+    var scrollBody = document.getElementById('scroll-body');
+    if (scrollBody) scrollBody.scrollTop = 0;
+  }
+
   function openAvailDrawer() {
     document.getElementById('avail-backdrop').classList.add('open');
     document.getElementById('avail-drawer').classList.add('open');
@@ -3689,6 +3704,8 @@
 
   // ── Init ───────────────────────────────────────────────────────
   function init() {
+    switchTab('home');
+
     // Column visibility toggle — checkbox per column in the quotation table
     document.addEventListener('change', function (e) {
       var t = e.target;
@@ -3901,7 +3918,16 @@
         var clickedLink = e.target && e.target.closest && e.target.closest('#side-menu a, #side-menu button.menu-item');
         if (clickedLink || (!sideMenu.contains(e.target) && e.target !== menuBtn && !menuBtn.contains(e.target))) {
           sideMenu.classList.remove('open');
+          var sideMenuBackdrop = document.getElementById('side-menu-backdrop');
+          if (sideMenuBackdrop) sideMenuBackdrop.classList.remove('open');
         }
+      }
+
+      // Bottom tab bar switching
+      var tabBtn = e.target && e.target.closest && e.target.closest('.tab-btn');
+      if (tabBtn) {
+        switchTab(tabBtn.dataset.tab);
+        return;
       }
 
       // Memo drawer tab switching
@@ -3924,7 +3950,9 @@
         case 'avail-backdrop':    closeAvailDrawer(); break;
         case 'btn-menu': {
           var sm = document.getElementById('side-menu');
+          var smBackdrop = document.getElementById('side-menu-backdrop');
           if (sm) sm.classList.toggle('open');
+          if (smBackdrop) smBackdrop.classList.toggle('open');
           break;
         }
         case 'btn-menu-memo':

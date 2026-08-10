@@ -64,15 +64,27 @@ export default async function AgentPage() {
         #topbar h1 { font-size: 16px; font-weight: 700; flex: 1; }
         #btn-menu { background: none; border: none; color: #fff; cursor: pointer; padding: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; flex-shrink: 0; touch-action: manipulation; }
         #btn-menu span { display: block; width: 18px; height: 2px; background: #fff; border-radius: 1px; }
-        #side-menu { position: absolute; top: 100%; left: 0; min-width: 200px; background: ${G_DARK}; border-radius: 0 0 12px 0; box-shadow: 4px 4px 16px rgba(0,0,0,0.35); z-index: 100; overflow: hidden; display: none; }
-        #side-menu.open { display: block; }
-        #side-menu a, #side-menu button.menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 18px; color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; background: none; border: none; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.1); box-sizing: border-box; touch-action: manipulation; }
+        #side-menu-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 90; display: none; }
+        #side-menu-backdrop.open { display: block; }
+        #side-menu { position: fixed; top: 0; bottom: 0; left: 0; width: 78%; max-width: 300px; background: ${G_DARK}; box-shadow: 4px 0 20px rgba(0,0,0,0.35); z-index: 100; overflow-y: auto; padding-top: 44px; transform: translateX(-100%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1); }
+        #side-menu.open { transform: translateX(0); }
+        #side-menu a, #side-menu button.menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 16px 18px; color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; background: none; border: none; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.1); box-sizing: border-box; touch-action: manipulation; }
         #side-menu a:last-child, #side-menu button.menu-item:last-child { border-bottom: none; }
         #side-menu a:active, #side-menu button.menu-item:active { background: rgba(255,255,255,0.12); }
         #side-menu .menu-icon { font-size: 16px; width: 22px; text-align: center; }
         .btn-back { color: #fff; text-decoration: none; font-size: 20px; line-height: 1; }
         .btn-pdf  { padding: 6px 12px; border-radius: 6px; background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.35); font-size: 12px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
         #scroll-body { flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 20px; overscroll-behavior-y: none; }
+        .tab-panel { display: none; }
+        .tab-panel.tab-active { display: block; }
+        .tab-placeholder { margin: 40px 20px; text-align: center; color: #94a3b8; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .tab-placeholder .tp-icon { font-size: 30px; }
+        .tab-placeholder .tp-title { font-size: 15px; font-weight: 700; color: #475569; }
+        .tab-placeholder .tp-sub { font-size: 12px; line-height: 1.5; max-width: 260px; }
+        #tab-bar { flex-shrink: 0; display: flex; background: #fff; border-top: 1px solid #e2e8f0; padding: 8px 4px calc(8px + env(safe-area-inset-bottom)); }
+        .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: #94a3b8; background: none; border: none; padding: 4px 0; cursor: pointer; touch-action: manipulation; }
+        .tab-btn.active { color: ${G_TEAL}; }
+        .tab-btn-icon { font-size: 18px; line-height: 1; }
         .avail-banner { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 9px 13px; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(7,94,84,0.3); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-appearance: none; box-sizing: border-box; width: calc(100% - 20px); }
         .avail-banner:active { opacity: 0.88; }
         .avail-banner-left { flex: 1; }
@@ -494,8 +506,10 @@ export default async function AgentPage() {
           html, body { background: #fff !important; margin: 0; padding: 0; }
           .print-only { display: block !important; }
           #topbar, .s-label, #zone-filter, #layout-area, .no-print,
-          #dp-strip, .avail-banner, #btn-challenge, .s-card:not(#quote-section),
+          #dp-strip, .avail-banner, #btn-challenge, .s-card:not(#quote-section), .tab-placeholder,
+          #tab-home, #tab-inventory, #tab-team, #tab-me,
           #avail-backdrop, #avail-drawer, #memo-backdrop, #memo-drawer, #forms-backdrop, #forms-drawer, #sites-backdrop, #sites-drawer, #training-backdrop, #training-drawer, #challenge-backdrop, #challenge-drawer, #announcement-backdrop, #announcement-drawer, #poster-modal-backdrop { display: none !important; }
+          #tab-quote { display: block !important; }
           #phone { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; }
           #scroll-body { overflow: visible !important; padding: 0 !important; }
           #quote-section { width: 100% !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
@@ -536,6 +550,7 @@ export default async function AgentPage() {
             <span/><span/><span/>
             <span style={{position:'absolute', top:'-2px', right:'-2px', width:'9px', height:'9px', background:'#dc2626', borderRadius:'50%', display:'block', pointerEvents:'none'}}></span>
           </button>
+          <div id="side-menu-backdrop"></div>
           <div id="side-menu">
             <button className="menu-item" id="btn-menu-announcement">
               <span className="menu-icon">📢</span>Announcement<span className="menu-badge">NEW</span>
@@ -560,94 +575,134 @@ export default async function AgentPage() {
 
         <div id="scroll-body">
 
-<button id="btn-challenge" className="no-print">
-            <div className="btn-challenge-left">
-              <div className="btn-challenge-title">🏆 NV Challenge Go! Go! Go! 🔥</div>
-              <div className="btn-challenge-sub">🎯 View this month&apos;s challenge &amp; targets</div>
+          {/* ── Tab: Home ── */}
+          <div id="tab-home" className="tab-panel">
+            <button id="btn-challenge" className="no-print">
+              <div className="btn-challenge-left">
+                <div className="btn-challenge-title">🏆 NV Challenge Go! Go! Go! 🔥</div>
+                <div className="btn-challenge-sub">🎯 View this month&apos;s challenge &amp; targets</div>
+              </div>
+              <div className="btn-challenge-arrow">›</div>
+            </button>
+            <div className="tab-placeholder">
+              <span className="tp-icon">🏠</span>
+              <span className="tp-title">Home</span>
+              <span className="tp-sub">What&apos;s New, your sales-vs-goal snapshot, and recent quotes are coming here next.</span>
             </div>
-            <div className="btn-challenge-arrow">›</div>
-          </button>
+          </div>
 
-          <button id="btn-avail" className="avail-banner no-print">
-            <div className="avail-banner-left">
-              <div className="avail-banner-title">Available Products &amp; Promos</div>
-              <div className="avail-banner-sub">Browse by product type · filter by level · sort by price</div>
-            </div>
-            <div className="avail-banner-arrow">›</div>
-          </button>
+          {/* ── Tab: Inventory ── */}
+          <div id="tab-inventory" className="tab-panel">
+            <button id="btn-avail" className="avail-banner no-print">
+              <div className="avail-banner-left">
+                <div className="avail-banner-title">Available Products &amp; Promos</div>
+                <div className="avail-banner-sub">Browse by product type · filter by level · sort by price</div>
+              </div>
+              <div className="avail-banner-arrow">›</div>
+            </button>
 
-          {/* ── Section 1: Site & Zone ── */}
-          <div className="s-card">
-            <div className="s-label no-print">
-              <div className="s-dot">1</div>
-              <span className="s-title">Select Site &amp; Zone</span>
-              <button id="btn-reset" className="btn-reset">↺ Reset</button>
-              <button id="btn-reload" className="btn-reset" style={{marginLeft:"4px"}}>⟳ Reload</button>
-            </div>
-            <div id="zone-filter">
-              <div className="f-wrap">
-                <div className="f-lbl">Site</div>
-                <div className="f-dd">
-                  <button id="site-dd-btn" className="f-dd-trigger placeholder">Select site…</button>
-                  <div id="site-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
+            {/* ── Section 1: Site & Zone ── */}
+            <div className="s-card">
+              <div className="s-label no-print">
+                <div className="s-dot">1</div>
+                <span className="s-title">Select Site &amp; Zone</span>
+                <button id="btn-reset" className="btn-reset">↺ Reset</button>
+                <button id="btn-reload" className="btn-reset" style={{marginLeft:"4px"}}>⟳ Reload</button>
+              </div>
+              <div id="zone-filter">
+                <div className="f-wrap">
+                  <div className="f-lbl">Site</div>
+                  <div className="f-dd">
+                    <button id="site-dd-btn" className="f-dd-trigger placeholder">Select site…</button>
+                    <div id="site-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
+                  </div>
+                </div>
+                <div className="f-wrap">
+                  <div className="f-lbl">Zone</div>
+                  <div className="f-dd">
+                    <button id="zone-dd-btn" className="f-dd-trigger placeholder" disabled>Select zone…</button>
+                    <div id="zone-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
+                  </div>
+                </div>
+                <div className="f-wrap" id="section-wrap">
+                  <div className="f-lbl">Sec / Row</div>
+                  <select id="section-sel" className="f-sel" disabled>
+                    <option value="">Not applicable</option>
+                  </select>
                 </div>
               </div>
-              <div className="f-wrap">
-                <div className="f-lbl">Zone</div>
-                <div className="f-dd">
-                  <button id="zone-dd-btn" className="f-dd-trigger placeholder" disabled>Select zone…</button>
-                  <div id="zone-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
-                </div>
-              </div>
-              <div className="f-wrap" id="section-wrap">
-                <div className="f-lbl">Sec / Row</div>
-                <select id="section-sel" className="f-sel" disabled>
-                  <option value="">Not applicable</option>
-                </select>
-              </div>
+
             </div>
 
-          </div>
+            {/* ── Product Assets (between selector and layout) ── */}
+            <div id="assets-panel" className="no-print">
+              <div style={{padding:"10px 14px",fontSize:"12px",color:"#94a3b8"}}>No product materials</div>
+            </div>
 
-          {/* ── Product Assets (between selector and layout) ── */}
-          <div id="assets-panel" className="no-print">
-            <div style={{padding:"10px 14px",fontSize:"12px",color:"#94a3b8"}}>No product materials</div>
-          </div>
-
-          {/* ── Section 2: Niche Layout ── */}
-          <div className="s-card">
-            <div className="s-label no-print">
-              <div className="s-dot">2</div>
-              <div style={{flex:1}}>
-                <div className="s-title">Select Available Product</div>
-                <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"2px"}}>
-                  <span id="layout-synced-at" style={{fontSize:"10px",color:"#94a3b8"}}></span>
+            {/* ── Section 2: Niche Layout ── */}
+            <div className="s-card">
+              <div className="s-label no-print">
+                <div className="s-dot">2</div>
+                <div style={{flex:1}}>
+                  <div className="s-title">Select Available Product</div>
+                  <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"2px"}}>
+                    <span id="layout-synced-at" style={{fontSize:"10px",color:"#94a3b8"}}></span>
+                  </div>
+                </div>
+              </div>
+              <div id="layout-area">
+                <div className="layout-placeholder">
+                  <span className="lp-icon">🗺️</span>
+                  <span className="lp-title">Zone layout will appear here</span>
+                  <span className="lp-sub">Select a site and zone above</span>
                 </div>
               </div>
             </div>
-            <div id="layout-area">
-              <div className="layout-placeholder">
-                <span className="lp-icon">🗺️</span>
-                <span className="lp-title">Zone layout will appear here</span>
-                <span className="lp-sub">Select a site and zone above</span>
+          </div>
+
+          {/* ── Tab: Quote ── */}
+          <div id="tab-quote" className="tab-panel">
+            <div className="s-card" id="quote-section">
+              <div className="s-label no-print">
+                <div className="s-dot">3</div>
+                <span className="s-title">Quotation</span>
+              </div>
+              <div id="quote-body">
+                <div className="quote-empty">
+                  <span className="qe-icon">📋</span>
+                  <span className="qe-msg">Select a site and zone to get started</span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* ── Section 3: Quotation ── */}
-          <div className="s-card" id="quote-section">
-            <div className="s-label no-print">
-              <div className="s-dot">3</div>
-              <span className="s-title">Quotation</span>
-            </div>
-            <div id="quote-body">
-              <div className="quote-empty">
-                <span className="qe-icon">📋</span>
-                <span className="qe-msg">Select a site and zone to get started</span>
-              </div>
+          {/* ── Tab: Team ── */}
+          <div id="tab-team" className="tab-panel">
+            <div className="tab-placeholder">
+              <span className="tp-icon">◈</span>
+              <span className="tp-title">Team</span>
+              <span className="tp-sub">Your direct team&apos;s progress will appear here, scoped to your tier.</span>
             </div>
           </div>
 
+          {/* ── Tab: Me ── */}
+          <div id="tab-me" className="tab-panel">
+            <div className="tab-placeholder">
+              <span className="tp-icon">◎</span>
+              <span className="tp-title">Me</span>
+              <span className="tp-sub">Your personal sales-vs-goal performance is coming here.</span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── Bottom tab bar ── */}
+        <div id="tab-bar" className="no-print">
+          <button className="tab-btn active" data-tab="home"><span className="tab-btn-icon">◆</span>Home</button>
+          <button className="tab-btn" data-tab="inventory"><span className="tab-btn-icon">▦</span>Inventory</button>
+          <button className="tab-btn" data-tab="quote"><span className="tab-btn-icon">✎</span>Quote</button>
+          <button className="tab-btn" data-tab="team"><span className="tab-btn-icon">◈</span>Team</button>
+          <button className="tab-btn" data-tab="me"><span className="tab-btn-icon">◎</span>Me</button>
         </div>
 
         <div id="print-footer">
@@ -1188,7 +1243,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260810l" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260811a" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
