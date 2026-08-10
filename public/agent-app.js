@@ -3665,61 +3665,64 @@
     return p;
   }
 
-  // Mirrors the @media print rules in app/agent/page.tsx (same selector list),
-  // but as a plain class toggle — html2canvas doesn't evaluate @media print,
-  // so scoping the capture to just the quote card has to happen this way instead.
-  function ensurePdfExportStyle() {
-    if (document.getElementById('pdf-export-style')) return;
-    var style = document.createElement('style');
-    style.id = 'pdf-export-style';
-    style.textContent =
-      'body.pdf-export-mode #topbar, body.pdf-export-mode .s-label, body.pdf-export-mode #zone-filter, ' +
-      'body.pdf-export-mode #layout-area, body.pdf-export-mode .no-print, body.pdf-export-mode #dp-strip, ' +
-      'body.pdf-export-mode .avail-banner, body.pdf-export-mode #btn-challenge, ' +
-      'body.pdf-export-mode .s-card:not(#quote-section), body.pdf-export-mode #assets-panel, ' +
-      'body.pdf-export-mode #avail-backdrop, body.pdf-export-mode #avail-drawer, ' +
-      'body.pdf-export-mode #memo-backdrop, body.pdf-export-mode #memo-drawer, ' +
-      'body.pdf-export-mode #forms-backdrop, body.pdf-export-mode #forms-drawer, ' +
-      'body.pdf-export-mode #sites-backdrop, body.pdf-export-mode #sites-drawer, ' +
-      'body.pdf-export-mode #training-backdrop, body.pdf-export-mode #training-drawer, ' +
-      'body.pdf-export-mode #challenge-backdrop, body.pdf-export-mode #challenge-drawer, ' +
-      'body.pdf-export-mode #announcement-backdrop, body.pdf-export-mode #announcement-drawer, ' +
-      'body.pdf-export-mode #poster-modal-backdrop ' +
-      '{ display: none !important; } ' +
-      'body.pdf-export-mode #phone { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; } ' +
-      'body.pdf-export-mode #scroll-body { overflow: visible !important; padding: 0 !important; } ' +
-      'body.pdf-export-mode #quote-section { width: 100% !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; } ' +
-      'body.pdf-export-mode .quote-empty { display: none !important; } ' +
-      'body.pdf-export-mode .qt-scroll { overflow: visible !important; width: 100% !important; } ' +
-      'body.pdf-export-mode .wm-wrap { display: block !important; } ' +
-      'body.pdf-export-mode #print-footer { display: flex !important; justify-content: space-between !important; margin-top: 6px !important; padding-top: 4px !important; border-top: 1px solid #cbd5e1 !important; font-size: 9px !important; color: #64748b !important; width: 100% !important; }';
-    document.head.appendChild(style);
-  }
-
   function nextFrame() {
     return new Promise(function (resolve) {
       requestAnimationFrame(function () { requestAnimationFrame(resolve); });
     });
   }
 
+  // Opens the preview drawer with a snapshot of the current quote table, so
+  // the agent can scroll and review (all columns, not just what fits the
+  // phone screen) before deciding to share it as a PDF.
+  function openQuotePreviewDrawer() {
+    var quoteBody = qs('quote-body');
+    var previewBody = qs('quote-preview-body');
+    if (!quoteBody || !previewBody) return;
+
+    previewBody.innerHTML = quoteBody.innerHTML;
+
+    // Respect whichever columns the agent has toggled off (same source the
+    // print flow uses), applied directly instead of gated on a print event.
+    Object.keys(hiddenCols).forEach(function (lc) {
+      previewBody.querySelectorAll('[data-col="' + lc + '"]').forEach(function (el) { el.classList.add('col-hidden'); });
+    });
+
+    var d = qs('quote-preview-date');
+    if (d) d.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+
+    qs('quote-preview-backdrop').classList.add('open');
+    qs('quote-preview-drawer').classList.add('open');
+  }
+
+  function closeQuotePreviewDrawer() {
+    qs('quote-preview-backdrop').classList.remove('open');
+    qs('quote-preview-drawer').classList.remove('open');
+  }
+
   function exportQuotationPdfNative() {
     return ensurePdfLibsLoaded().then(function () {
-      var quoteEl = qs('quote-section');
-      if (!quoteEl) throw new Error('Quotation not found');
+      var previewBody = qs('quote-preview-body');
+      if (!previewBody) throw new Error('Quotation preview not found');
 
-      ensurePdfExportStyle();
-      var d = qs('print-date');
-      if (d) d.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+      // Don't let the scrollable table wrapper clip columns out of the capture
+      var qtScrollEl = previewBody.querySelector('.qt-scroll');
+      var prevOverflow = qtScrollEl ? qtScrollEl.style.overflow : null;
+      if (qtScrollEl) qtScrollEl.style.overflow = 'visible';
 
-      document.body.classList.add('pdf-export-mode');
+      var fullWidth = Math.max(previewBody.scrollWidth, qtScrollEl ? qtScrollEl.scrollWidth : 0);
 
-      // Give the browser a couple of frames to apply the layout changes before capturing
       return nextFrame().then(function () {
-        return window.html2canvas(quoteEl, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        return window.html2canvas(previewBody, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          width: fullWidth,
+          windowWidth: fullWidth,
+        });
       }).then(function (canvas) {
         var imgData = canvas.toDataURL('image/png');
 
-        // A4 landscape, zero margin — matches this file's own beforeprint scaling (see below)
+        // A4 landscape, zero margin
         var PAGE_W = 297, PAGE_H = 210;
         var scale = Math.min(PAGE_W / canvas.width, PAGE_H / canvas.height);
         var imgW = canvas.width * scale;
@@ -3740,7 +3743,7 @@
           return Share.share({ title: 'Nirvana Quotation', url: written.uri });
         });
       }).finally(function () {
-        document.body.classList.remove('pdf-export-mode');
+        if (qtScrollEl) qtScrollEl.style.overflow = prevOverflow || '';
       });
     });
   }
@@ -4024,6 +4027,15 @@
         case 'btn-avail':         openAvailDrawer(); break;
         case 'avail-drawer-close':closeAvailDrawer(); break;
         case 'avail-backdrop':    closeAvailDrawer(); break;
+        case 'quote-preview-close':
+        case 'quote-preview-backdrop':
+          closeQuotePreviewDrawer();
+          break;
+        case 'quote-preview-share':
+          exportQuotationPdfNative().catch(function (err) {
+            dbg('PDF export failed: ' + (err && err.message ? err.message : err));
+          });
+          break;
         case 'btn-menu': {
           var sm = document.getElementById('side-menu');
           if (sm) sm.classList.toggle('open');
@@ -4120,9 +4132,7 @@
           break;
         case 'btn-pdf':
           if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-            exportQuotationPdfNative().catch(function (err) {
-              dbg('PDF export failed: ' + (err && err.message ? err.message : err));
-            });
+            openQuotePreviewDrawer();
             break;
           }
           var prev = document.title;
