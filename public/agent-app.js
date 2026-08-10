@@ -3638,6 +3638,98 @@
     renderLayoutArea(); renderQuoteSection();
   }
 
+  // ── Native PDF export & share ─────────────────────────────────
+  // Capacitor's embedded WebView has no print dialog, so window.print() is a
+  // silent no-op there. Instead: rasterize the quote card + footer, build a
+  // PDF, and hand it to the OS share sheet (Save / Print / share to any app).
+  function loadScriptOnce(src) {
+    return new Promise(function (resolve, reject) {
+      var existing = document.querySelector('script[data-vendor="' + src + '"]');
+      if (existing) {
+        if (existing.dataset.loaded) { resolve(); } else { existing.addEventListener('load', function () { resolve(); }); }
+        return;
+      }
+      var s = document.createElement('script');
+      s.src = src;
+      s.dataset.vendor = src;
+      s.onload = function () { s.dataset.loaded = '1'; resolve(); };
+      s.onerror = function () { reject(new Error('Failed to load ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function ensurePdfLibsLoaded() {
+    var p = Promise.resolve();
+    if (!window.html2canvas) p = p.then(function () { return loadScriptOnce('/vendor/html2canvas.min.js'); });
+    if (!window.jspdf) p = p.then(function () { return loadScriptOnce('/vendor/jspdf.umd.min.js'); });
+    return p;
+  }
+
+  function exportQuotationPdfNative() {
+    return ensurePdfLibsLoaded().then(function () {
+      var source = qs('quote-section');
+      var footerSource = qs('print-footer');
+      if (!source) throw new Error('Quotation not found');
+
+      var container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-10000px';
+      container.style.top = '0';
+      container.style.width = source.scrollWidth + 'px';
+      container.style.background = '#fff';
+
+      var clone = source.cloneNode(true);
+      clone.style.margin = '0';
+      clone.style.borderRadius = '0';
+      clone.style.boxShadow = 'none';
+
+      if (footerSource) {
+        var footerClone = footerSource.cloneNode(true);
+        footerClone.style.display = 'flex';
+        footerClone.style.justifyContent = 'space-between';
+        footerClone.style.marginTop = '6px';
+        footerClone.style.paddingTop = '4px';
+        footerClone.style.borderTop = '1px solid #cbd5e1';
+        footerClone.style.fontSize = '9px';
+        footerClone.style.color = '#64748b';
+        footerClone.style.width = '100%';
+        var dateEl = footerClone.querySelector('#print-date') || footerClone.querySelector('span');
+        if (dateEl) dateEl.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+        clone.appendChild(footerClone);
+      }
+
+      container.appendChild(clone);
+      document.body.appendChild(container);
+
+      return window.html2canvas(clone, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(function (canvas) {
+        var imgData = canvas.toDataURL('image/png');
+
+        // A4 landscape, zero margin — matches this file's own beforeprint scaling (see below)
+        var PAGE_W = 297, PAGE_H = 210;
+        var scale = Math.min(PAGE_W / canvas.width, PAGE_H / canvas.height);
+        var imgW = canvas.width * scale;
+        var imgH = canvas.height * scale;
+
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF({ orientation: 'l', unit: 'mm', format: 'a4' });
+        var x = (PAGE_W - imgW) / 2;
+        var y = (PAGE_H - imgH) / 2;
+        pdf.addImage(imgData, 'PNG', x, y, imgW, imgH);
+
+        var pdfBase64 = pdf.output('datauristring').split(',')[1];
+        var fileName = 'quotation-' + Date.now() + '.pdf';
+
+        var Filesystem = window.Capacitor.Plugins.Filesystem;
+        var Share = window.Capacitor.Plugins.Share;
+        return Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: 'CACHE' }).then(function (written) {
+          return Share.share({ title: 'Nirvana Quotation', url: written.uri });
+        });
+      }).finally(function () {
+        container.remove();
+      });
+    });
+  }
+
   // ── Print ──────────────────────────────────────────────────────
   window.addEventListener('beforeprint', function () {
     var el = qs('quote-section');
@@ -4012,6 +4104,12 @@
           document.getElementById('challenge-drawer').classList.remove('open');
           break;
         case 'btn-pdf':
+          if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            exportQuotationPdfNative().catch(function (err) {
+              dbg('PDF export failed: ' + (err && err.message ? err.message : err));
+            });
+            break;
+          }
           var prev = document.title;
           document.title = '';
           var d = qs('print-date');
