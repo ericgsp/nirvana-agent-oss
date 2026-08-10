@@ -3706,12 +3706,21 @@
   // the drawer's content gets fully rebuilt (innerHTML overwritten) next open.
   function flexCenterTableCells(root) {
     var cells = root.querySelectorAll('.qt td, .qt th');
+    // Pass 1: lock each cell's current (correctly-computed-by-the-real-
+    // renderer) height as an explicit pixel value. Percentage heights on
+    // table cells don't reliably resolve for a flex child, so without this
+    // the wrapper below has nothing solid to center against.
+    cells.forEach(function (cell) {
+      if (cell.dataset.flexCentered) return;
+      cell.style.height = cell.offsetHeight + 'px';
+    });
+    // Pass 2: wrap existing content in a flex box that fills that height.
     cells.forEach(function (cell) {
       if (cell.dataset.flexCentered) return;
       var align = window.getComputedStyle(cell).textAlign;
       var justify = align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'flex-start');
       var wrapper = document.createElement('div');
-      wrapper.style.cssText = 'display:flex;align-items:center;justify-content:' + justify + ';width:100%;';
+      wrapper.style.cssText = 'display:flex;align-items:center;justify-content:' + justify + ';width:100%;height:100%;box-sizing:border-box;';
       while (cell.firstChild) wrapper.appendChild(cell.firstChild);
       cell.appendChild(wrapper);
       cell.dataset.flexCentered = '1';
