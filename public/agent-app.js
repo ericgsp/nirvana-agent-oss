@@ -3715,13 +3715,18 @@
       cell.style.height = cell.offsetHeight + 'px';
     });
     // Pass 2: wrap existing content in a flex box that fills that height.
+    // The actual text goes in an inner span (not directly as a flex-item
+    // text node) with white-space explicitly pinned — html2canvas has a
+    // separate bug where bare text nodes as direct flex children can lose
+    // whitespace during its own text measurement/layout pass.
     cells.forEach(function (cell) {
       if (cell.dataset.flexCentered) return;
-      var align = window.getComputedStyle(cell).textAlign;
-      var justify = align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'flex-start');
       var wrapper = document.createElement('div');
-      wrapper.style.cssText = 'display:flex;align-items:center;justify-content:' + justify + ';width:100%;height:100%;box-sizing:border-box;';
-      while (cell.firstChild) wrapper.appendChild(cell.firstChild);
+      wrapper.style.cssText = 'display:flex;align-items:center;justify-content:center;width:100%;height:100%;box-sizing:border-box;';
+      var inner = document.createElement('div');
+      inner.style.cssText = 'white-space:pre;';
+      while (cell.firstChild) inner.appendChild(cell.firstChild);
+      wrapper.appendChild(inner);
       cell.appendChild(wrapper);
       cell.dataset.flexCentered = '1';
     });
