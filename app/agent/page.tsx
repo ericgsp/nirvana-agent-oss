@@ -727,7 +727,7 @@ export default async function AgentPage() {
           {/* ── Tab: Earning ── */}
           <div id="tab-earning" className="tab-panel">
             <div className="tab-placeholder">
-              <span className="tp-icon">💰</span>
+              <span className="tp-icon">$</span>
               <span className="tp-title">Earning</span>
               <span className="tp-sub">Coming soon.</span>
             </div>
@@ -847,11 +847,11 @@ export default async function AgentPage() {
 
         {/* ── Bottom tab bar ── */}
         <div id="tab-bar" className="no-print">
-          <button className="tab-btn active" data-tab="home"><span className="tab-btn-icon">◆</span>Home</button>
-          <button className="tab-btn" data-tab="earning"><span className="tab-btn-icon">💰</span>Earning</button>
+          <button className="tab-btn active" data-tab="home"><span className="tab-btn-icon">⌂</span>Home</button>
+          <button className="tab-btn" data-tab="earning"><span className="tab-btn-icon">$</span>Earning</button>
           <button className="tab-btn" data-tab="browse"><span className="tab-btn-icon">▦</span>Browse</button>
-          <button className="tab-btn" data-tab="team"><span className="tab-btn-icon">◈</span>Team</button>
-          <button className="tab-btn" data-tab="me"><span className="tab-btn-icon">◎</span>Me</button>
+          <button className="tab-btn" data-tab="team"><span className="tab-btn-icon">⋔</span>Team</button>
+          <button className="tab-btn" data-tab="me"><span className="tab-btn-icon">♟</span>Me</button>
         </div>
 
         <div id="print-footer">
