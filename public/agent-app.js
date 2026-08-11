@@ -4637,19 +4637,30 @@
   // problem this was working around (stale JS after resume) is now handled
   // properly by WebSettings.LOAD_NO_CACHE in MainActivity.java instead.
 
-  // Wait for window 'load' (not just DOMContentLoaded) before mutating the
-  // DOM. This script runs synchronously and was winning a race against
-  // React's hydration, which is scheduled asynchronously via React's own
-  // scheduler (confirmed via chrome://inspect: our restoreSession() log
-  // fires, then React error #418 fires ~1s later) -- our early innerHTML
-  // writes made the live DOM no longer match what the server sent, so
-  // hydration failed and React discarded/regenerated the whole tree,
-  // wiping out everything this script had just set up. window 'load' fires
-  // reliably after hydration has had its turn.
+  // Wait for window 'load', THEN requestIdleCallback, before mutating the DOM.
+  // This script runs synchronously and was winning a race against React's
+  // hydration, which is scheduled asynchronously via React's own scheduler
+  // (confirmed via chrome://inspect: our restoreSession() log fires, then
+  // React error #418 fires ~1s later) -- our early innerHTML writes made the
+  // live DOM no longer match what the server sent, so hydration failed and
+  // React discarded/regenerated the whole tree, wiping out everything this
+  // script had just set up. window 'load' alone turned out to be an
+  // unreliable heuristic (timing varies across launches/devices -- the race
+  // came back on a later test). requestIdleCallback is a real signal, not a
+  // guess: the browser only fires it once the main thread has no pending
+  // scheduled work, and React's hydration IS scheduled work, so by
+  // definition idle time shouldn't arrive until hydration has finished.
+  function deferredStart() {
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(start, { timeout: 2000 });
+    } else {
+      setTimeout(start, 300);
+    }
+  }
   if (document.readyState === 'complete') {
-    start();
+    deferredStart();
   } else {
-    window.addEventListener('load', start);
+    window.addEventListener('load', deferredStart);
   }
 })();
 
