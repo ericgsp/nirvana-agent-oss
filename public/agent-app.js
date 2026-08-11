@@ -321,9 +321,9 @@
   }
 
   function openSiteDropdown() {
-    var btn = qs('site-dd-btn');
-    var panel = qs('site-dd-panel');
-    if (!panel || !btn) return;
+    var backdrop = qs('site-select-backdrop');
+    var drawer   = qs('site-select-drawer');
+    if (!backdrop || !drawer) return;
     // Auto-expand the group containing the current site
     if (!openSiteGroup) {
       SITE_GROUPS.forEach(function (grp) {
@@ -332,17 +332,16 @@
       // All groups start closed; only auto-expand when a site is already selected
     }
     siteDropdownIsOpen = true;
-    var rect = btn.getBoundingClientRect();
-    panel.style.top    = (rect.bottom + 4) + 'px';
-    panel.style.left   = rect.left + 'px';
-    panel.style.width  = rect.width + 'px';
-    panel.style.display = 'block';
+    backdrop.classList.add('open');
+    drawer.classList.add('open');
     renderSiteDropdownPanel();
   }
 
   function closeSiteDropdown() {
-    var panel = qs('site-dd-panel');
-    if (panel) panel.style.display = 'none';
+    var backdrop = qs('site-select-backdrop');
+    var drawer   = qs('site-select-drawer');
+    if (backdrop) backdrop.classList.remove('open');
+    if (drawer) drawer.classList.remove('open');
     siteDropdownIsOpen = false;
   }
 
@@ -462,21 +461,20 @@
   window._agentRenderZoneDropdown = renderZoneDropdownPanel;
 
   function openZoneDropdown() {
-    var btn   = qs('zone-dd-btn');
-    var panel = qs('zone-dd-panel');
-    if (!panel || !btn || btn.disabled) return;
+    var btn      = qs('zone-dd-btn');
+    var backdrop = qs('zone-select-backdrop');
+    var drawer   = qs('zone-select-drawer');
+    if (!backdrop || !drawer || !btn || btn.disabled) return;
     zoneDropdownIsOpen = true;
-    // Position panel under button
-    var rect = btn.getBoundingClientRect();
-    panel.style.top    = (rect.bottom + 4) + 'px';
-    panel.style.left   = rect.left + 'px';
-    panel.style.width  = rect.width + 'px';
-    panel.style.display = 'block';
+    backdrop.classList.add('open');
+    drawer.classList.add('open');
   }
 
   function closeZoneDropdown() {
-    var panel = qs('zone-dd-panel');
-    if (panel) panel.style.display = 'none';
+    var backdrop = qs('zone-select-backdrop');
+    var drawer   = qs('zone-select-drawer');
+    if (backdrop) backdrop.classList.remove('open');
+    if (drawer) drawer.classList.remove('open');
     zoneDropdownIsOpen = false;
   }
 
@@ -4286,6 +4284,14 @@
         case 'memo-backdrop':
           document.getElementById('memo-backdrop').classList.remove('open');
           document.getElementById('memo-drawer').classList.remove('open');
+          break;
+        case 'site-select-close':
+        case 'site-select-backdrop':
+          closeSiteDropdown();
+          break;
+        case 'zone-select-close':
+        case 'zone-select-backdrop':
+          closeZoneDropdown();
           break;
         case 'btn-menu-forms':
           document.getElementById('forms-backdrop').classList.add('open');

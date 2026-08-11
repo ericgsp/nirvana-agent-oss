@@ -366,6 +366,19 @@ export default async function AgentPage() {
         .wm-text  { display: none; }
         #print-footer { display: none; }
         /* ── Memo drawer ── */
+        /* ── Site/Zone select drawers (Quick Select) — same bottom-drawer
+           pattern as memo/forms/sites/training below, sized a bit taller
+           since these lists can be long ── */
+        #site-select-backdrop, #zone-select-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1150; }
+        #site-select-backdrop.open, #zone-select-backdrop.open { display:block; }
+        #site-select-drawer, #zone-select-drawer { position:fixed; left:0; right:0; bottom:0; background:#f0f2f5; border-radius:20px 20px 0 0; z-index:1151; max-height:85vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
+        #site-select-drawer.open, #zone-select-drawer.open { transform:translateY(0); }
+        #site-select-handle, #zone-select-handle { width:36px; height:4px; background:#cbd5e1; border-radius:2px; margin:12px auto 0; flex-shrink:0; }
+        #site-select-topbar, #zone-select-topbar { display:flex; align-items:center; padding:10px 14px 12px; flex-shrink:0; border-bottom:1px solid #e2e8f0; }
+        #site-select-topbar h2, #zone-select-topbar h2 { font-size:15px; font-weight:800; color:#0f172a; flex:1; }
+        #site-select-close, #zone-select-close { font-size:22px; line-height:1; color:#94a3b8; background:none; border:none; cursor:pointer; padding:4px; }
+        #site-select-scroll, #zone-select-scroll { flex:1; overflow-y:auto; padding:6px 0 32px; }
+
         #memo-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
         #memo-backdrop.open { display:block; }
         #memo-drawer { position:fixed; left:0; right:0; bottom:0; background:#f0f2f5; border-radius:20px 20px 0 0; z-index:1101; max-height:80vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
@@ -753,12 +766,10 @@ export default async function AgentPage() {
                   <div className="qs-field">
                     <div className="qs-lbl">Site</div>
                     <button id="site-dd-btn" className="qs-select placeholder">Select site…</button>
-                    <div id="site-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
                   </div>
                   <div className="qs-field">
                     <div className="qs-lbl">Zone</div>
                     <button id="zone-dd-btn" className="qs-select placeholder" disabled>Select zone…</button>
-                    <div id="zone-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
                   </div>
                   <div className="qs-field" id="section-wrap">
                     <div className="qs-lbl">Sec/Row</div>
@@ -867,6 +878,33 @@ export default async function AgentPage() {
       </div>
 
       {/* Price List & Promo Memo drawer */}
+      {/* Site select drawer — Quick Select's Site dropdown, as a full bottom
+          drawer instead of a small flyout, so agents can see options clearly */}
+      <div id="site-select-backdrop"></div>
+      <div id="site-select-drawer">
+        <div id="site-select-handle"></div>
+        <div id="site-select-topbar">
+          <h2>Select Site</h2>
+          <button id="site-select-close">×</button>
+        </div>
+        <div id="site-select-scroll">
+          <div id="site-dd-panel"></div>
+        </div>
+      </div>
+
+      {/* Zone select drawer — same treatment as Site */}
+      <div id="zone-select-backdrop"></div>
+      <div id="zone-select-drawer">
+        <div id="zone-select-handle"></div>
+        <div id="zone-select-topbar">
+          <h2>Select Zone</h2>
+          <button id="zone-select-close">×</button>
+        </div>
+        <div id="zone-select-scroll">
+          <div id="zone-dd-panel"></div>
+        </div>
+      </div>
+
       <div id="memo-backdrop"></div>
       <div id="memo-drawer">
         <div id="memo-drawer-handle"></div>
@@ -1410,7 +1448,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812n" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812o" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
