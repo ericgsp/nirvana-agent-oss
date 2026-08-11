@@ -543,8 +543,8 @@ export default async function AgentPage() {
         .qs-card { margin:10px 10px 0; background:linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); border-radius:14px; padding:12px 13px; }
         .qs-title { font-size:11px; font-weight:800; color:#fff; text-transform:uppercase; letter-spacing:0.05em; opacity:0.9; display:flex; align-items:center; gap:6px; margin-bottom:8px; }
         .qs-lightning { font-size:12px; }
-        .qs-row { display:flex; gap:7px; }
-        .qs-field { flex:1; min-width:0; position:relative; }
+        .qs-row { display:flex; flex-direction:column; gap:7px; }
+        .qs-field { min-width:0; position:relative; }
         .qs-lbl { font-size:9.5px; color:rgba(255,255,255,0.75); font-weight:700; margin-bottom:3px; }
         .qs-select, .qs-select-native { width:100%; background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.32); border-radius:9px; padding:8px 9px; font-size:11.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
         .qs-select.placeholder { color:rgba(255,255,255,0.6); font-weight:600; }
