@@ -4603,10 +4603,19 @@
   // problem this was working around (stale JS after resume) is now handled
   // properly by WebSettings.LOAD_NO_CACHE in MainActivity.java instead.
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-  } else {
+  // Wait for window 'load' (not just DOMContentLoaded) before mutating the
+  // DOM. This script runs synchronously and was winning a race against
+  // React's hydration, which is scheduled asynchronously via React's own
+  // scheduler (confirmed via chrome://inspect: our restoreSession() log
+  // fires, then React error #418 fires ~1s later) -- our early innerHTML
+  // writes made the live DOM no longer match what the server sent, so
+  // hydration failed and React discarded/regenerated the whole tree,
+  // wiping out everything this script had just set up. window 'load' fires
+  // reliably after hydration has had its turn.
+  if (document.readyState === 'complete') {
     start();
+  } else {
+    window.addEventListener('load', start);
   }
 })();
 
