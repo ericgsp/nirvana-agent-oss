@@ -913,7 +913,7 @@
   }
 
   // ── Bottom tab bar ────────────────────────────────────────────
-  var TAB_IDS = ['home', 'browse', 'team', 'me'];
+  var TAB_IDS = ['home', 'earning', 'browse', 'team', 'me'];
   var _homeSnapshotLoaded = false;
   var _inventoryListLoaded = false;
   var _teamLoaded = false;
@@ -4556,6 +4556,8 @@
       case 'me':
         _meLoaded = false;
         loadMeSnapshot();
+        break;
+      case 'earning':
         break;
       case 'home':
       default:

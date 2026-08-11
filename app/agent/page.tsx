@@ -624,7 +624,7 @@ export default async function AgentPage() {
           .print-only { display: block !important; }
           #topbar, .s-label, #zone-filter, #layout-area, .no-print,
           #dp-strip, .avail-banner, #btn-challenge, .s-card:not(#quote-section), .tab-placeholder,
-          #tab-home, #tab-team, #tab-me, #inventory-list-view, #assets-panel,
+          #tab-home, #tab-earning, #tab-team, #tab-me, #inventory-list-view, #assets-panel,
           #memo-backdrop, #memo-drawer, #forms-backdrop, #forms-drawer, #sites-backdrop, #sites-drawer, #training-backdrop, #training-drawer, #challenge-backdrop, #challenge-drawer, #announcement-backdrop, #announcement-drawer, #poster-modal-backdrop { display: none !important; }
           #tab-browse, #inventory-layout-view { display: block !important; }
           #phone { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; }
@@ -722,6 +722,15 @@ export default async function AgentPage() {
               <span className="s-title">Recent Quotes</span>
             </div>
             <div id="home-recent-quotes"></div>
+          </div>
+
+          {/* ── Tab: Earning ── */}
+          <div id="tab-earning" className="tab-panel">
+            <div className="tab-placeholder">
+              <span className="tp-icon">💰</span>
+              <span className="tp-title">Earning</span>
+              <span className="tp-sub">Coming soon.</span>
+            </div>
           </div>
 
           {/* ── Tab: Browse (combined Inventory + Quote — list, layout, and quote
@@ -839,6 +848,7 @@ export default async function AgentPage() {
         {/* ── Bottom tab bar ── */}
         <div id="tab-bar" className="no-print">
           <button className="tab-btn active" data-tab="home"><span className="tab-btn-icon">◆</span>Home</button>
+          <button className="tab-btn" data-tab="earning"><span className="tab-btn-icon">💰</span>Earning</button>
           <button className="tab-btn" data-tab="browse"><span className="tab-btn-icon">▦</span>Browse</button>
           <button className="tab-btn" data-tab="team"><span className="tab-btn-icon">◈</span>Team</button>
           <button className="tab-btn" data-tab="me"><span className="tab-btn-icon">◎</span>Me</button>
@@ -1395,7 +1405,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812m" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812n" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
