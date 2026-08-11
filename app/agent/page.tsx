@@ -97,6 +97,11 @@ export default async function AgentPage() {
         .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: #94a3b8; background: none; border: none; padding: 4px 0; cursor: pointer; touch-action: manipulation; }
         .tab-btn.active { color: ${G_TEAL}; }
         .tab-btn-icon { font-size: 18px; line-height: 1; }
+        /* Browse is the primary tab (product browsing + quoting) -- raised
+           circular badge, like a center FAB, so it reads as the main action. */
+        .tab-btn[data-tab="browse"] { font-weight: 800; }
+        .tab-btn[data-tab="browse"] .tab-btn-icon { width: 38px; height: 38px; font-size: 20px; display: flex; align-items: center; justify-content: center; margin-top: -16px; border-radius: 50%; background: linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); color: #fff; box-shadow: 0 4px 10px rgba(7,94,84,0.4); }
+        .tab-btn[data-tab="browse"].active .tab-btn-icon { box-shadow: 0 4px 14px rgba(7,94,84,0.55); }
 
         /* ── Home tab ── */
         #home-whats-new-teaser { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 10px 13px; background: #FEFCE8; border: 1px solid #FDE047; border-radius: 12px; width: calc(100% - 20px); box-sizing: border-box; cursor: pointer; touch-action: manipulation; text-align: left; }
