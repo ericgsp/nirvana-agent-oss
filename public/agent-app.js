@@ -4499,9 +4499,66 @@
       }
     } catch(e) { dbg('start catch: ' + e.message); restoreSession(); }
     try { updateUI(); } catch(e) { dbg('updateUI err: ' + e.message); lotQuotes = []; selectedLots = []; updateUI(); }
+    initPullToRefresh();
     warmUpServer();
     prefetchAllZones();
     _applyAnnouncementReadState();
+  }
+
+  // ── Custom pull-to-refresh ────────────────────────────────────
+  // Native overscroll/bounce-reload stays disabled (see overscroll-behavior in
+  // page.tsx) -- a real page reload would re-init the Capacitor bridge and is
+  // heavier than needed. This tracks the pull gesture in JS instead and does a
+  // full in-app reset via resetAll() on release, matching what navType==='reload'
+  // already does above (clear agent_session, don't restore it).
+  function initPullToRefresh() {
+    var scrollBody = document.getElementById('scroll-body');
+    var indicator  = document.getElementById('pull-refresh-indicator');
+    var spinner    = document.getElementById('pull-refresh-spinner');
+    var label      = document.getElementById('pull-refresh-label');
+    if (!scrollBody || !indicator) return;
+
+    var THRESHOLD = 64;
+    var startY = null, pulling = false, triggered = false;
+
+    scrollBody.addEventListener('touchstart', function (e) {
+      if (scrollBody.scrollTop > 0) { startY = null; return; }
+      startY = e.touches[0].clientY;
+      pulling = false; triggered = false;
+      indicator.classList.remove('pr-anim');
+    }, { passive: true });
+
+    scrollBody.addEventListener('touchmove', function (e) {
+      if (startY == null) return;
+      var dy = e.touches[0].clientY - startY;
+      if (dy <= 0) { indicator.style.height = '0px'; return; }
+      if (scrollBody.scrollTop > 0) return; // scrolled away mid-gesture
+      pulling = true;
+      var h = Math.min(dy * 0.5, THRESHOLD + 10);
+      indicator.style.height = h + 'px';
+      triggered = h >= THRESHOLD;
+      label.textContent = triggered ? 'Release to refresh' : 'Pull down to refresh';
+    }, { passive: true });
+
+    scrollBody.addEventListener('touchend', function () {
+      if (!pulling) { startY = null; return; }
+      pulling = false;
+      indicator.classList.add('pr-anim');
+      if (triggered) {
+        indicator.style.height = THRESHOLD + 'px';
+        spinner.classList.add('spin');
+        label.textContent = 'Refreshing…';
+        setTimeout(function () {
+          resetAll();
+          switchTab('home');
+          indicator.style.height = '0px';
+          setTimeout(function () { spinner.classList.remove('spin'); }, 250);
+        }, 450);
+      } else {
+        indicator.style.height = '0px';
+      }
+      startY = null; triggered = false;
+    }, { passive: true });
   }
 
   // If browser restores page from bfcache (back-forward cache), force a real reload

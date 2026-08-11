@@ -59,7 +59,7 @@ export default async function AgentPage() {
       <style dangerouslySetInnerHTML={{ __html: `
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body { height: 100dvh; background: #075E54; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
-        #phone { width: 100%; max-width: 430px; height: 100%; margin: 0 auto; background: #f0f2f5; display: flex; flex-direction: column; }
+        #phone { width: 100%; max-width: 430px; height: 100%; margin: 0 auto; background: #f0f2f5; display: flex; flex-direction: column; position: relative; }
         #topbar { background: ${G_DARK}; color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 30; box-shadow: 0 2px 8px rgba(0,0,0,0.25); flex-shrink: 0; }
         #topbar h1 { font-size: 16px; font-weight: 700; flex: 1; }
         #btn-menu { background: none; border: none; color: #fff; cursor: pointer; padding: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; flex-shrink: 0; touch-action: manipulation; }
@@ -75,6 +75,18 @@ export default async function AgentPage() {
         .btn-back { color: #fff; text-decoration: none; font-size: 20px; line-height: 1; }
         .btn-pdf  { padding: 6px 12px; border-radius: 6px; background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.35); font-size: 12px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
         #scroll-body { flex: 1; overflow-y: auto; overflow-x: hidden; padding-bottom: 20px; overscroll-behavior-y: none; }
+        /* ── Custom pull-to-refresh (native overscroll stays disabled --
+           a real page reload would re-restore the saved session via
+           restoreSession() and make the pull look like it did nothing;
+           this instead does a full in-app reset, no reload involved).
+           Grows in height as the user pulls -- a real flow element, no
+           absolute-position/transform tricks needed. ── */
+        #pull-refresh-indicator { height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; background: ${G_DARK}; color: #fff; }
+        #pull-refresh-indicator.pr-anim { transition: height 0.25s ease; }
+        #pull-refresh-spinner { width: 18px; height: 18px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; flex-shrink: 0; }
+        #pull-refresh-spinner.spin { animation: pull-refresh-spin 0.7s linear infinite; }
+        @keyframes pull-refresh-spin { to { transform: rotate(360deg); } }
+        #pull-refresh-label { font-size: 10px; font-weight: 700; opacity: 0.85; }
         .tab-panel { display: none; }
         .tab-panel.tab-active { display: block; }
         .tab-placeholder { margin: 40px 20px; text-align: center; color: #94a3b8; display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -679,6 +691,10 @@ export default async function AgentPage() {
         </div>
 
         <div id="scroll-body">
+          <div id="pull-refresh-indicator" className="no-print">
+            <div id="pull-refresh-spinner"></div>
+            <div id="pull-refresh-label">Pull down to refresh</div>
+          </div>
 
           {/* ── Tab: Home ── */}
           <div id="tab-home" className="tab-panel">
@@ -1380,7 +1396,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
