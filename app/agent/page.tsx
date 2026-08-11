@@ -551,6 +551,7 @@ export default async function AgentPage() {
         .qs-select-native { appearance:none; -webkit-appearance:none; }
         .qs-select-native:disabled { opacity:0.55; }
         .qs-hint { font-size:10px; color:rgba(255,255,255,0.75); margin-top:8px; text-align:center; }
+        #qs-next-btn { width:100%; margin-top:10px; padding:10px; border-radius:9px; border:none; background:#25D366; color:#04351f; font-size:12.5px; font-weight:800; cursor:pointer; touch-action:manipulation; }
         .ad-divider { display:flex; align-items:center; gap:8px; margin:14px 12px 6px; }
         .ad-divider::before, .ad-divider::after { content:''; flex:1; border-top:1px dashed #e2e8f0; }
         .ad-divider span { font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; }
@@ -778,7 +779,8 @@ export default async function AgentPage() {
                     </select>
                   </div>
                 </div>
-                <div className="qs-hint">Already know the product? Jump straight to the layout.</div>
+                <div className="qs-hint">Already know the product? Pick Site &amp; Zone, then Sec/Row if needed.</div>
+                <button id="qs-next-btn" style={{display:'none'}}>Next: View Layout →</button>
               </div>
 
               <div className="ad-divider no-print"><span>or browse</span></div>
@@ -1448,7 +1450,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812o" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812p" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

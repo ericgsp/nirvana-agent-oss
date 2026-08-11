@@ -498,10 +498,11 @@
     resetLayout(); saveSession(); updateUI();
     loadLayout(site, groupKey);
     renderAssetsPanel();
-    // NLP special-case path (triggered from the product dropdown, not the
-    // removed direct-selector) — jump to the Browse tab's layout view.
-    switchTab('browse');
-    closeAvailDrawer();
+    // Zone picked, but don't jump to the layout yet -- the agent may still
+    // want to narrow down by Sec/Row first. Show the Next button instead of
+    // auto-navigating; see 'qs-next-btn' click handler for the actual jump.
+    var nextBtn = qs('qs-next-btn');
+    if (nextBtn) nextBtn.style.display = '';
   }
 
   function findGroupForProduct(prod, groups) {
@@ -712,6 +713,8 @@
     site = ''; product = ''; productOpts = []; currentZoneGroupKey = ''; openCategory = null; openSiteGroup = null; _cachedCatGroups = null; resetLayout();
     window._drawerPromoFilter = '';
     closeSiteDropdown(); closeZoneDropdown();
+    var nextBtn = qs('qs-next-btn');
+    if (nextBtn) nextBtn.style.display = 'none';
     updateUI();
   }
 
@@ -4051,6 +4054,8 @@
         if (siteChanged) {
           product = ''; currentZoneGroupKey = ''; openCategory = null; _cachedCatGroups = null;
           window._drawerSectionFilter = ''; window._drawerLevelFilter = ''; window._drawerPromoFilter = ''; productOpts = []; resetLayout();
+          var nextBtnOnSiteChange = qs('qs-next-btn');
+          if (nextBtnOnSiteChange) nextBtnOnSiteChange.style.display = 'none';
         }
         saveSession(); updateUI();
         if (!val) return;
@@ -4067,13 +4072,13 @@
         }(val));
         if (zonesCache[val]) {
           productOpts = zonesCache[val]; _cachedCatGroups = null; populateZoneDropdown();
-          if (val === 'Nirvana Life Planning') { var _nlpOpt = productOpts.find(function(p){ return p.category === 'NLP'; }); if (_nlpOpt) onZoneSelected(_nlpOpt.name); }
+          if (val === 'Nirvana Life Planning') { var _nlpOpt = productOpts.find(function(p){ return p.category === 'NLP'; }); if (_nlpOpt) { onZoneSelected(_nlpOpt.name); switchTab('browse'); closeAvailDrawer(); } }
         } else {
           fetch('/api/agent/filters?step=products&site=' + encodeURIComponent(val))
             .then(function (r) { return r.json(); })
             .then(function (d) {
               zonesCache[val] = d.options || []; productOpts = zonesCache[val]; _cachedCatGroups = null; populateZoneDropdown();
-              if (val === 'Nirvana Life Planning') { var _nlpOpt = productOpts.find(function(p){ return p.category === 'NLP'; }); if (_nlpOpt) onZoneSelected(_nlpOpt.name); }
+              if (val === 'Nirvana Life Planning') { var _nlpOpt = productOpts.find(function(p){ return p.category === 'NLP'; }); if (_nlpOpt) { onZoneSelected(_nlpOpt.name); switchTab('browse'); closeAvailDrawer(); } }
             })
             .catch(function () {});
         }
@@ -4284,6 +4289,10 @@
         case 'memo-backdrop':
           document.getElementById('memo-backdrop').classList.remove('open');
           document.getElementById('memo-drawer').classList.remove('open');
+          break;
+        case 'qs-next-btn':
+          switchTab('browse');
+          closeAvailDrawer();
           break;
         case 'site-select-close':
         case 'site-select-backdrop':
