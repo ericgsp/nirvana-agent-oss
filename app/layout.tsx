@@ -28,8 +28,15 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       style={{ background: "#075E54", overscrollBehavior: "none", height: "100dvh" }}
+      suppressHydrationWarning
     >
-      <body className="flex flex-col" style={{ overscrollBehavior: "none", height: "100dvh" }}>{children}</body>
+      {/* Capacitor's native bridge injects scripts/attributes into html/body
+          before React hydrates, which don't match the server-rendered markup --
+          this was causing React error #418 (hydration mismatch), which makes
+          React discard and rebuild the whole DOM tree, wiping out everything
+          agent-app.js had already set up (looked like an infinite reload loop,
+          but was actually React silently regenerating the tree each time). */}
+      <body className="flex flex-col" style={{ overscrollBehavior: "none", height: "100dvh" }} suppressHydrationWarning>{children}</body>
     </html>
   );
 }
