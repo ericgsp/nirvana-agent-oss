@@ -4582,9 +4582,21 @@
   }
 
   // If browser restores page from bfcache (back-forward cache), force a real reload
-  // bfcache restoration looks like a normal page but event listeners are broken
+  // bfcache restoration looks like a normal page but event listeners are broken.
+  // Guarded against looping: Android/Capacitor WebView can report persisted=true
+  // on ordinary app resume (not just real back-forward nav), and if the reload's
+  // own pageshow also reports persisted=true, this was reloading forever --
+  // blank Home tab and JS that never finished initializing were symptoms of that,
+  // not a bug in any one feature.
   window.addEventListener('pageshow', function(e) {
     if (e.persisted) {
+      try {
+        if (sessionStorage.getItem('agent_bfcache_reload_done')) {
+          dbg('pageshow persisted again -- skipping reload to avoid loop');
+          return;
+        }
+        sessionStorage.setItem('agent_bfcache_reload_done', '1');
+      } catch (err) {}
       window.location.reload();
     }
   });
