@@ -96,26 +96,6 @@ export async function loginAction(
   return { error: "", redirectTo: roleData?.role === "admin" ? "/" : "/agent" };
 }
 
-export async function signupAction(
-  _prevState: { error: string } | null,
-  formData: FormData
-): Promise<{ error: string }> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-
-  if (!email || !password) return { error: "Email and password are required." };
-  if (password.length < 6) return { error: "Password must be at least 6 characters." };
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (error) return { error: error.message };
-
-  // Auto-assign agent role
-  await supabaseAdmin.from("user_roles").insert({ user_id: data.user!.id, role: "agent" });
-
-  redirect("/agent");
-}
-
 export async function logoutAction() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
