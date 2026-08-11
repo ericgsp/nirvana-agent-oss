@@ -4530,6 +4530,32 @@
     });
   }
 
+  // Refreshes whatever tab the agent is currently on, without navigating them
+  // back to Home -- pulling to refresh should re-fetch/reset in place, not
+  // jump away from where they were.
+  function refreshCurrentTab() {
+    var activeBtn = document.querySelector('.tab-btn.active');
+    var tab = activeBtn ? activeBtn.dataset.tab : 'home';
+    switch (tab) {
+      case 'browse':
+        resetAll();
+        break;
+      case 'team':
+        _teamLoaded = false;
+        loadTeamSnapshot();
+        break;
+      case 'me':
+        _meLoaded = false;
+        loadMeSnapshot();
+        break;
+      case 'home':
+      default:
+        _homeSnapshotLoaded = false;
+        loadHomeSnapshot();
+        break;
+    }
+  }
+
   function initPullToRefresh() {
     var scrollBody = document.getElementById('scroll-body');
     var indicator  = document.getElementById('pull-refresh-indicator');
@@ -4583,8 +4609,7 @@
         spinner.classList.add('spin');
         label.textContent = 'Refreshing…';
         setTimeout(function () {
-          resetAll();
-          switchTab('home');
+          refreshCurrentTab();
           indicator.style.height = '0px';
           setTimeout(function () { spinner.classList.remove('spin'); }, 250);
         }, 450);
