@@ -852,6 +852,13 @@
   // Sequence: Type → Site → Zone → Lot Type → Level (optional, last step)
   var drawerState = { type: '', site: '', levels: [], sort: 'available', selectedZone: null, selectedPrefix: null, selectedSection: null, _sections: [], selectedPromo: null, _promoTypes: [], _promoTypesLoading: false };
 
+  // Full reset of the Browse wizard's own pill/filter state (Product Type,
+  // Site, sort, section/level pills) -- separate from resetAll(), which only
+  // clears the site/product/layout selection, not this wizard state.
+  function resetDrawerState() {
+    drawerState = { type: '', site: '', levels: [], sort: 'available', selectedZone: null, selectedPrefix: null, selectedSection: null, _sections: [], selectedPromo: null, _promoTypes: [], _promoTypesLoading: false };
+  }
+
   var LEVEL_ORDER = ['LG','G','B','1','2','3','3A','5','6','7','8','9','10','11','12'];
   function sortLevels(lvls) {
     return lvls.slice().sort(function(a, b) {
@@ -4539,6 +4546,8 @@
     switch (tab) {
       case 'browse':
         resetAll();
+        resetDrawerState();
+        openAvailDrawer();
         break;
       case 'team':
         _teamLoaded = false;
