@@ -449,7 +449,7 @@
           var origOpt = productOpts.find(function (p) { return p.name === g.key; });
           var isChristian = origOpt && origOpt.religion === 'Christian';
           var isCombo = window.AgentCombo && window.AgentCombo.hasComboZone && window.AgentCombo.hasComboZone(site, g.key);
-          var isNewLaunch = g.key === 'N7-S2' || g.key === 'N12-S6' || g.key === 'JLD-B-GF' || g.key === 'MP3-2F-RS1';
+          var isNewLaunch = g.key === 'N7-S2' || g.key === 'N12-S6' || g.key === 'JLD-B-GF' || g.key === 'MP3-2F-RS1' || g.key === 'MP3-2F-PS1';
           var badge = isChristian ? '<span class="f-dd-badge">Christian</span>' : '';
           if (isNewLaunch) badge += '<span class="f-dd-badge-green">New Launch</span>';
           if (isCombo) badge += '<span class="f-dd-badge-amber">Combo Lot</span>';

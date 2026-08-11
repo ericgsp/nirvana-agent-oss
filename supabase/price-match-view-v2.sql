@@ -355,6 +355,7 @@ SELECT
         WHEN left(p.niche_section, 1) = 'D'  THEN 'Double'
         WHEN left(p.niche_section, 1) = 'S'  THEN 'Single'
       END
+    WHEN shah_niche.id  IS NOT NULL THEN shah_niche.lot_type
     WHEN shah_burial.id IS NOT NULL THEN shah_burial.lot_type
     WHEN ijok_burial.id IS NOT NULL THEN
       CASE
