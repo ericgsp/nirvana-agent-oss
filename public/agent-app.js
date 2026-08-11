@@ -500,10 +500,9 @@
     resetLayout(); saveSession(); updateUI();
     loadLayout(site, groupKey);
     renderAssetsPanel();
-    // Direct-selection fast path (Quote tab) — jump to the Inventory tab's
-    // layout view to finish picking a niche/lot, same destination the
-    // Inventory list's own product rows lead to.
-    switchTab('inventory');
+    // NLP special-case path (triggered from the product dropdown, not the
+    // removed direct-selector) — jump to the Browse tab's layout view.
+    switchTab('browse');
     closeAvailDrawer();
   }
 
@@ -907,7 +906,7 @@
   }
 
   // ── Bottom tab bar ────────────────────────────────────────────
-  var TAB_IDS = ['home', 'inventory', 'quote', 'team', 'me'];
+  var TAB_IDS = ['home', 'browse', 'team', 'me'];
   var _homeSnapshotLoaded = false;
   var _inventoryListLoaded = false;
   var _teamLoaded = false;
@@ -937,7 +936,7 @@
       _homeSnapshotLoaded = true;
       loadHomeSnapshot();
     }
-    if (name === 'inventory' && !_inventoryListLoaded) {
+    if (name === 'browse' && !_inventoryListLoaded) {
       _inventoryListLoaded = true;
       openAvailDrawer();
     }
@@ -1193,6 +1192,26 @@
     var layoutView = document.getElementById('inventory-layout-view');
     if (listView) listView.style.display = 'none';
     if (layoutView) layoutView.style.display = '';
+  }
+
+  // Browse tab's sticky total bar -- shows a running count + net total the
+  // moment a niche is picked, so Print is reachable without scrolling down
+  // to the full quote card. Uses calcMatrix generically across lotQuotes;
+  // close enough for a running summary even on the bespoke render branches
+  // (NLP/combo/instant-case) -- the full quote card below is the source of truth.
+  function updateBrowseStickyBar() {
+    var bar = document.getElementById('browse-stickybar');
+    if (!bar) return;
+    if (!lotQuotes.length) { bar.style.display = 'none'; return; }
+    var total = 0;
+    lotQuotes.forEach(function (q) {
+      try { total += calcMatrix(q.levelData, dpPct).netTotalPrice; } catch (e) {}
+    });
+    var countEl = document.getElementById('browse-sticky-count');
+    var totalEl = document.getElementById('browse-sticky-total');
+    if (countEl) countEl.textContent = lotQuotes.length + (lotQuotes.length === 1 ? ' niche selected' : ' niches selected');
+    if (totalEl) totalEl.textContent = 'RM ' + fmt(total);
+    bar.style.display = 'flex';
   }
 
   function promoTypeBadge(name) {
@@ -2685,6 +2704,7 @@
     if (!el) return;
     var pdfBtn = qs('btn-pdf');
     if (pdfBtn) pdfBtn.style.display = lotQuotes.length ? '' : 'none';
+    updateBrowseStickyBar();
     // Preserve horizontal scroll so new columns appear in place without jumping left
     var qtScrollEl = el.querySelector('.qt-scroll');
     var savedQtScroll = qtScrollEl ? qtScrollEl.scrollLeft : 0;
@@ -4375,6 +4395,7 @@
           document.getElementById('challenge-backdrop').classList.remove('open');
           document.getElementById('challenge-drawer').classList.remove('open');
           break;
+        case 'browse-sticky-print':
         case 'btn-pdf':
           var prevTitle = document.title;
           document.title = '';

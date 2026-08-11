@@ -481,6 +481,12 @@ export default async function AgentPage() {
         /* ── Inventory tab: product list ↔ layout view ── */
         #avail-scroll { padding-bottom:20px; }
         #btn-inventory-back { display:flex; align-items:center; gap:6px; margin:10px 10px 0; padding:9px 13px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; font-size:13px; font-weight:700; color:${G_DARK}; cursor:pointer; touch-action:manipulation; }
+        /* ── Browse: sticky total bar (Inventory + Quote combined) ── */
+        #browse-stickybar { position:sticky; bottom:0; z-index:20; background:#fff; border-top:1px solid #e2e8f0; padding:10px 14px; display:flex; align-items:center; gap:12px; box-shadow:0 -6px 16px -10px rgba(0,0,0,0.15); }
+        #browse-sticky-info { flex:1; min-width:0; }
+        #browse-sticky-count { font-size:11px; color:#94a3b8; }
+        #browse-sticky-total { font-size:16px; font-weight:800; color:${G_DARK}; }
+        #browse-sticky-print { flex-shrink:0; background:#25D366; color:#04351f; border:none; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:800; cursor:pointer; touch-action:manipulation; }
         .ad-card { margin:0 10px 10px; background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,0.08); overflow:hidden; }
         .ad-label { display:flex; align-items:center; gap:9px; padding:10px 14px; border-bottom:1px solid #f0f2f5; }
         .ad-dot { width:22px; height:22px; border-radius:50%; background:${G_DARK}; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -587,9 +593,9 @@ export default async function AgentPage() {
           .print-only { display: block !important; }
           #topbar, .s-label, #zone-filter, #layout-area, .no-print,
           #dp-strip, .avail-banner, #btn-challenge, .s-card:not(#quote-section), .tab-placeholder,
-          #tab-home, #tab-inventory, #tab-team, #tab-me,
+          #tab-home, #tab-team, #tab-me, #inventory-list-view, #assets-panel,
           #memo-backdrop, #memo-drawer, #forms-backdrop, #forms-drawer, #sites-backdrop, #sites-drawer, #training-backdrop, #training-drawer, #challenge-backdrop, #challenge-drawer, #announcement-backdrop, #announcement-drawer, #poster-modal-backdrop { display: none !important; }
-          #tab-quote { display: block !important; }
+          #tab-browse, #inventory-layout-view { display: block !important; }
           #phone { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; }
           #scroll-body { overflow: visible !important; padding: 0 !important; }
           #quote-section { width: 100% !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
@@ -682,14 +688,16 @@ export default async function AgentPage() {
             <div id="home-recent-quotes"></div>
           </div>
 
-          {/* ── Tab: Inventory ── */}
-          <div id="tab-inventory" className="tab-panel">
+          {/* ── Tab: Browse (combined Inventory + Quote — list, layout, and quote
+               all live in one continuous scroll so switching tabs never breaks
+               the flow of picking a product and seeing its price) ── */}
+          <div id="tab-browse" className="tab-panel">
             {/* ── List view: browse by price & availability ── */}
             <div id="inventory-list-view">
               <div id="avail-scroll"><div id="avail-content"></div></div>
             </div>
 
-            {/* ── Layout view: shown after picking a product from the list (or the Quote tab's direct selector) ── */}
+            {/* ── Layout view: shown after picking a product from the list ── */}
             <div id="inventory-layout-view" style={{display:"none"}}>
               <button id="btn-inventory-back" className="no-print">‹ Back to product list</button>
 
@@ -717,56 +725,30 @@ export default async function AgentPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* ── Tab: Quote ── */}
-          <div id="tab-quote" className="tab-panel">
-            {/* ── Direct selection — fast path for agents who already know what they want,
-                 skipping the Inventory tab's price/availability browsing ── */}
-            <div className="s-card">
-              <div className="s-label no-print">
-                <div className="s-dot">1</div>
-                <span className="s-title">Select Site &amp; Zone</span>
-              </div>
-              <div id="zone-filter">
-                <div className="f-wrap">
-                  <div className="f-lbl">Site</div>
-                  <div className="f-dd">
-                    <button id="site-dd-btn" className="f-dd-trigger placeholder">Select site…</button>
-                    <div id="site-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
+              {/* ── Quote — builds live below the layout as niches are tapped ── */}
+              <div className="s-card" id="quote-section">
+                <div className="s-label no-print">
+                  <div className="s-dot">3</div>
+                  <span className="s-title">Quotation</span>
+                </div>
+                <div id="quote-body">
+                  <div className="quote-empty">
+                    <span className="qe-icon">📋</span>
+                    <span className="qe-msg">Select a niche above to see pricing</span>
                   </div>
                 </div>
-                <div className="f-wrap">
-                  <div className="f-lbl">Zone</div>
-                  <div className="f-dd">
-                    <button id="zone-dd-btn" className="f-dd-trigger placeholder" disabled>Select zone…</button>
-                    <div id="zone-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
-                  </div>
-                </div>
-                <div className="f-wrap" id="section-wrap">
-                  <div className="f-lbl">Sec / Row</div>
-                  <select id="section-sel" className="f-sel" disabled>
-                    <option value="">Not applicable</option>
-                  </select>
-                </div>
-              </div>
-              <div className="tab-placeholder" style={{margin:"10px 0 0"}}>
-                <span className="tp-sub">Selecting a zone above jumps you to the Inventory tab to pick a niche/lot from the layout.</span>
               </div>
             </div>
 
-            <div className="s-card" id="quote-section">
-              <div className="s-label no-print">
-                <div className="s-dot">3</div>
-                <span className="s-title">Quotation</span>
+            {/* ── Sticky total bar — appears the moment a niche is selected,
+                 so Print is one tap away without scrolling ── */}
+            <div id="browse-stickybar" className="no-print" style={{display:"none"}}>
+              <div id="browse-sticky-info">
+                <div id="browse-sticky-count"></div>
+                <div id="browse-sticky-total"></div>
               </div>
-              <div id="quote-body">
-                <div className="quote-empty">
-                  <span className="qe-icon">📋</span>
-                  <span className="qe-msg">Select a site and zone to get started</span>
-                </div>
-              </div>
+              <button id="browse-sticky-print">🖨 Print</button>
             </div>
           </div>
 
@@ -793,8 +775,7 @@ export default async function AgentPage() {
         {/* ── Bottom tab bar ── */}
         <div id="tab-bar" className="no-print">
           <button className="tab-btn active" data-tab="home"><span className="tab-btn-icon">◆</span>Home</button>
-          <button className="tab-btn" data-tab="inventory"><span className="tab-btn-icon">▦</span>Inventory</button>
-          <button className="tab-btn" data-tab="quote"><span className="tab-btn-icon">✎</span>Quote</button>
+          <button className="tab-btn" data-tab="browse"><span className="tab-btn-icon">▦</span>Browse</button>
           <button className="tab-btn" data-tab="team"><span className="tab-btn-icon">◈</span>Team</button>
           <button className="tab-btn" data-tab="me"><span className="tab-btn-icon">◎</span>Me</button>
         </div>
@@ -1352,7 +1333,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260811i" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812a" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
