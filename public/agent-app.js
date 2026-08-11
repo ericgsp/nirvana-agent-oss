@@ -4475,6 +4475,12 @@
   }
 
   function start() {
+    // Registered first, before anything else in start() that could throw --
+    // if a later step (e.g. updateUI()) throws uncaught, the rest of this
+    // function silently stops, which would otherwise prevent this from
+    // ever running.
+    try { initPullToRefresh(); } catch (e) { dbg('initPullToRefresh err: ' + e.message); }
+
     var navType = 'unknown';
     try { navType = performance.getEntriesByType('navigation')[0].type; } catch(e) {}
     dbg('start() navType=' + navType);
@@ -4498,8 +4504,7 @@
         }
       }
     } catch(e) { dbg('start catch: ' + e.message); restoreSession(); }
-    try { updateUI(); } catch(e) { dbg('updateUI err: ' + e.message); lotQuotes = []; selectedLots = []; updateUI(); }
-    initPullToRefresh();
+    try { updateUI(); } catch(e) { dbg('updateUI err: ' + e.message); lotQuotes = []; selectedLots = []; try { updateUI(); } catch(e2) { dbg('updateUI 2nd err: ' + e2.message); } }
     warmUpServer();
     prefetchAllZones();
     _applyAnnouncementReadState();
