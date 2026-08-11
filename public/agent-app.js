@@ -4480,6 +4480,7 @@
     // function silently stops, which would otherwise prevent this from
     // ever running.
     try { initPullToRefresh(); } catch (e) { dbg('initPullToRefresh err: ' + e.message); }
+    try { highlightTodayInCalendars(); } catch (e) { dbg('highlightTodayInCalendars err: ' + e.message); }
 
     var navType = 'unknown';
     try { navType = performance.getEntriesByType('navigation')[0].type; } catch(e) {}
@@ -4516,6 +4517,19 @@
   // heavier than needed. This tracks the pull gesture in JS instead and does a
   // full in-app reset via resetAll() on release, matching what navType==='reload'
   // already does above (clear agent_session, don't restore it).
+  // "Today" highlight on the Training & Event calendars is computed here
+  // (client-only, real local date) instead of via new Date() in page.tsx's
+  // server-rendered JSX -- that was causing a real/local timezone difference
+  // between the server's render and the device's, a documented cause of
+  // React hydration mismatches (error #418).
+  function highlightTodayInCalendars() {
+    var now = new Date();
+    var todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    document.querySelectorAll('[data-cal-date="' + todayStr + '"]').forEach(function (el) {
+      el.classList.add('today');
+    });
+  }
+
   function initPullToRefresh() {
     var scrollBody = document.getElementById('scroll-body');
     var indicator  = document.getElementById('pull-refresh-indicator');

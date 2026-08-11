@@ -1132,8 +1132,6 @@ export default async function AgentPage() {
             const year = 2026, month = 7;
             const firstDay = new Date(year, month, 1).getDay();
             const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const today = new Date();
-            const isThisMonth = today.getFullYear() === year && today.getMonth() === month;
             const cells: (number|null)[] = Array(firstDay).fill(null);
             for (let d = 1; d <= daysInMonth; d++) cells.push(d);
             while (cells.length % 7 !== 0) cells.push(null);
@@ -1152,9 +1150,10 @@ export default async function AgentPage() {
                       const color = evts ? (evts.length > 1 ? "#374151" : evts[0].color) : undefined;
                       return (
                         <div key={i}
-                          className={"evt-cal-day" + (evts ? " has-event" : "") + (d && isThisMonth && d === today.getDate() ? " today" : "") + (!d ? " other-month" : "")}
+                          className={"evt-cal-day" + (evts ? " has-event" : "") + (!d ? " other-month" : "")}
                           style={color ? {background: color} : undefined}
                           data-events={evts ? JSON.stringify(evts) : undefined}
+                          data-cal-date={d ? `2026-08-${String(d).padStart(2,'0')}` : undefined}
                         >{d ?? ""}{evts && evts.length > 1 ? <span style={{fontSize:'7px',position:'absolute',top:'2px',right:'3px'}}>●</span> : null}</div>
                       );
                     })}
@@ -1246,8 +1245,6 @@ export default async function AgentPage() {
                   const sy = 2026, sm = 8; // September = month index 8
                   const sfirstDay = new Date(sy, sm, 1).getDay();
                   const sdaysInMonth = new Date(sy, sm + 1, 0).getDate();
-                  const stoday = new Date();
-                  const sisThisMonth = stoday.getFullYear() === sy && stoday.getMonth() === sm;
                   const scells: (number|null)[] = Array(sfirstDay).fill(null);
                   for (let d = 1; d <= sdaysInMonth; d++) scells.push(d);
                   while (scells.length % 7 !== 0) scells.push(null);
@@ -1266,9 +1263,10 @@ export default async function AgentPage() {
                             const color = evts ? (evts.length > 1 ? "#374151" : evts[0].color) : undefined;
                             return (
                               <div key={i}
-                                className={"evt-cal-day" + (evts ? " has-event" : "") + (d && sisThisMonth && d === stoday.getDate() ? " today" : "") + (!d ? " other-month" : "")}
+                                className={"evt-cal-day" + (evts ? " has-event" : "") + (!d ? " other-month" : "")}
                                 style={color ? {background: color} : undefined}
                                 data-events={evts ? JSON.stringify(evts) : undefined}
+                                data-cal-date={d ? `2026-09-${String(d).padStart(2,'0')}` : undefined}
                               >{d ?? ""}{evts && evts.length > 1 ? <span style={{fontSize:'7px',position:'absolute',top:'2px',right:'3px'}}>●</span> : null}</div>
                             );
                           })}
@@ -1397,7 +1395,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812h" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812i" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
