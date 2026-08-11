@@ -3,6 +3,7 @@
 import { useActionState, useState, useEffect, Suspense } from "react";
 import { loginAction } from "@/app/actions/auth";
 import { useSearchParams } from "next/navigation";
+import { Device } from "@capacitor/device";
 
 function LoginForm() {
   const [state, action, pending] = useActionState(loginAction, null);
@@ -19,12 +20,33 @@ function LoginForm() {
       setEmail(saved);
       setRememberMe(true);
     }
-    let id = localStorage.getItem("device_id");
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem("device_id", id);
-    }
-    setDeviceId(id);
+    // Prefer Capacitor's native device identifier (stored via the OS --
+    // Keychain on iOS, not WebView localStorage) over the old localStorage
+    // UUID: iOS can and does clear WebView localStorage under storage
+    // pressure, which was silently generating a new "device" and locking
+    // legitimate agents out of their own bound account. localStorage stays
+    // as the fallback for plain web-browser access, where there's no
+    // native identifier available.
+    (async () => {
+      try {
+        const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } };
+        if (w.Capacitor?.isNativePlatform?.()) {
+          const info = await Device.getId();
+          if (info.identifier) {
+            setDeviceId(info.identifier);
+            return;
+          }
+        }
+      } catch {
+        // fall through to localStorage fallback below
+      }
+      let id = localStorage.getItem("device_id");
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem("device_id", id);
+      }
+      setDeviceId(id);
+    })();
   }, []);
 
   useEffect(() => {
