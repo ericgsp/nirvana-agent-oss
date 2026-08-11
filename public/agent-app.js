@@ -4533,12 +4533,16 @@
       var dy = e.touches[0].clientY - startY;
       if (dy <= 0) { indicator.style.height = '0px'; return; }
       if (scrollBody.scrollTop > 0) return; // scrolled away mid-gesture
+      // Not passive + preventDefault: some WebViews stop delivering touchmove
+      // once they decide there's nothing to scroll (already at top, bounce
+      // disabled) -- this forces the browser to keep handing us the gesture.
+      e.preventDefault();
       pulling = true;
       var h = Math.min(dy * 0.5, THRESHOLD + 10);
       indicator.style.height = h + 'px';
       triggered = h >= THRESHOLD;
       label.textContent = triggered ? 'Release to refresh' : 'Pull down to refresh';
-    }, { passive: true });
+    }, { passive: false });
 
     scrollBody.addEventListener('touchend', function () {
       if (!pulling) { startY = null; return; }
