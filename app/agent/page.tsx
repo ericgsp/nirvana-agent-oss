@@ -493,18 +493,37 @@ export default async function AgentPage() {
         .ad-title { font-size:13px; font-weight:700; color:#0f172a; flex:1; }
         .ad-sub { font-size:11px; color:#94a3b8; }
         .ad-body { padding:12px 14px; }
-        .ad-chips { display:flex; gap:7px; flex-wrap:wrap; }
-        .ad-chip { padding:9px 15px; border-radius:22px; border:1.5px solid #e2e8f0; background:#f8fafc; font-size:13px; font-weight:600; color:#475569; cursor:pointer; display:flex; align-items:center; gap:7px; }
+        /* Swipeable carousels -- scroll-snap so a swipe settles on one chip/card
+           at a time instead of free-scrolling past it. */
+        .ad-chips { display:flex; gap:7px; flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
+        .ad-chips::-webkit-scrollbar { display:none; }
+        .ad-chip { flex-shrink:0; scroll-snap-align:start; padding:9px 15px; border-radius:22px; border:1.5px solid #e2e8f0; background:#f8fafc; font-size:13px; font-weight:600; color:#475569; cursor:pointer; display:flex; align-items:center; gap:7px; }
         .ad-chip.on { background:${G_DARK}; border-color:${G_DARK}; color:#fff; }
         .ad-chip:active { opacity:0.75; }
         .ad-chip-count { font-size:10px; font-weight:700; padding:1px 6px; border-radius:999px; background:#e2e8f0; color:#64748b; }
         .ad-chip.on .ad-chip-count { background:rgba(255,255,255,0.25); color:#fff; }
-        .ad-sites { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .ad-site { border:1.5px solid #e2e8f0; border-radius:11px; padding:11px 13px; background:#f8fafc; cursor:pointer; }
+        .ad-sites { display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
+        .ad-sites::-webkit-scrollbar { display:none; }
+        .ad-site { flex:0 0 62%; scroll-snap-align:start; border:1.5px solid #e2e8f0; border-radius:11px; padding:11px 13px; background:#f8fafc; cursor:pointer; }
         .ad-site.on { border-color:${G_TEAL}; background:#f0fdfa; }
         .ad-site:active { opacity:0.75; }
         .ad-site-name { font-size:13px; font-weight:700; color:#0f172a; }
         .ad-site-count { font-size:11px; color:#16a34a; font-weight:600; margin-top:3px; }
+        /* ── Quick Select card ── */
+        .qs-card { margin:10px 10px 0; background:linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); border-radius:14px; padding:12px 13px; }
+        .qs-title { font-size:11px; font-weight:800; color:#fff; text-transform:uppercase; letter-spacing:0.05em; opacity:0.9; display:flex; align-items:center; gap:6px; margin-bottom:8px; }
+        .qs-lightning { font-size:12px; }
+        .qs-row { display:flex; gap:7px; }
+        .qs-field { flex:1; min-width:0; position:relative; }
+        .qs-lbl { font-size:9.5px; color:rgba(255,255,255,0.75); font-weight:700; margin-bottom:3px; }
+        .qs-select, .qs-select-native { width:100%; background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.32); border-radius:9px; padding:8px 9px; font-size:11.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
+        .qs-select.placeholder { color:rgba(255,255,255,0.6); font-weight:600; }
+        .qs-select-native { appearance:none; -webkit-appearance:none; }
+        .qs-select-native:disabled { opacity:0.55; }
+        .qs-hint { font-size:10px; color:rgba(255,255,255,0.75); margin-top:8px; text-align:center; }
+        .ad-divider { display:flex; align-items:center; gap:8px; margin:14px 12px 6px; }
+        .ad-divider::before, .ad-divider::after { content:''; flex:1; border-top:1px dashed #e2e8f0; }
+        .ad-divider span { font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; }
         .ad-lvl-chips { display:flex; gap:6px; flex-wrap:wrap; }
         .ad-lvl-chip { padding:7px 14px; border-radius:16px; border:1.5px solid #e2e8f0; background:#f8fafc; font-size:12px; font-weight:600; color:#475569; cursor:pointer; }
         .ad-lvl-chip.on { background:#1e40af; border-color:#1e40af; color:#fff; }
@@ -694,6 +713,34 @@ export default async function AgentPage() {
           <div id="tab-browse" className="tab-panel">
             {/* ── List view: browse by price & availability ── */}
             <div id="inventory-list-view">
+              {/* ── Quick Select — fast path for agents who already know the
+                   product; skips the filter wizard entirely and jumps straight
+                   to the layout grid ── */}
+              <div className="qs-card no-print">
+                <div className="qs-title"><span className="qs-lightning">⚡</span>Quick Select</div>
+                <div id="zone-filter" className="qs-row">
+                  <div className="qs-field">
+                    <div className="qs-lbl">Site</div>
+                    <button id="site-dd-btn" className="qs-select placeholder">Select site…</button>
+                    <div id="site-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
+                  </div>
+                  <div className="qs-field">
+                    <div className="qs-lbl">Zone</div>
+                    <button id="zone-dd-btn" className="qs-select placeholder" disabled>Select zone…</button>
+                    <div id="zone-dd-panel" className="f-dd-panel" style={{display:'none'}}></div>
+                  </div>
+                  <div className="qs-field" id="section-wrap">
+                    <div className="qs-lbl">Sec/Row</div>
+                    <select id="section-sel" className="qs-select-native" disabled>
+                      <option value="">N/A</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="qs-hint">Already know the product? Jump straight to the layout.</div>
+              </div>
+
+              <div className="ad-divider no-print"><span>or browse</span></div>
+
               <div id="avail-scroll"><div id="avail-content"></div></div>
             </div>
 
