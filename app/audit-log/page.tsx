@@ -10,6 +10,7 @@ type Entry = {
   success: boolean;
   ip_address: string | null;
   user_agent: string | null;
+  blocked_reason: string | null;
 };
 
 type Row = {
@@ -19,17 +20,27 @@ type Row = {
   action: string;
   ip: string;
   success: boolean;
+  blockedReason: string | null;
   userAgent: string;
 };
 
+const BLOCKED_LABEL: Record<string, string> = {
+  device_mismatch: "Blocked — wrong device",
+  missing_device_id: "Blocked — no device ID",
+};
+
 function parseEntry(e: Entry): Row {
+  const action = e.blocked_reason
+    ? (BLOCKED_LABEL[e.blocked_reason] ?? `Blocked — ${e.blocked_reason}`)
+    : e.success ? "Login" : "Login (failed)";
   return {
     id: e.id,
     timestamp: e.attempted_at,
     email: e.email || "—",
-    action: e.success ? "Login" : "Login (failed)",
+    action,
     ip: e.ip_address ?? "—",
     success: e.success,
+    blockedReason: e.blocked_reason,
     userAgent: e.user_agent ?? "—",
   };
 }
@@ -40,7 +51,12 @@ const PILL: Record<string, React.CSSProperties> = {
   "Sign-up":{ background: "#dbeafe", color: "#1e40af" },
 };
 
-function pill(action: string, success: boolean): React.CSSProperties {
+function pill(action: string, success: boolean, blockedReason: string | null): React.CSSProperties {
+  // Correct password, wrong device -- the strongest signal that someone
+  // else has valid credentials. Stand this out from both normal logins
+  // (green) and simple bad-password failures (soft red).
+  if (blockedReason === "device_mismatch") return { background: "#fef3c7", color: "#92400e", fontWeight: 800 };
+  if (blockedReason) return { background: "#fef3c7", color: "#92400e" };
   if (!success) return { background: "#fee2e2", color: "#991b1b" };
   return PILL[action] ?? { background: "#fef9c3", color: "#713f12" };
 }
@@ -140,7 +156,7 @@ export default function AuditLogPage() {
                     <td style={{ padding: "10px 16px", whiteSpace: "nowrap", color: "#475569", fontVariantNumeric: "tabular-nums" }}>{fmt(r.timestamp)}</td>
                     <td style={{ padding: "10px 16px", fontWeight: 500 }}>{r.email}</td>
                     <td style={{ padding: "10px 16px" }}>
-                      <span style={{ ...pill(r.action, r.success), borderRadius: "999px", padding: "2px 10px", fontSize: "12px", fontWeight: 600 }}>
+                      <span style={{ ...pill(r.action, r.success, r.blockedReason), borderRadius: "999px", padding: "2px 10px", fontSize: "12px", fontWeight: 600 }}>
                         {r.action}
                       </span>
                     </td>

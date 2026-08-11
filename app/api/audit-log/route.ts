@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from("login_attempts")
-    .select("id, attempted_at, email, success, ip_address, user_agent")
+    .select("id, attempted_at, email, success, ip_address, user_agent, blocked_reason")
     .order("attempted_at", { ascending: false })
     .limit(limit);
 

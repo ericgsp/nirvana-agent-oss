@@ -6,11 +6,11 @@ import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
 
-async function logLoginAttempt(email: string, success: boolean) {
+async function logLoginAttempt(email: string, success: boolean, blockedReason?: string) {
   const h = await headers();
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? null;
   const userAgent = h.get("user-agent") ?? null;
-  await supabaseAdmin.from("login_attempts").insert({ email, success, ip_address: ip, user_agent: userAgent });
+  await supabaseAdmin.from("login_attempts").insert({ email, success, ip_address: ip, user_agent: userAgent, blocked_reason: blockedReason ?? null });
 }
 
 export async function loginAction(
@@ -38,14 +38,13 @@ export async function loginAction(
     .eq("user_id", authData.user.id)
     .single();
 
-  await logLoginAttempt(email, true);
-
   // Device binding + single active session enforcement for agents
   if (roleData?.role === "agent") {
     const deviceFingerprint = String(formData.get("device_id") ?? "").trim();
 
     if (!deviceFingerprint) {
       await supabaseAdmin.auth.admin.signOut(authData.user.id);
+      await logLoginAttempt(email, true, "missing_device_id");
       return { error: "Device ID missing. Please enable cookies and try again." };
     }
 
@@ -57,8 +56,12 @@ export async function loginAction(
       .single();
 
     if (binding && binding.device_fingerprint !== deviceFingerprint) {
-      // Bound to a different device — reject login
+      // Bound to a different device — reject login. Credentials were valid,
+      // which makes this the single most useful signal for "someone else is
+      // trying to use a leaked/shared password" -- logged distinctly so it
+      // doesn't blend into normal successful logins in the audit log.
       await supabaseAdmin.auth.admin.signOut(authData.user.id);
+      await logLoginAttempt(email, true, "device_mismatch");
       return { error: "", redirectTo: "/login?reason=device_bound" };
     }
 
@@ -90,6 +93,8 @@ export async function loginAction(
       path: "/",
     });
   }
+
+  await logLoginAttempt(email, true);
 
   // Return the redirect URL to the client — the login page will do a hard
   // window.location.href navigation so iOS Safari picks up the session cookie.
