@@ -4581,24 +4581,13 @@
     }, { passive: true });
   }
 
-  // If browser restores page from bfcache (back-forward cache), force a real reload
-  // bfcache restoration looks like a normal page but event listeners are broken.
-  // Guarded against looping via a URL marker (not sessionStorage -- that didn't
-  // survive the reload in this WebView, so the loop kept happening). Android/
-  // Capacitor WebView can report persisted=true on ordinary app resume (not just
-  // real back-forward nav), and if the reload's own pageshow ALSO reports
-  // persisted=true, this reloads forever -- blank Home tab and JS that never
-  // finished initializing were symptoms of that, not a bug in any one feature.
-  window.addEventListener('pageshow', function(e) {
-    if (e.persisted) {
-      if (location.search.indexOf('_pr=1') !== -1) {
-        dbg('pageshow persisted again -- skipping reload to avoid loop (url-guarded)');
-        return;
-      }
-      var sep = location.search ? '&' : '?';
-      window.location.replace(location.pathname + location.search + sep + '_pr=1' + location.hash);
-    }
-  });
+  // Retired: this used to force a reload on bfcache-restored pages (pageshow
+  // persisted=true). On this Android/Capacitor WebView, persisted=true fires on
+  // ordinary app resume too, and the reload's own pageshow event also reported
+  // persisted=true -- reloading forever (React hydration error #418 on every
+  // reload, blank Home tab, pull-to-refresh init never settling). The real
+  // problem this was working around (stale JS after resume) is now handled
+  // properly by WebSettings.LOAD_NO_CACHE in MainActivity.java instead.
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', start);
