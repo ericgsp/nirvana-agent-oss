@@ -1229,7 +1229,7 @@
 
   // Customer name/phone are optional -- this always proceeds to log +
   // print, whether the fields were filled in or left blank.
-  function confirmCustomerInfoAndPrint() {
+  function confirmCustomerInfoAndShare() {
     var nameEl = qs('customer-info-name');
     var phoneEl = qs('customer-info-phone');
     var customerName = nameEl ? nameEl.value.trim() : '';
@@ -1262,15 +1262,12 @@
       }),
     }).then(function () { _homeSnapshotLoaded = false; }).catch(function (err) { dbg('log quote failed: ' + err); });
 
-    doPrintFlow();
-    // If a phone number was given, also open a WhatsApp chat with that
-    // exact contact -- the agent just needs to tap the paperclip and
-    // attach the PDF they save from the print dialog, instead of hunting
-    // for the right person after picking WhatsApp from a generic share menu.
+    // Share is independent of Print -- the agent already saved a PDF via
+    // the separate Print button, in whatever order they chose. This just
+    // opens a WhatsApp chat with the given contact so the agent can tap
+    // the paperclip and attach the PDF they already have.
     var waLink = toWaLink(customerPhone);
-    if (waLink) {
-      setTimeout(function () { window.open(waLink, '_blank'); }, 400);
-    }
+    if (waLink) window.open(waLink, '_blank');
   }
 
   var _soldModalMode = 'manual'; // 'checklist' when the quote has itemized data, else 'manual'
@@ -3284,11 +3281,13 @@
     if (site === 'Semenyih-NMG' && product === 'OV6-1F-AT' && dpPct !== 100) _dpFixedRm = 4000;
     var el = qs('quote-body');
     if (!el) return;
-    // Print and Share used to be two separate buttons -- redundant in
-    // practice (nobody prints anymore; Share covers the real use case of
-    // getting the quote to a customer). One button now: native app shares
-    // a real PDF, plain browser falls back to the print dialog (as close
-    // to "share" as a browser tab can get).
+    // Print and Share are two separate, independent steps -- Print saves
+    // the PDF to the phone (no way to know when the agent's actually done
+    // with the system print dialog), Share (separate, later) captures who
+    // it's for and opens WhatsApp so the agent can attach whatever PDF
+    // they already saved. Order is up to the agent.
+    var pdfBtn = qs('btn-pdf');
+    if (pdfBtn) pdfBtn.style.display = lotQuotes.length ? '' : 'none';
     var shareBtn = qs('btn-share-pdf');
     if (shareBtn) shareBtn.style.display = lotQuotes.length ? '' : 'none';
     updateBrowseStickyBar();
@@ -5126,15 +5125,18 @@
           document.getElementById('challenge-backdrop').classList.remove('open');
           document.getElementById('challenge-drawer').classList.remove('open');
           break;
+        case 'btn-pdf':
+          doPrintFlow();
+          break;
         case 'btn-share-pdf':
-          if (lotQuotes.length) openCustomerInfoModal(); else doPrintFlow();
+          openCustomerInfoModal();
           break;
         case 'customer-info-modal-cancel':
         case 'customer-info-modal-backdrop':
           closeCustomerInfoModal();
           break;
         case 'customer-info-modal-confirm':
-          confirmCustomerInfoAndPrint();
+          confirmCustomerInfoAndShare();
           break;
       }
     });
