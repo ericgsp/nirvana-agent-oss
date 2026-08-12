@@ -432,12 +432,20 @@ export async function POST(req: NextRequest) {
       return Response.json({ ok: true }); // nothing pending -- already handled, no-op
     }
 
+    const isAccept = body.action === "accept_carry_forward";
+
+    // Deny: just mark handled, leave each month's target exactly as it was
+    // -- the missed figure stays visible on that month for the record.
+    // Accept: the shortfall *moves* forward, it isn't a new addition on top
+    // -- so the past month's target drops to 0 (its actual sales stay
+    // exactly as they were, still viewable) and the yearly total is
+    // unchanged, only redistributed across the remaining unlocked months.
     const updates: any[] = shortfallPeriods.map((p) => {
       const row = rows.find((r) => r.period === p)!;
-      return { user_id: user.id, period: p, target_amount: Number(row.target_amount), set_by: user.id, locked: !!row.locked, carry_forward_handled: true };
+      return { user_id: user.id, period: p, target_amount: isAccept ? 0 : Number(row.target_amount), set_by: user.id, locked: !!row.locked, carry_forward_handled: true };
     });
 
-    if (body.action === "accept_carry_forward") {
+    if (isAccept) {
       const shortfallAmount = shortfallRows.reduce((sum, r) => {
         const actual = actualByMonth[r.period as string] ?? 0;
         return sum + (Number(r.target_amount) - actual);
@@ -451,22 +459,6 @@ export async function POST(req: NextRequest) {
           const extra = isLast ? Math.round((shortfallAmount - base * (futureUnlocked.length - 1)) * 100) / 100 : base;
           updates.push({ user_id: user.id, period: r.period, target_amount: Number(r.target_amount) + extra, set_by: user.id, locked: false, carry_forward_handled: !!r.carry_forward_handled });
         });
-
-        // Raises the yearly target too, since carrying forward a shortfall
-        // is a new commitment on top of the original annual figure.
-        const { data: yearlyRow } = await supabaseAdmin
-          .from("yearly_sales_goals")
-          .select("annual_target")
-          .eq("user_id", user.id)
-          .eq("year", year)
-          .maybeSingle();
-        if (yearlyRow) {
-          await supabaseAdmin
-            .from("yearly_sales_goals")
-            .update({ annual_target: Number(yearlyRow.annual_target) + shortfallAmount })
-            .eq("user_id", user.id)
-            .eq("year", year);
-        }
       }
     }
 
