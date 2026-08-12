@@ -1147,6 +1147,11 @@
                   return '<option value="' + v + '"' + (q.status === v || (!q.status && v === '') ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
                 }).join('')
               + '</select>';
+            var line1Parts = [esc(q.site || '')];
+            if (label) line1Parts.push(label);
+            if (q.section) line1Parts.push(esc(q.section));
+            var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(q.net_total || 0) + '</span>';
+            var line2 = esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '');
             return '<div class="me-quote-row">' +
               '<div class="mqr-body">' +
                 '<div class="mqr-cust-row">' +
@@ -1154,10 +1159,8 @@
                   '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
                 '</div>' +
                 (phoneHtml ? '<div class="mqr-phone-row">' + phoneHtml + '</div>' : '') +
-                '<div class="mqr-main">' + label + (q.section ? ' · ' + esc(q.section) : '') + '</div>' +
-                '<div class="mqr-sub">' + esc(q.site || '') + '</div>' +
-                '<div class="mqr-amount">RM ' + fmt(q.net_total || 0) + '</div>' +
-                '<div class="mqr-meta">' + esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '') + '</div>' +
+                '<div class="mqr-main">' + line1 + '</div>' +
+                '<div class="mqr-meta">' + line2 + '</div>' +
               '</div>' +
               '<div class="mqr-actions">' + statusSel + '</div>' +
             '</div>';

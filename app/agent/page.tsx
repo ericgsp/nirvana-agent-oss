@@ -167,10 +167,9 @@ export default async function AgentPage() {
         .mqr-edit-btn { flex-shrink: 0; padding: 3px 9px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 10.5px; font-weight: 700; }
         .mqr-phone-row { margin-top: 3px; }
         .mqr-wa-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #15803d; text-decoration: none; }
-        .mqr-main { font-size: 12.5px; font-weight: 700; color: ${G_DARK}; margin-top: 4px; }
-        .mqr-sub { font-size: 10.5px; color: #94a3b8; margin-top: 1px; }
-        .mqr-amount { font-size: 13.5px; font-weight: 800; color: #0f172a; margin-top: 4px; }
-        .mqr-meta { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+        .mqr-main { font-size: 12px; font-weight: 600; color: #475569; margin-top: 4px; }
+        .mqr-amount { font-size: 12px; font-weight: 800; color: #0f172a; }
+        .mqr-meta { font-size: 10.5px; color: #94a3b8; margin-top: 3px; }
         .mqr-actions { flex-shrink: 0; }
         .mqr-status-sel { appearance: none; -webkit-appearance: none; padding: 6px 26px 6px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1.5px solid ${G_TEAL}; cursor: pointer; background: ${G_TEAL} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center; color: #fff; }
         .mqr-sold-tag { flex-shrink: 0; padding: 5px 10px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 10.5px; font-weight: 700; }
@@ -1587,7 +1586,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260814a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260814b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
