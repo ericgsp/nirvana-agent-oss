@@ -4502,6 +4502,7 @@
     // function silently stops, which would otherwise prevent this from
     // ever running.
     try { initPullToRefresh(); } catch (e) { dbg('initPullToRefresh err: ' + e.message); }
+    try { initTabSwipe(); } catch (e) { dbg('initTabSwipe err: ' + e.message); }
     try { highlightTodayInCalendars(); } catch (e) { dbg('highlightTodayInCalendars err: ' + e.message); }
 
     var navType = 'unknown';
@@ -4580,6 +4581,49 @@
         loadHomeSnapshot();
         break;
     }
+  }
+
+  // Swipe left/right on the tab content to move between tabs, matching the
+  // bottom tab bar order. Ignores gestures that start inside a horizontally
+  // scrollable area already in the app (Product Type/Site carousels, the
+  // quote comparison table) -- those need to keep their own horizontal
+  // scroll, not trigger a tab change.
+  function initTabSwipe() {
+    var scrollBody = document.getElementById('scroll-body');
+    if (!scrollBody) return;
+    var startX = null, startY = null, swiping = false, blocked = false;
+
+    scrollBody.addEventListener('touchstart', function (e) {
+      var t = e.target;
+      blocked = !!(t && t.closest && t.closest('.ad-chips, .ad-sites, .qt-scroll'));
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      swiping = false;
+    }, { passive: true });
+
+    scrollBody.addEventListener('touchmove', function (e) {
+      if (blocked || startX == null) return;
+      var dx = e.touches[0].clientX - startX;
+      var dy = e.touches[0].clientY - startY;
+      if (!swiping) {
+        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5) swiping = true;
+        else if (Math.abs(dy) > 12) blocked = true; // vertical scroll wins
+      }
+    }, { passive: true });
+
+    scrollBody.addEventListener('touchend', function (e) {
+      if (!blocked && swiping && startX != null) {
+        var touch = e.changedTouches && e.changedTouches[0];
+        var dx = (touch ? touch.clientX : startX) - startX;
+        if (Math.abs(dx) > 60) {
+          var activeBtn = document.querySelector('.tab-btn.active');
+          var idx = TAB_IDS.indexOf(activeBtn ? activeBtn.dataset.tab : 'home');
+          if (dx < 0 && idx < TAB_IDS.length - 1) switchTab(TAB_IDS[idx + 1]);
+          else if (dx > 0 && idx > 0) switchTab(TAB_IDS[idx - 1]);
+        }
+      }
+      startX = null; startY = null; swiping = false; blocked = false;
+    }, { passive: true });
   }
 
   function initPullToRefresh() {
