@@ -21,6 +21,20 @@
   var API_BASE = 'https://nirvana-agent-oss.vercel.app';
   window.__API_BASE__ = API_BASE;
 
+  // Cross-origin fetches (mobile shell -> Vercel API) drop cookies by default;
+  // only calls that explicitly pass credentials:'include' send the session cookie.
+  // Patch fetch once here instead of touching every call site individually.
+  (function () {
+    var _origFetch = window.fetch.bind(window);
+    window.fetch = function (url, opts) {
+      opts = opts || {};
+      if (typeof url === 'string' && url.indexOf(API_BASE) === 0 && !opts.credentials) {
+        opts = Object.assign({}, opts, { credentials: 'include' });
+      }
+      return _origFetch(url, opts);
+    };
+  })();
+
   // Read sites from data attribute (works on both hard load and Next.js soft nav).
   // Inline <script> tags are ignored by React on client navigation, data attrs are not.
   // On the main app this is already correct (server-rendered). On the
