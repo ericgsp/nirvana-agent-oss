@@ -1154,16 +1154,14 @@
             var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(q.net_total || 0) + '</span>';
             var line2 = esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '');
             return '<div class="me-quote-row">' +
-              '<div class="mqr-body">' +
-                '<div class="mqr-cust-row">' +
-                  '<div class="mqr-cust">' + custName + '</div>' +
-                  '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
-                '</div>' +
-                (phoneHtml ? '<div class="mqr-phone-row">' + phoneHtml + '</div>' : '') +
-                '<div class="mqr-main">' + line1 + '</div>' +
-                '<div class="mqr-meta">' + line2 + '</div>' +
+              '<div class="mqr-cust">' + custName + '</div>' +
+              (phoneHtml ? '<div class="mqr-phone-row">' + phoneHtml + '</div>' : '') +
+              '<div class="mqr-main">' + line1 + '</div>' +
+              '<div class="mqr-meta">' + line2 + '</div>' +
+              '<div class="mqr-actions">' +
+                '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
+                statusSel +
               '</div>' +
-              '<div class="mqr-actions">' + statusSel + '</div>' +
             '</div>';
           }).join('');
         }
