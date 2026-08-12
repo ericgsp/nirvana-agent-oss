@@ -1213,33 +1213,11 @@
     }
   }
 
-  // Generates a real PDF from the same WebView content print() uses (so
-  // Chinese characters render correctly, same as print already does), then
-  // hands it straight to the OS share sheet -- WhatsApp/email/etc in one
-  // tap instead of Print -> Save as PDF -> find the file -> open WhatsApp.
-  function doSharePdfFlow() {
-    var prevTitle = document.title;
-    document.title = '';
-    var pd = qs('print-date');
-    if (pd) pd.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
-    window.Capacitor.Plugins.NativePrint.sharePdf().catch(function (err) {
-      dbg('Share PDF failed: ' + (err && err.message ? err.message : err));
-      alert('Could not generate the PDF to share. Please try again.');
-    }).then(function () {
-      document.title = prevTitle;
-    });
-  }
-
-  var _pendingQuoteAction = 'print'; // 'print' or 'share' -- which action the Customer Info modal should trigger on confirm
-
-  function openCustomerInfoModal(action) {
-    _pendingQuoteAction = action || 'print';
+  function openCustomerInfoModal() {
     var nameEl = qs('customer-info-name');
     var phoneEl = qs('customer-info-phone');
     if (nameEl) nameEl.value = '';
     if (phoneEl) phoneEl.value = '';
-    var confirmBtn = qs('customer-info-modal-confirm');
-    if (confirmBtn) confirmBtn.textContent = _pendingQuoteAction === 'share' ? 'Share' : 'Print';
     var backdrop = qs('customer-info-modal-backdrop');
     if (backdrop) backdrop.classList.add('open');
   }
@@ -1284,7 +1262,15 @@
       }),
     }).then(function () { _homeSnapshotLoaded = false; }).catch(function (err) { dbg('log quote failed: ' + err); });
 
-    if (_pendingQuoteAction === 'share') doSharePdfFlow(); else doPrintFlow();
+    doPrintFlow();
+    // If a phone number was given, also open a WhatsApp chat with that
+    // exact contact -- the agent just needs to tap the paperclip and
+    // attach the PDF they save from the print dialog, instead of hunting
+    // for the right person after picking WhatsApp from a generic share menu.
+    var waLink = toWaLink(customerPhone);
+    if (waLink) {
+      setTimeout(function () { window.open(waLink, '_blank'); }, 400);
+    }
   }
 
   var _soldModalMode = 'manual'; // 'checklist' when the quote has itemized data, else 'manual'
@@ -5140,14 +5126,9 @@
           document.getElementById('challenge-backdrop').classList.remove('open');
           document.getElementById('challenge-drawer').classList.remove('open');
           break;
-        case 'btn-share-pdf': {
-          var _isNativeApp = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
-          var _action = _isNativeApp ? 'share' : 'print';
-          if (lotQuotes.length) openCustomerInfoModal(_action);
-          else if (_isNativeApp) doSharePdfFlow();
-          else doPrintFlow();
+        case 'btn-share-pdf':
+          if (lotQuotes.length) openCustomerInfoModal(); else doPrintFlow();
           break;
-        }
         case 'customer-info-modal-cancel':
         case 'customer-info-modal-backdrop':
           closeCustomerInfoModal();

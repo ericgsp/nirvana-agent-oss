@@ -1565,7 +1565,7 @@ export default function AgentPage() {
           <input id="customer-info-phone" type="tel" placeholder="e.g. 012-3456789" />
           <div id="customer-info-modal-actions">
             <button id="customer-info-modal-cancel">Cancel</button>
-            <button id="customer-info-modal-confirm">Print</button>
+            <button id="customer-info-modal-confirm">Share</button>
           </div>
         </div>
       </div>
@@ -1679,7 +1679,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260816d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260816e" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
