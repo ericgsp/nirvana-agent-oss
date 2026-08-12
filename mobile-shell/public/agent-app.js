@@ -1142,7 +1142,8 @@
               : '';
             var statusOpts = ['', 'followup', 'lost', 'closed'];
             var statusLabels = { '': 'Update status…', followup: 'Follow-up', lost: 'Lost', closed: 'Close' };
-            var statusSel = '<select class="mqr-status-sel" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
+            var statusClass = q.status ? ' st-' + q.status : '';
+            var statusSel = '<select class="mqr-status-sel' + statusClass + '" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
               + statusOpts.map(function (v) {
                   return '<option value="' + v + '"' + (q.status === v || (!q.status && v === '') ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
                 }).join('')
@@ -1259,6 +1260,7 @@
       openSoldModal(ref, selEl.dataset.label, parseFloat(selEl.dataset.netTotal) || 0, selEl.dataset.items);
       return;
     }
+    selEl.className = 'mqr-status-sel' + (newStatus ? ' st-' + newStatus : '');
     fetch(API_BASE + '/api/agent/me-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
