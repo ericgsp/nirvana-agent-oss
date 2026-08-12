@@ -6,8 +6,8 @@
   "scope": "/agent",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#075E54",
-  "theme_color": "#075E54",
+  "background_color": "#1E40AF",
+  "theme_color": "#1E40AF",
   "icons": [
     {
       "src": "/agent-icon-192.png",

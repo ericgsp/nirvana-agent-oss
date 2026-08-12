@@ -22,7 +22,7 @@ export default function RootLayout({
     <html
       lang="en"
       className="h-full antialiased"
-      style={{ background: "#075E54", overscrollBehavior: "none", height: "100dvh" }}
+      style={{ background: "#1E40AF", overscrollBehavior: "none", height: "100dvh" }}
       suppressHydrationWarning
     >
       {/* Capacitor's native bridge injects scripts/attributes into html/body

@@ -1709,7 +1709,7 @@
             html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
             allLevels.forEach(function(l) {
               var on = selLevels.indexOf(l) >= 0;
-              html += '<button class="sec-lvl-pill" data-lvl="' + esc(l) + '" style="padding:5px 13px;border-radius:20px;border:1.5px solid ' + (on ? '#075E54' : '#cbd5e1') + ';background:' + (on ? '#075E54' : '#fff') + ';color:' + (on ? '#fff' : '#334155') + ';font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation;">' + esc(l) + '</button>';
+              html += '<button class="sec-lvl-pill" data-lvl="' + esc(l) + '" style="padding:5px 13px;border-radius:20px;border:1.5px solid ' + (on ? '#1E40AF' : '#cbd5e1') + ';background:' + (on ? '#1E40AF' : '#fff') + ';color:' + (on ? '#fff' : '#334155') + ';font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation;">' + esc(l) + '</button>';
             });
             html += '</div></div>';
           }
@@ -1741,11 +1741,11 @@
                 + lcKeys.map(function(l) {
                     var cnt = lc[l];
                     var isSelLvl = selLevels.length === 0 || selLevels.indexOf(l) >= 0;
-                    return '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:' + (isSelLvl ? '#f0fdfa' : '#f1f5f9') + ';color:' + (isSelLvl ? '#075E54' : '#94a3b8') + ';font-weight:700;">Lv' + esc(l) + ':' + cnt + '</span>';
+                    return '<span style="font-size:10px;padding:1px 6px;border-radius:10px;background:' + (isSelLvl ? '#eff6ff' : '#f1f5f9') + ';color:' + (isSelLvl ? '#1E40AF' : '#94a3b8') + ';font-weight:700;">Lv' + esc(l) + ':' + cnt + '</span>';
                   }).join('')
                 + '</div>'
               : '';
-            html += '<div class="ad-lt' + (isOn ? ' on' : '') + '" style="' + (isOn ? 'border-color:#075E54;background:#f0fdfa' : '') + '" data-section="' + esc(sec.section) + '"><div class="ad-lt-prefix">' + esc(sec.section) + '</div>' + priceRange + '<div class="ad-lt-avail">' + availLabel + '</div>' + lvlBreakdown + promoHighlightBadge(sec.promo) + '<div class="ad-lt-arrow">›</div></div>';
+            html += '<div class="ad-lt' + (isOn ? ' on' : '') + '" style="' + (isOn ? 'border-color:#1E40AF;background:#eff6ff' : '') + '" data-section="' + esc(sec.section) + '"><div class="ad-lt-prefix">' + esc(sec.section) + '</div>' + priceRange + '<div class="ad-lt-avail">' + availLabel + '</div>' + lvlBreakdown + promoHighlightBadge(sec.promo) + '<div class="ad-lt-arrow">›</div></div>';
           });
           html += '</div>';
           html += '<button class="ad-show-all" id="ad-show-all">Show All Sections</button>';
@@ -1765,7 +1765,7 @@
             var comboBadge = (window.AgentCombo && window.AgentCombo.isComboSection(lt.prefix))
               ? '<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:#F59E0B;color:#fff;font-size:9px;font-weight:700;vertical-align:middle">Combo</span>'
               : '';
-            html += '<div class="ad-lt' + (isOn ? ' on' : '') + '" style="' + (isOn ? 'border-color:#075E54;background:#f0fdfa' : '') + '" data-prefix="' + esc(lt.prefix) + '"><div class="ad-lt-prefix">' + esc(lt.prefix) + comboBadge + '</div>' + (showLabel ? '<div class="ad-lt-label">' + esc(lt.label) + '</div>' : '') + priceRange + '<div class="ad-lt-avail">' + lt.available + ' available</div>' + promoHighlightBadge(lt.promo) + '<div class="ad-lt-arrow">›</div></div>';
+            html += '<div class="ad-lt' + (isOn ? ' on' : '') + '" style="' + (isOn ? 'border-color:#1E40AF;background:#eff6ff' : '') + '" data-prefix="' + esc(lt.prefix) + '"><div class="ad-lt-prefix">' + esc(lt.prefix) + comboBadge + '</div>' + (showLabel ? '<div class="ad-lt-label">' + esc(lt.label) + '</div>' : '') + priceRange + '<div class="ad-lt-avail">' + lt.available + ' available</div>' + promoHighlightBadge(lt.promo) + '<div class="ad-lt-arrow">›</div></div>';
           });
           html += '</div>';
           html += '<button class="ad-show-all" id="ad-show-all">Show All Lot Types</button>';
@@ -1786,7 +1786,7 @@
         html += '<div class="ad-lvl-chip' + (lvls.indexOf(l) >= 0 ? ' on' : '') + '" data-lvl="' + esc(l) + '">Level ' + esc(l) + '</div>';
       });
       html += '</div>';
-      html += '<button class="ad-show-all" id="ad-apply-btn" style="margin-top:12px;background:#075E54;color:#fff;border-color:#075E54">View Layout →</button>';
+      html += '<button class="ad-show-all" id="ad-apply-btn" style="margin-top:12px;background:#1E40AF;color:#fff;border-color:#1E40AF">View Layout →</button>';
       html += '</div></div>';
     }
 
@@ -5017,9 +5017,9 @@
     banner.id = 'install-banner';
     banner.innerHTML =
       '<span style="flex:1;font-size:13px;font-weight:600;color:#fff">Add to Home Screen for the best experience</span>' +
-      '<button id="btn-install" style="padding:7px 14px;background:#fff;color:#075E54;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Install</button>' +
+      '<button id="btn-install" style="padding:7px 14px;background:#fff;color:#1E40AF;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Install</button>' +
       '<button id="btn-install-dismiss" style="padding:7px 10px;background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;font-size:12px;cursor:pointer">✕</button>';
-    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#075E54;display:flex;align-items:center;gap:10px;padding:12px 14px;z-index:9999;box-shadow:0 -2px 12px rgba(0,0,0,0.2);max-width:430px;margin:0 auto;';
+    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1E40AF;display:flex;align-items:center;gap:10px;padding:12px 14px;z-index:9999;box-shadow:0 -2px 12px rgba(0,0,0,0.2);max-width:430px;margin:0 auto;';
     document.body.appendChild(banner);
 
     document.getElementById('btn-install').addEventListener('click', function () {

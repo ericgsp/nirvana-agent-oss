@@ -150,9 +150,9 @@ function fmt(n: number) { return n.toLocaleString("en-MY"); }
 
 // ─── Colours ──────────────────────────────────────────────────
 
-const G_DARK  = "#075E54";
+const G_DARK  = "#1E40AF";
 const G_GREEN = "#25D366";
-const G_TEAL  = "#128C7E";
+const G_TEAL  = "#2563EB";
 
 function ReactTest() {
   const [n, setN] = useState(0);
@@ -591,7 +591,7 @@ export default function AgentPage({ initialSiteOpts = [] }: { initialSiteOpts?: 
         .nz-empty { background: #fff !important; min-width: 8px !important; padding: 0 !important; }
         .nz-wall-gap td { height: 14px !important; background: #f0f2f5 !important; padding: 0 !important; }
         .nz-wall-header td { padding: 0 !important; }
-        .nz-wall-cell { background: #075E54 !important; padding: 5px 10px !important; display: flex !important; align-items: center !important; gap: 10px !important; }
+        .nz-wall-cell { background: #1E40AF !important; padding: 5px 10px !important; display: flex !important; align-items: center !important; gap: 10px !important; }
         .nz-wall-name { font-size: 11px !important; font-weight: 800 !important; color: #fff !important; letter-spacing: 0.04em !important; white-space: nowrap !important; }
         .nz-wall-stat { font-size: 10px !important; color: rgba(255,255,255,0.75) !important; white-space: nowrap !important; }
 

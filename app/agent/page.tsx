@@ -7,8 +7,8 @@ import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
 
-const G_DARK = "#075E54";
-const G_TEAL = "#128C7E";
+const G_DARK = "#1E40AF";
+const G_TEAL = "#2563EB";
 
 export const metadata: Metadata = {
   title: "Sales Agent Assist",
@@ -55,10 +55,10 @@ export default async function AgentPage() {
   return (
     <>
       {/* Paint background immediately — prevents white flash before main stylesheet parses */}
-      <style dangerouslySetInnerHTML={{ __html: `html,body{background:#075E54}` }} suppressHydrationWarning />
+      <style dangerouslySetInnerHTML={{ __html: `html,body{background:#1E40AF}` }} suppressHydrationWarning />
       <style dangerouslySetInnerHTML={{ __html: `
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { height: 100dvh; background: #075E54; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+        html, body { height: 100dvh; background: #1E40AF; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
         #phone { width: 100%; max-width: 430px; height: 100%; margin: 0 auto; background: #f0f2f5; display: flex; flex-direction: column; position: relative; }
         #topbar { background: ${G_DARK}; color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 30; box-shadow: 0 2px 8px rgba(0,0,0,0.25); flex-shrink: 0; }
         #topbar h1 { font-size: 16px; font-weight: 700; flex: 1; }
@@ -287,7 +287,7 @@ export default async function AgentPage() {
         .f-dd-cat-open { background: #eef2ff; color: #0f172a; border-color: ${G_TEAL}; }
         .f-dd-zone { margin: 0 12px 8px; padding: 13px 14px; font-size: 14px; font-weight: 700; color: #0f172a; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #f8fafc; border: 1.5px solid transparent; border-radius: 13px; }
         .f-dd-zone:active { border-color: ${G_TEAL}; }
-        .f-dd-zone-sel { background: #f0fdfa; border-color: ${G_TEAL}; }
+        .f-dd-zone-sel { background: #eff6ff; border-color: ${G_TEAL}; }
         .f-dd-zone-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
         .f-dd-zone-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
         .f-dd-zone-chev { color: #94a3b8; font-size: 15px; }
@@ -327,8 +327,8 @@ export default async function AgentPage() {
         .nz-avail.nz-promo-asneed   { box-shadow: inset 0 0 0 3px #a855f7 !important; }
         .nz-sold     { background: #f1f5f9 !important; color: #334155 !important; font-size: 9px !important; padding: 4px 3px !important; min-width: 68px !important; white-space: nowrap !important; cursor: default !important; vertical-align: middle !important; }
         .nz-filtered { background: #f1f5f9 !important; color: #cbd5e1 !important; font-size: 9px !important; padding: 4px 3px !important; min-width: 68px !important; white-space: nowrap !important; cursor: default !important; vertical-align: middle !important; border-color: #e2e8f0 !important; }
-        .filter-nav { display:flex; align-items:center; gap:8px; padding:8px 12px; background:#f0fdfa; border:1.5px solid #a7f3d0; border-radius:10px; margin:8px 0 4px; }
-        .fn-btn { width:32px; height:32px; border-radius:8px; border:1.5px solid #a7f3d0; background:#fff; font-size:18px; font-weight:700; color:#075E54; cursor:pointer; touch-action:manipulation; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .filter-nav { display:flex; align-items:center; gap:8px; padding:8px 12px; background:#eff6ff; border:1.5px solid #93c5fd; border-radius:10px; margin:8px 0 4px; }
+        .fn-btn { width:32px; height:32px; border-radius:8px; border:1.5px solid #93c5fd; background:#fff; font-size:18px; font-weight:700; color:#1E40AF; cursor:pointer; touch-action:manipulation; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
         .fn-btn:active { background:#ccfbf1; }
         #fn-count { flex:1; text-align:center; font-size:12px; font-weight:700; color:#065f46; }
         .fn-clear { font-size:11px; color:#64748b; background:none; border:none; cursor:pointer; white-space:nowrap; text-decoration:underline; padding:0; }
@@ -374,7 +374,7 @@ export default async function AgentPage() {
         .promo-fetch-icon { font-size:28px; line-height:1; }
         .promo-fetch-label { font-size:13px; color:#475569; font-weight:500; }
         .promo-fetch-bar-wrap { width:200px; height:6px; background:#e2e8f0; border-radius:999px; overflow:hidden; }
-        .promo-fetch-bar { height:100%; background:#075E54; border-radius:999px; transition:width 0.3s ease; min-width:6px; }
+        .promo-fetch-bar { height:100%; background:#1E40AF; border-radius:999px; transition:width 0.3s ease; min-width:6px; }
         .promo-fetch-count { font-size:11px; color:#94a3b8; }
         #quote-section { margin: 10px 10px 0; }
         .quote-empty { padding: 36px 20px; text-align: center; color: #94a3b8; display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -522,8 +522,8 @@ export default async function AgentPage() {
         .site-card-name { font-size:13px; font-weight:700; color:#0f172a; margin-bottom:4px; }
         .site-card-addr { font-size:11px; color:#64748b; line-height:1.5; margin-bottom:6px; }
         .site-card-phones { display:flex; flex-wrap:wrap; gap:6px; }
-        .site-card-tel { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; color:#075E54; background:#e6f4f1; border-radius:6px; padding:4px 10px; text-decoration:none; }
-        .site-card-tel:active { background:#c8e6e1; }
+        .site-card-tel { display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:700; color:#1E40AF; background:#dbeafe; border-radius:6px; padding:4px 10px; text-decoration:none; }
+        .site-card-tel:active { background:#bfdbfe; }
         /* ── Training & Event drawer ── */
         #announcement-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
         #announcement-backdrop.open { display:block; }
@@ -570,15 +570,15 @@ export default async function AgentPage() {
         .evt-cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; text-align:center; }
         .evt-cal-day-name { font-size:10px; color:#94a3b8; font-weight:600; padding:2px 0; }
         .evt-cal-day { font-size:11px; padding:5px 2px; border-radius:6px; color:#475569; cursor:default; position:relative; }
-        .evt-cal-day.has-event { background:#075E54; color:#fff; font-weight:700; cursor:pointer; }
-        .evt-cal-day.today { outline:2px solid #075E54; outline-offset:-2px; }
+        .evt-cal-day.has-event { background:#1E40AF; color:#fff; font-weight:700; cursor:pointer; }
+        .evt-cal-day.today { outline:2px solid #1E40AF; outline-offset:-2px; }
         .evt-cal-day.other-month { color:#cbd5e1; }
         /* calendar legend */
         .evt-legend { padding:10px 14px 14px; display:flex; flex-direction:column; gap:6px; }
         .evt-legend-item { display:flex; align-items:flex-start; gap:8px; font-size:11px; color:#475569; }
         .evt-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:2px; }
         .evt-legend-label { line-height:1.4; }
-        .evt-legend-dates { font-weight:700; color:#075E54; }
+        .evt-legend-dates { font-weight:700; color:#1E40AF; }
         /* event picker (multiple events on same date) */
         #evt-picker-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1200; align-items:flex-end; justify-content:center; padding-bottom:40px; }
         #evt-picker-backdrop.open { display:flex; }
@@ -627,7 +627,7 @@ export default async function AgentPage() {
         .ad-sites { display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
         .ad-sites::-webkit-scrollbar { display:none; }
         .ad-site { flex:0 0 62%; scroll-snap-align:start; border:1.5px solid #e2e8f0; border-radius:11px; padding:11px 13px; background:#f8fafc; cursor:pointer; }
-        .ad-site.on { border-color:${G_TEAL}; background:#f0fdfa; }
+        .ad-site.on { border-color:${G_TEAL}; background:#eff6ff; }
         .ad-site:active { opacity:0.75; }
         .ad-site-name { font-size:13px; font-weight:700; color:#0f172a; }
         .ad-site-count { font-size:11px; color:#16a34a; font-weight:600; margin-top:3px; }
@@ -658,8 +658,8 @@ export default async function AgentPage() {
         .ad-sort:active { opacity:0.75; }
         .ad-results { display:flex; flex-direction:column; gap:8px; }
         .ad-result { border:1.5px solid #e2e8f0; border-radius:11px; padding:12px 14px; background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-        .ad-result:active { background:#f0fdfa; border-color:${G_TEAL}; }
-        .ad-result.on { background:#f0fdfa; border-color:${G_TEAL}; }
+        .ad-result:active { background:#eff6ff; border-color:${G_TEAL}; }
+        .ad-result.on { background:#eff6ff; border-color:${G_TEAL}; }
         .ad-result-left { flex:1; min-width:0; }
         .ad-result-prod { font-size:13px; font-weight:700; color:#0f172a; }
         .ad-result-sec { font-size:11px; color:#64748b; margin-top:3px; }
@@ -669,17 +669,17 @@ export default async function AgentPage() {
         .ad-result-arrow { font-size:18px; color:#cbd5e1; margin-left:2px; flex-shrink:0; }
         .ad-lt-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
         .ad-lt { border:1.5px solid #e2e8f0; border-radius:11px; padding:13px 14px; background:#fff; cursor:pointer; display:flex; flex-direction:column; gap:4px; }
-        .ad-lt:active { background:#f0fdfa; border-color:${G_TEAL}; }
+        .ad-lt:active { background:#eff6ff; border-color:${G_TEAL}; }
         .ad-lt-prefix { font-size:22px; font-weight:900; color:${G_DARK}; line-height:1; }
         .ad-lt-label { font-size:12px; font-weight:700; color:#0f172a; }
         .ad-lt-price { font-size:11px; color:#475569; font-weight:500; }
         .ad-lt-avail { font-size:11px; color:#16a34a; font-weight:600; }
         .ad-lt-arrow { font-size:16px; color:#cbd5e1; align-self:flex-end; margin-top:2px; }
         .ad-show-all { width:100%; padding:11px; border-radius:10px; border:1.5px dashed #cbd5e1; background:#f8fafc; font-size:13px; font-weight:600; color:#64748b; cursor:pointer; margin-top:8px; text-align:center; display:block; }
-        .ad-show-all:active { background:#f0fdfa; }
+        .ad-show-all:active { background:#eff6ff; }
         .ad-loading { font-size:12px; color:#94a3b8; padding:6px 0; }
         .ad-empty { font-size:12px; color:#94a3b8; text-align:center; padding:14px 0; }
-        .agent-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:#075E54; color:#fff; font-size:13px; font-weight:600; padding:12px 20px; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,0.25); z-index:9999; opacity:0; transition:opacity 0.3s, transform 0.3s; max-width:320px; text-align:center; white-space:nowrap; }
+        .agent-toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(80px); background:#1E40AF; color:#fff; font-size:13px; font-weight:600; padding:12px 20px; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,0.25); z-index:9999; opacity:0; transition:opacity 0.3s, transform 0.3s; max-width:320px; text-align:center; white-space:nowrap; }
         .agent-toast.toast-err { background:#dc2626; }
         .agent-toast.toast-in  { opacity:1; transform:translateX(-50%) translateY(0); }
         /* ── Product Assets Panel ── */
@@ -698,7 +698,7 @@ export default async function AgentPage() {
         .ap-tabs { display: flex; gap: 0; border-bottom: 1px solid #e2e8f0; }
         .ap-tab { padding: 9px 16px; font-size: 12px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
         .ap-tab:hover { color: #1e293b; }
-        .ap-tab.on { color: #075E54; border-bottom-color: #075E54; }
+        .ap-tab.on { color: #1E40AF; border-bottom-color: #1E40AF; }
         .ap-pane { padding: 12px; }
         .ap-photo-strip { display: flex; flex-direction: column; gap: 0; padding-bottom: 4px; }
         .ap-photo { width: 100%; height: auto; object-fit: cover; border-radius: 8px; cursor: pointer; border: 1px solid #e2e8f0; transition: opacity .15s; display: block; }
@@ -715,7 +715,7 @@ export default async function AgentPage() {
         .ap-doc-info { flex: 1; min-width: 0; }
         .ap-doc-name { font-size: 13px; font-weight: 500; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .ap-doc-size { font-size: 11px; color: #94a3b8; }
-        .ap-doc-dl { font-size: 16px; color: #075E54; flex-shrink: 0; }
+        .ap-doc-dl { font-size: 16px; color: #1E40AF; flex-shrink: 0; }
         .ap-loading { padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
         #ap-lightbox { position: fixed; inset: 0; z-index: 9999; display: none; align-items: center; justify-content: center; }
         #ap-lb-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.85); }
@@ -1283,7 +1283,7 @@ export default async function AgentPage() {
             const lms = "https://www.nirvana.com.my/lms/my-account/#login";
             const p = (f: string) => base + f;
             type Evt = { title: string; poster: string; color: string; register?: string; notice?: string; };
-            const colorA = "#075E54", colorB = "#1a56db", colorC = "#b45309", colorD = "#7c3aed", colorE = "#be185d", colorF = "#0e7490", colorG = "#065f46", colorH = "#9d174d", colorI = "#db2777";
+            const colorA = "#1E40AF", colorB = "#1a56db", colorC = "#b45309", colorD = "#7c3aed", colorE = "#be185d", colorF = "#0e7490", colorG = "#065f46", colorH = "#9d174d", colorI = "#db2777";
             const ec = { title:"中元超渡 祈福法会 (Enlightenment Ceremony)", poster:p("Enlightenment%20Ceremony.png"), color:colorI };
             const dayEvents: Record<number, Evt[]> = {
               1:  [{ title:"有一种爱是放手 — Dr. Bih Liu-Ing Talk",                                  poster:p("There%20is%20a%20Love%20Means%20Letting%20Go.png"),                                                                                    color:colorB }],
@@ -1629,7 +1629,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260815a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260815b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
