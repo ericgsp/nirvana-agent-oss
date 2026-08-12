@@ -844,13 +844,11 @@ export default function AgentPage() {
               <div className="s-card">
                 <div className="s-label no-print">
                   <div style={{flex:1}}>
-                    <div className="s-title">Select Available Product</div>
+                    <div className="s-title">Layout</div>
                     <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"2px"}}>
                       <span id="layout-synced-at" style={{fontSize:"10px",color:"#94a3b8"}}></span>
                     </div>
                   </div>
-                  <button id="btn-reset" className="btn-reset">↺ Reset</button>
-                  <button id="btn-reload" className="btn-reset" style={{marginLeft:"4px"}}>⟳ Reload</button>
                 </div>
                 <div id="layout-area">
                   <div className="layout-placeholder">
@@ -864,7 +862,6 @@ export default function AgentPage() {
               {/* ── Quote — builds live below the layout as niches are tapped ── */}
               <div className="s-card" id="quote-section">
                 <div className="s-label no-print">
-                  <div className="s-dot">3</div>
                   <span className="s-title">Quotation</span>
                 </div>
                 <div id="quote-body">
@@ -1504,7 +1501,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812y" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812z" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
