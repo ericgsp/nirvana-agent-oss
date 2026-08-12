@@ -43,6 +43,13 @@ next-env.d.ts
 .vercel
 .env*
 
+# mobile-shell (separate Next.js project, own build artifacts)
+mobile-shell/node_modules
+mobile-shell/.next/
+mobile-shell/out/
+mobile-shell/next-env.d.ts
+mobile-shell/*.tsbuildinfo
+
 # capacitor / native build outputs
 android/app/build/
 android/build/
