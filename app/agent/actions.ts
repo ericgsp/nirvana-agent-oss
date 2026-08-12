@@ -494,3 +494,23 @@ export async function updateQuoteCustomer(quotationRef: string, customerName: st
   if (error) return { ok: false as const, error: error.message };
   return { ok: true as const };
 }
+
+// ── Delete a logged quote from the Me tab list ─────────────────────────────────
+// Only removes the recent_quotes row -- any sales_log entry from a prior
+// "Close" stays untouched, since that's a real sales record, not a view of it.
+export async function deleteQuote(quotationRef: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "Not logged in" };
+
+  const quoteId = quotationRef.split("|").pop();
+  if (!quoteId) return { ok: false as const, error: "Invalid quotation reference" };
+
+  const { error } = await supabaseAdmin
+    .from("recent_quotes")
+    .delete()
+    .eq("id", quoteId)
+    .eq("user_id", user.id);
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const };
+}

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
 import { getMyProfile, type AgentProfile } from "@/lib/supabase/get-hierarchy";
 import { getUserRole } from "@/lib/supabase/get-role";
-import { markSold, updateQuoteStatus, updateQuoteCustomer } from "@/app/agent/actions";
+import { markSold, updateQuoteStatus, updateQuoteCustomer, deleteQuote } from "@/app/agent/actions";
 
 export const runtime = "nodejs";
 
@@ -165,6 +165,16 @@ export async function POST(req: NextRequest) {
       typeof body?.customerName === "string" ? body.customerName : "",
       typeof body?.customerPhone === "string" ? body.customerPhone : ""
     );
+    if (!result.ok) return Response.json({ error: result.error }, { status: 401 });
+    return Response.json({ ok: true });
+  }
+
+  if (body?.action === "delete_quote") {
+    const quotationRef = body?.quotationRef;
+    if (typeof quotationRef !== "string") {
+      return Response.json({ error: "quotationRef is required" }, { status: 400 });
+    }
+    const result = await deleteQuote(quotationRef);
     if (!result.ok) return Response.json({ error: result.error }, { status: 401 });
     return Response.json({ ok: true });
   }

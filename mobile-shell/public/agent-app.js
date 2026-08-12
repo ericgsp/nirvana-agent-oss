@@ -1161,6 +1161,7 @@
               '<div class="mqr-actions">' +
                 '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
                 statusSel +
+                '<button class="mqr-delete-btn" data-ref="' + ref + '">🗑 Delete</button>' +
               '</div>' +
             '</div>';
           }).join('');
@@ -4717,6 +4718,24 @@
       var editBtn = e.target && e.target.closest && e.target.closest('.mqr-edit-btn');
       if (editBtn) {
         openEditCustomerModal(editBtn.dataset.ref, editBtn.dataset.name, editBtn.dataset.phone);
+        return;
+      }
+
+      // "Delete" button on a recent-quote row (Me tab) — removes the quote
+      // from the list; any past "Close" sales record is untouched.
+      var deleteQuoteBtn = e.target && e.target.closest && e.target.closest('.mqr-delete-btn');
+      if (deleteQuoteBtn) {
+        if (confirm('Delete this quote? This cannot be undone.')) {
+          fetch(API_BASE + '/api/agent/me-snapshot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete_quote', quotationRef: deleteQuoteBtn.dataset.ref }),
+          }).then(function (res) { return res.json(); }).then(function (data) {
+            if (data.error) { alert(data.error); return; }
+            _meLoaded = false;
+            loadMeSnapshot();
+          }).catch(function (err) { dbg('delete quote failed: ' + err); });
+        }
         return;
       }
 
