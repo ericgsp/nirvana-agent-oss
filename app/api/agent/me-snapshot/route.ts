@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
 import { getMyProfile, type AgentProfile } from "@/lib/supabase/get-hierarchy";
 import { getUserRole } from "@/lib/supabase/get-role";
-import { markSold } from "@/app/agent/actions";
+import { markSold, updateQuoteStatus, updateQuoteCustomer } from "@/app/agent/actions";
 
 export const runtime = "nodejs";
 
@@ -44,7 +44,7 @@ export async function GET() {
 
   const { data: recentQuotes } = await supabaseAdmin
     .from("recent_quotes")
-    .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items")
+    .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items, status")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(5);
@@ -142,6 +142,30 @@ export async function POST(req: NextRequest) {
       .eq("user_id", user.id)
       .eq("period", period);
     if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  if (body?.action === "update_status") {
+    const quotationRef = body?.quotationRef, status = body?.status;
+    if (typeof quotationRef !== "string" || typeof status !== "string") {
+      return Response.json({ error: "quotationRef and status are required" }, { status: 400 });
+    }
+    const result = await updateQuoteStatus(quotationRef, status);
+    if (!result.ok) return Response.json({ error: result.error }, { status: 401 });
+    return Response.json({ ok: true });
+  }
+
+  if (body?.action === "update_customer") {
+    const quotationRef = body?.quotationRef;
+    if (typeof quotationRef !== "string") {
+      return Response.json({ error: "quotationRef is required" }, { status: 400 });
+    }
+    const result = await updateQuoteCustomer(
+      quotationRef,
+      typeof body?.customerName === "string" ? body.customerName : "",
+      typeof body?.customerPhone === "string" ? body.customerPhone : ""
+    );
+    if (!result.ok) return Response.json({ error: result.error }, { status: 401 });
     return Response.json({ ok: true });
   }
 

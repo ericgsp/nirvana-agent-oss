@@ -447,5 +447,50 @@ export async function markSold(quotationRef: string, amount: number, soldAt?: st
     recorded_by: user.id,
   });
 
+  // quotationRef is "site|product|section|id" -- the id is what recent_quotes
+  // is actually keyed on, so status updates always target the last segment.
+  const quoteId = quotationRef.split("|").pop();
+  if (quoteId) {
+    await supabaseAdmin.from("recent_quotes").update({ status: "closed" }).eq("id", quoteId).eq("user_id", user.id);
+  }
+
+  return { ok: true as const };
+}
+
+// ── Quote status (Close / Lost / Follow-up) ───────────────────────────────────
+// "Close" goes through markSold() above instead (it needs an amount); this is
+// for the other two statuses, which don't.
+export async function updateQuoteStatus(quotationRef: string, status: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "Not logged in" };
+
+  const quoteId = quotationRef.split("|").pop();
+  if (!quoteId) return { ok: false as const, error: "Invalid quotation reference" };
+
+  const { error } = await supabaseAdmin
+    .from("recent_quotes")
+    .update({ status })
+    .eq("id", quoteId)
+    .eq("user_id", user.id);
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const };
+}
+
+// ── Edit customer name/phone on an already-logged quote ───────────────────────
+export async function updateQuoteCustomer(quotationRef: string, customerName: string, customerPhone: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "Not logged in" };
+
+  const quoteId = quotationRef.split("|").pop();
+  if (!quoteId) return { ok: false as const, error: "Invalid quotation reference" };
+
+  const { error } = await supabaseAdmin
+    .from("recent_quotes")
+    .update({ customer_name: customerName || null, customer_phone: customerPhone || null })
+    .eq("id", quoteId)
+    .eq("user_id", user.id);
+  if (error) return { ok: false as const, error: error.message };
   return { ok: true as const };
 }

@@ -223,6 +223,16 @@
   }
   function fmt(n) { return Number(n).toLocaleString('en-MY'); }
 
+  // Builds a wa.me link from whatever format the phone was typed in --
+  // Malaysian numbers typed with a leading 0 get it swapped for the 60
+  // country code; anything else is assumed to already include one.
+  function toWaLink(phone) {
+    var digits = (phone || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.charAt(0) === '0') digits = '60' + digits.slice(1);
+    return 'https://wa.me/' + digits;
+  }
+
   // ── calcMatrix (same logic as React version) ───────────────────
   function calcMatrix(row, dp) {
     var isPedestal  = !row.pre_need_price && !!row.pre_launch_price;
@@ -1027,6 +1037,7 @@
   var _teamLoaded = false;
   var _meLoaded = false;
   var _soldModalRef = null;
+  var _editCustomerRef = null;
   var _goalModalUserId = null;
   var _goalModalSelf = false;
   var TIER_COLOR = {
@@ -1118,21 +1129,37 @@
           listEl.innerHTML = data.recentQuotes.map(function (q) {
             var label = esc(q.product || q.site || 'Quotation');
             var ref = esc((q.site || '') + '|' + (q.product || '') + '|' + (q.section || '') + '|' + q.id);
-            var custName  = q.customer_name ? esc(q.customer_name) : 'No customer name';
-            var custPhone = q.customer_phone ? ' · ' + esc(q.customer_phone) : '';
+            var rawName  = q.customer_name || '';
+            var rawPhone = q.customer_phone || '';
+            var custName  = rawName ? esc(rawName) : 'No customer name';
             var dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
             var validStr = q.valid_until ? 'Valid until ' + new Date(q.valid_until).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '';
             var itemsArr = Array.isArray(q.items) ? q.items : [];
             var itemsAttr = esc(JSON.stringify(itemsArr));
+            var waLink = toWaLink(rawPhone);
+            var phoneHtml = rawPhone
+              ? (waLink ? '<a class="mqr-wa-link" href="' + esc(waLink) + '" target="_blank" rel="noopener noreferrer">💬 ' + esc(rawPhone) + '</a>' : esc(rawPhone))
+              : '';
+            var statusOpts = ['', 'followup', 'lost', 'closed'];
+            var statusLabels = { '': 'Update status…', followup: 'Follow-up', lost: 'Lost', closed: 'Close' };
+            var statusSel = '<select class="mqr-status-sel" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
+              + statusOpts.map(function (v) {
+                  return '<option value="' + v + '"' + (q.status === v || (!q.status && v === '') ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
+                }).join('')
+              + '</select>';
             return '<div class="me-quote-row">' +
               '<div class="mqr-body">' +
-                '<div class="mqr-cust">' + custName + custPhone + '</div>' +
+                '<div class="mqr-cust-row">' +
+                  '<div class="mqr-cust">' + custName + '</div>' +
+                  '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
+                '</div>' +
+                (phoneHtml ? '<div class="mqr-phone-row">' + phoneHtml + '</div>' : '') +
                 '<div class="mqr-main">' + label + (q.section ? ' · ' + esc(q.section) : '') + '</div>' +
                 '<div class="mqr-sub">' + esc(q.site || '') + '</div>' +
                 '<div class="mqr-amount">RM ' + fmt(q.net_total || 0) + '</div>' +
                 '<div class="mqr-meta">' + esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '') + '</div>' +
               '</div>' +
-              '<button class="mqr-sold-btn" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">Mark Sold</button>' +
+              '<div class="mqr-actions">' + statusSel + '</div>' +
             '</div>';
           }).join('');
         }
@@ -1218,6 +1245,62 @@
   // Quotes logged with itemized data show a checklist (pick which items were
   // actually sold, amount sums itself); older quotes logged before that data
   // existed fall back to the original manual-amount entry.
+  // Follow-up / Lost are direct status updates (no amount involved); Close
+  // goes through the existing Sold checklist instead, since that path needs
+  // an amount and already sets status='closed' itself. If the checklist is
+  // cancelled, the dropdown's own selection is left as-is on screen until
+  // the next refresh reflects the real (unchanged) status -- harmless, since
+  // nothing was actually written.
+  function applyQuoteStatus(selEl, ref, newStatus) {
+    if (newStatus === 'closed') {
+      openSoldModal(ref, selEl.dataset.label, parseFloat(selEl.dataset.netTotal) || 0, selEl.dataset.items);
+      return;
+    }
+    fetch(API_BASE + '/api/agent/me-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_status', quotationRef: ref, status: newStatus }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      _meLoaded = false;
+      loadMeSnapshot();
+    }).catch(function (err) { dbg('update status failed: ' + err); });
+  }
+
+  function openEditCustomerModal(ref, name, phone) {
+    _editCustomerRef = ref;
+    var nameEl = qs('edit-customer-name');
+    var phoneEl = qs('edit-customer-phone');
+    if (nameEl) nameEl.value = name || '';
+    if (phoneEl) phoneEl.value = phone || '';
+    var backdrop = qs('edit-customer-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeEditCustomerModal() {
+    _editCustomerRef = null;
+    var backdrop = qs('edit-customer-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function confirmEditCustomer() {
+    if (!_editCustomerRef) return;
+    var nameEl = qs('edit-customer-name');
+    var phoneEl = qs('edit-customer-phone');
+    var customerName = nameEl ? nameEl.value.trim() : '';
+    var customerPhone = phoneEl ? phoneEl.value.trim() : '';
+    fetch(API_BASE + '/api/agent/me-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_customer', quotationRef: _editCustomerRef, customerName: customerName, customerPhone: customerPhone }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeEditCustomerModal();
+      _meLoaded = false;
+      loadMeSnapshot();
+    }).catch(function (err) { dbg('update customer failed: ' + err); });
+  }
+
   function openSoldModal(ref, label, netTotal, itemsJson) {
     _soldModalRef = ref;
     var sub = document.getElementById('sold-modal-sub');
@@ -4466,6 +4549,11 @@
         return;
       }
 
+      if (e.target && e.target.classList && e.target.classList.contains('mqr-status-sel')) {
+        applyQuoteStatus(e.target, e.target.dataset.ref, e.target.value);
+        return;
+      }
+
       if (id === 'section-sel') {
         var val = e.target.value;
         if (!_cachedCatGroups) _cachedCatGroups = buildCategoryGroups();
@@ -4622,10 +4710,10 @@
         return;
       }
 
-      // "Mark as Sold" button on a recent-quote row (Me tab)
-      var soldBtn = e.target && e.target.closest && e.target.closest('.mqr-sold-btn');
-      if (soldBtn) {
-        openSoldModal(soldBtn.dataset.ref, soldBtn.dataset.label, parseFloat(soldBtn.dataset.netTotal) || 0, soldBtn.dataset.items);
+      // "Edit" button on a recent-quote row (Me tab) — name/phone only
+      var editBtn = e.target && e.target.closest && e.target.closest('.mqr-edit-btn');
+      if (editBtn) {
+        openEditCustomerModal(editBtn.dataset.ref, editBtn.dataset.name, editBtn.dataset.phone);
         return;
       }
 
@@ -4742,6 +4830,15 @@
           break;
         case 'sold-modal-confirm':
           confirmSold();
+          break;
+        case 'edit-customer-modal-cancel':
+          closeEditCustomerModal();
+          break;
+        case 'edit-customer-modal-backdrop':
+          if (e.target.id === 'edit-customer-modal-backdrop') closeEditCustomerModal();
+          break;
+        case 'edit-customer-modal-confirm':
+          confirmEditCustomer();
           break;
         case 'goal-modal-cancel':
           closeGoalModal();

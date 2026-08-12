@@ -160,14 +160,19 @@ export default async function AgentPage() {
         .me-team-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
         .me-team-note { font-size: 10.5px; color: #94a3b8; margin-top: 6px; }
         #me-quotes-list { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
-        .me-quote-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .mqr-body { min-width: 0; }
+        .me-quote-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .mqr-body { min-width: 0; flex: 1; }
+        .mqr-cust-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .mqr-cust { font-size: 12.5px; font-weight: 800; color: #0f172a; }
-        .mqr-main { font-size: 12.5px; font-weight: 700; color: ${G_DARK}; margin-top: 2px; }
+        .mqr-edit-btn { flex-shrink: 0; padding: 3px 9px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 10.5px; font-weight: 700; }
+        .mqr-phone-row { margin-top: 3px; }
+        .mqr-wa-link { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #15803d; text-decoration: none; }
+        .mqr-main { font-size: 12.5px; font-weight: 700; color: ${G_DARK}; margin-top: 4px; }
         .mqr-sub { font-size: 10.5px; color: #94a3b8; margin-top: 1px; }
         .mqr-amount { font-size: 13.5px; font-weight: 800; color: #0f172a; margin-top: 4px; }
         .mqr-meta { font-size: 10px; color: #94a3b8; margin-top: 2px; }
-        .mqr-sold-btn { flex-shrink: 0; padding: 6px 12px; border-radius: 999px; border: none; background: ${G_TEAL}; color: #fff; font-size: 11px; font-weight: 700; }
+        .mqr-actions { flex-shrink: 0; }
+        .mqr-status-sel { appearance: none; -webkit-appearance: none; padding: 6px 26px 6px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; border: 1.5px solid ${G_TEAL}; cursor: pointer; background: ${G_TEAL} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center; color: #fff; }
         .mqr-sold-tag { flex-shrink: 0; padding: 5px 10px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 10.5px; font-weight: 700; }
 
         #sold-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
@@ -199,6 +204,16 @@ export default async function AgentPage() {
         #customer-info-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #customer-info-modal-cancel { background:#f1f5f9; color:#475569; }
         #customer-info-modal-confirm { background:${G_TEAL}; color:#fff; }
+
+        #edit-customer-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #edit-customer-modal-backdrop.open { display:flex; }
+        #edit-customer-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #edit-customer-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #edit-customer-name, #edit-customer-phone { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; }
+        #edit-customer-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #edit-customer-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #edit-customer-modal-cancel { background:#f1f5f9; color:#475569; }
+        #edit-customer-modal-confirm { background:${G_TEAL}; color:#fff; }
 
         #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #goal-modal-backdrop.open { display:flex; }
@@ -1511,6 +1526,21 @@ export default async function AgentPage() {
         </div>
       </div>
 
+      {/* Edit customer name/phone on an already-logged quote — Me tab */}
+      <div id="edit-customer-modal-backdrop">
+        <div id="edit-customer-modal-box">
+          <div id="edit-customer-modal-title">Edit Customer Info</div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Customer name</div>
+          <input id="edit-customer-name" type="text" placeholder="e.g. Tan Ah Kow" />
+          <div className="f-lbl" style={{marginTop:"10px"}}>Phone number</div>
+          <input id="edit-customer-phone" type="tel" placeholder="e.g. 012-3456789" />
+          <div id="edit-customer-modal-actions">
+            <button id="edit-customer-modal-cancel">Cancel</button>
+            <button id="edit-customer-modal-confirm">Save</button>
+          </div>
+        </div>
+      </div>
+
       {/* Monthly Challenge drawer */}
       <div id="challenge-backdrop"></div>
       <div id="challenge-drawer">
@@ -1557,7 +1587,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260813f" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260814a" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
