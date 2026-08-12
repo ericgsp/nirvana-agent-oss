@@ -246,6 +246,7 @@ export default function AgentPage() {
         #month-goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #month-goal-modal-cancel { background:#f1f5f9; color:#475569; }
         #month-goal-modal-confirm { background:${G_TEAL}; color:#fff; }
+        #month-goal-modal-unpin { display:block; width:100%; margin-top:10px; padding:9px; border-radius:10px; border:1px solid #fde68a; background:#fffbeb; color:#92400e; font-size:12.5px; font-weight:700; text-align:center; cursor:pointer; }
 
         #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #goal-modal-backdrop.open { display:flex; }
@@ -1602,6 +1603,7 @@ export default function AgentPage() {
             <button id="month-goal-modal-cancel">Cancel</button>
             <button id="month-goal-modal-confirm">Save</button>
           </div>
+          <button id="month-goal-modal-unpin" style={{display:"none"}}>📌 Unpin — return to equal split</button>
         </div>
       </div>
 
@@ -1651,7 +1653,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260815d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260815e" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

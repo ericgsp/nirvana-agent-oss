@@ -328,6 +328,62 @@ export async function POST(req: NextRequest) {
     return Response.json({ ok: true });
   }
 
+  // Unlocks one month and folds it back into the equal-split pool with
+  // whatever other months are still unlocked -- the mirror image of
+  // set_month_goal above.
+  if (body?.action === "unlock_month_goal") {
+    const period = body?.period;
+    if (typeof period !== "string" || !/^\d{4}-\d{2}$/.test(period)) {
+      return Response.json({ error: "A valid period (YYYY-MM) is required" }, { status: 400 });
+    }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const year = parseInt(period.slice(0, 4), 10);
+
+    const { data: yearlyRow } = await supabaseAdmin
+      .from("yearly_sales_goals")
+      .select("annual_target")
+      .eq("user_id", user.id)
+      .eq("year", year)
+      .maybeSingle();
+    if (!yearlyRow) return Response.json({ error: "Set a yearly goal first" }, { status: 400 });
+    const annualTarget = Number(yearlyRow.annual_target);
+
+    const { data: monthRows } = await supabaseAdmin
+      .from("sales_goals")
+      .select("period, target_amount, locked")
+      .eq("user_id", user.id)
+      .like("period", `${year}-%`);
+    const rows = monthRows ?? [];
+
+    const lockedSum = rows.reduce((sum, r) => {
+      if (r.period === period) return sum; // this one is being unlocked
+      return r.locked ? sum + Number(r.target_amount) : sum;
+    }, 0);
+    // Recipients of the equal split: every currently-unlocked month, plus
+    // the one just unlocked.
+    const unlockedPeriods = rows
+      .filter((r) => r.period === period || !r.locked)
+      .map((r) => r.period as string);
+
+    const remaining = Math.max(0, annualTarget - lockedSum);
+    const base = unlockedPeriods.length > 0 ? Math.floor((remaining / unlockedPeriods.length) * 100) / 100 : 0;
+
+    const updates = unlockedPeriods.map((p, i) => {
+      const isLast = i === unlockedPeriods.length - 1;
+      const target = isLast ? Math.round((remaining - base * (unlockedPeriods.length - 1)) * 100) / 100 : base;
+      return { user_id: user.id, period: p, target_amount: target, set_by: user.id, locked: false };
+    });
+
+    const { error } = await supabaseAdmin
+      .from("sales_goals")
+      .upsert(updates, { onConflict: "user_id,period" });
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
   if (body?.action === "update_status") {
     const quotationRef = body?.quotationRef, status = body?.status;
     if (typeof quotationRef !== "string" || typeof status !== "string") {

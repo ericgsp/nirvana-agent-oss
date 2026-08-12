@@ -1093,7 +1093,7 @@
     var bars = (yg.months || []).map(function (m, i) {
       var pct = m.target > 0 ? Math.min(100, Math.round(m.actual / m.target * 100)) : 0;
       var isNow = m.period === curPeriod;
-      return '<div class="mgc-bar-col' + (isNow ? ' mgc-bar-now' : '') + '" data-period="' + m.period + '" data-target="' + m.target + '">' +
+      return '<div class="mgc-bar-col' + (isNow ? ' mgc-bar-now' : '') + '" data-period="' + m.period + '" data-target="' + m.target + '" data-locked="' + (m.locked ? '1' : '') + '">' +
         '<div class="mgc-bar-track"><div class="mgc-bar-fill" style="height:' + pct + '%"></div></div>' +
         '<div class="mgc-bar-label">' + (m.locked ? '📌' : '') + MONTH_ABBR[i] + '</div>' +
       '</div>';
@@ -1416,12 +1416,14 @@
 
   var _monthGoalPeriod = null;
 
-  function openMonthGoalModal(period, currentTarget) {
+  function openMonthGoalModal(period, currentTarget, isLocked) {
     _monthGoalPeriod = period;
     var sub = qs('month-goal-modal-sub');
     if (sub) sub.textContent = period;
     var amt = qs('month-goal-modal-amount');
     if (amt) amt.value = currentTarget ? currentTarget : '';
+    var unpinBtn = qs('month-goal-modal-unpin');
+    if (unpinBtn) unpinBtn.style.display = isLocked ? '' : 'none';
     var backdrop = qs('month-goal-modal-backdrop');
     if (backdrop) backdrop.classList.add('open');
   }
@@ -1446,6 +1448,22 @@
       _meLoaded = false;
       loadMeSnapshot();
     }).catch(function (err) { dbg('set month goal failed: ' + err); });
+  }
+
+  // Unpins a month and folds it back into the equal-split pool with
+  // whatever other months are still unlocked.
+  function unpinMonthGoal() {
+    if (!_monthGoalPeriod) return;
+    fetch(API_BASE + '/api/agent/me-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'unlock_month_goal', period: _monthGoalPeriod }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeMonthGoalModal();
+      _meLoaded = false;
+      loadMeSnapshot();
+    }).catch(function (err) { dbg('unlock month goal failed: ' + err); });
   }
 
   function openYearlyGoalModal() {
@@ -4837,7 +4855,7 @@
       // Tapping a month in the yearly-goal mini bar chart (Me tab)
       var monthBarCol = e.target && e.target.closest && e.target.closest('.mgc-bar-col');
       if (monthBarCol) {
-        openMonthGoalModal(monthBarCol.dataset.period, parseFloat(monthBarCol.dataset.target) || 0);
+        openMonthGoalModal(monthBarCol.dataset.period, parseFloat(monthBarCol.dataset.target) || 0, !!monthBarCol.dataset.locked);
         return;
       }
 
@@ -5006,6 +5024,9 @@
           break;
         case 'month-goal-modal-confirm':
           confirmMonthGoal();
+          break;
+        case 'month-goal-modal-unpin':
+          unpinMonthGoal();
           break;
         case 'btn-menu-announcement':
         case 'home-whats-new-teaser':
