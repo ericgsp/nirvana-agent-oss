@@ -49,16 +49,23 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(5);
 
-  // Yearly goal tracker -- a "yearly goal" is just 12 sales_goals rows (one
-  // per month) all set together via the /12 equal split, reusing the exact
-  // same table/upsert an individual month's goal already used. Agents can
-  // still edit a single month afterward through the existing set_goal path.
+  // Yearly goal tracker -- 12 sales_goals rows (one per month), plus a
+  // yearly_sales_goals row holding the fixed annual figure the agent
+  // actually typed in (separate from the 12 monthly rows, which drift as
+  // individual months get edited/redistributed -- see set_month_goal below).
   const currentYear = new Date().getFullYear();
   const yearPrefix = String(currentYear);
 
+  const { data: yearlyRow } = await supabaseAdmin
+    .from("yearly_sales_goals")
+    .select("annual_target")
+    .eq("user_id", user.id)
+    .eq("year", currentYear)
+    .maybeSingle();
+
   const { data: yearGoalRows } = await supabaseAdmin
     .from("sales_goals")
-    .select("period, target_amount")
+    .select("period, target_amount, locked")
     .eq("user_id", user.id)
     .like("period", `${yearPrefix}-%`);
 
@@ -70,7 +77,11 @@ export async function GET() {
     .lte("sold_at", `${yearPrefix}-12-31`);
 
   const targetByMonth: Record<string, number> = {};
-  (yearGoalRows ?? []).forEach((r) => { targetByMonth[r.period as string] = Number(r.target_amount); });
+  const lockedByMonth: Record<string, boolean> = {};
+  (yearGoalRows ?? []).forEach((r) => {
+    targetByMonth[r.period as string] = Number(r.target_amount);
+    lockedByMonth[r.period as string] = !!r.locked;
+  });
 
   const actualByMonth: Record<string, number> = {};
   (yearSalesRows ?? []).forEach((r) => {
@@ -80,9 +91,10 @@ export async function GET() {
 
   const months = Array.from({ length: 12 }, (_, i) => {
     const p = `${yearPrefix}-${String(i + 1).padStart(2, "0")}`;
-    return { period: p, target: targetByMonth[p] ?? 0, actual: actualByMonth[p] ?? 0 };
+    return { period: p, target: targetByMonth[p] ?? 0, actual: actualByMonth[p] ?? 0, locked: lockedByMonth[p] ?? false };
   });
-  const yearlyTarget = months.reduce((s, m) => s + m.target, 0);
+  const monthSum = months.reduce((s, m) => s + m.target, 0);
+  const yearlyTarget = yearlyRow ? Number(yearlyRow.annual_target) : monthSum;
   const yearlyActual = months.reduce((s, m) => s + m.actual, 0);
   const yearlyGoal = { year: currentYear, months, yearlyTarget, yearlyActual };
 
@@ -211,12 +223,19 @@ export async function POST(req: NextRequest) {
         period: `${year}-${String(i + 1).padStart(2, "0")}`,
         target_amount: target,
         set_by: user.id,
+        locked: false, // fresh yearly goal clears any previous per-month pins
       };
     });
     const { error } = await supabaseAdmin
       .from("sales_goals")
       .upsert(rows, { onConflict: "user_id,period" });
     if (error) return Response.json({ error: error.message }, { status: 500 });
+
+    const { error: yearlyError } = await supabaseAdmin
+      .from("yearly_sales_goals")
+      .upsert({ user_id: user.id, year, annual_target: annualTarget }, { onConflict: "user_id,year" });
+    if (yearlyError) return Response.json({ error: yearlyError.message }, { status: 500 });
+
     return Response.json({ ok: true });
   }
 
@@ -231,6 +250,80 @@ export async function POST(req: NextRequest) {
       .delete()
       .eq("user_id", user.id)
       .like("period", `${year}-%`);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+
+    const { error: yearlyDelError } = await supabaseAdmin
+      .from("yearly_sales_goals")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("year", year);
+    if (yearlyDelError) return Response.json({ error: yearlyDelError.message }, { status: 500 });
+
+    return Response.json({ ok: true });
+  }
+
+  // Edits one month's target and redistributes the difference evenly across
+  // the other months that haven't been individually edited yet ("unlocked"),
+  // keeping the yearly total fixed at whatever was originally set. Editing
+  // a month locks it, so a later edit to a different month won't move it.
+  if (body?.action === "set_month_goal") {
+    const period = body?.period, targetAmount = body?.target_amount;
+    if (typeof period !== "string" || !/^\d{4}-\d{2}$/.test(period)) {
+      return Response.json({ error: "A valid period (YYYY-MM) is required" }, { status: 400 });
+    }
+    if (typeof targetAmount !== "number" || targetAmount < 0) {
+      return Response.json({ error: "A valid target_amount is required" }, { status: 400 });
+    }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const year = parseInt(period.slice(0, 4), 10);
+
+    const { data: yearlyRow } = await supabaseAdmin
+      .from("yearly_sales_goals")
+      .select("annual_target")
+      .eq("user_id", user.id)
+      .eq("year", year)
+      .maybeSingle();
+    if (!yearlyRow) return Response.json({ error: "Set a yearly goal first" }, { status: 400 });
+    const annualTarget = Number(yearlyRow.annual_target);
+
+    const { data: monthRows } = await supabaseAdmin
+      .from("sales_goals")
+      .select("period, target_amount, locked")
+      .eq("user_id", user.id)
+      .like("period", `${year}-%`);
+    const rows = monthRows ?? [];
+
+    // The edited month becomes locked at its new value; every other
+    // already-locked month keeps its own value; the remaining ("unlocked")
+    // months split whatever's left of the annual total evenly.
+    const lockedSum = rows.reduce((sum, r) => {
+      if (r.period === period) return sum + targetAmount;
+      return r.locked ? sum + Number(r.target_amount) : sum;
+    }, 0);
+    const unlockedPeriods = rows
+      .filter((r) => r.period !== period && !r.locked)
+      .map((r) => r.period as string);
+
+    if (unlockedPeriods.length > 0 && lockedSum > annualTarget) {
+      return Response.json({ error: "That target is more than your whole yearly goal -- lower it or edit your yearly goal first." }, { status: 400 });
+    }
+
+    const remaining = Math.max(0, annualTarget - lockedSum);
+    const base = unlockedPeriods.length > 0 ? Math.floor((remaining / unlockedPeriods.length) * 100) / 100 : 0;
+
+    const updates = unlockedPeriods.map((p, i) => {
+      const isLast = i === unlockedPeriods.length - 1;
+      const target = isLast ? Math.round((remaining - base * (unlockedPeriods.length - 1)) * 100) / 100 : base;
+      return { user_id: user.id, period: p, target_amount: target, set_by: user.id, locked: false };
+    });
+    updates.push({ user_id: user.id, period, target_amount: targetAmount, set_by: user.id, locked: true });
+
+    const { error } = await supabaseAdmin
+      .from("sales_goals")
+      .upsert(updates, { onConflict: "user_id,period" });
     if (error) return Response.json({ error: error.message }, { status: 500 });
     return Response.json({ ok: true });
   }

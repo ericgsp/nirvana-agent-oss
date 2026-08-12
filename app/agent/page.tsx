@@ -163,6 +163,8 @@ export default async function AgentPage() {
         .mgc-bar-label { font-size: 8.5px; opacity: 0.7; margin-top: 3px; font-weight: 600; }
         .mgc-bar-now .mgc-bar-track { background: rgba(255,255,255,0.32); }
         .mgc-bar-now .mgc-bar-label { opacity: 1; font-weight: 800; }
+        .mgc-bar-col { cursor: pointer; }
+        .mgc-bars-hint { font-size: 10px; opacity: 0.7; text-align: center; margin-top: 8px; }
         .team-remove-goal-btn { display: block; margin-top: 8px; padding: 5px 0; border: none; background: transparent; color: #b91c1c; font-size: 10.5px; font-weight: 700; text-align: left; }
         #me-team-card { margin: 10px 10px 0; }
         .me-team-card { padding: 14px; border-radius: 16px; background: #fff; border: 1px solid #e2e8f0; }
@@ -240,6 +242,17 @@ export default async function AgentPage() {
         #yearly-goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #yearly-goal-modal-cancel { background:#f1f5f9; color:#475569; }
         #yearly-goal-modal-confirm { background:${G_TEAL}; color:#fff; }
+
+        #month-goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #month-goal-modal-backdrop.open { display:flex; }
+        #month-goal-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #month-goal-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #month-goal-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        #month-goal-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
+        #month-goal-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #month-goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #month-goal-modal-cancel { background:#f1f5f9; color:#475569; }
+        #month-goal-modal-confirm { background:${G_TEAL}; color:#fff; }
 
         #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #goal-modal-backdrop.open { display:flex; }
@@ -1583,6 +1596,22 @@ export default async function AgentPage() {
         </div>
       </div>
 
+      {/* Month goal modal — Me tab. Editing a month locks it (📌) and
+          redistributes the difference across the still-unlocked months so
+          the yearly total stays fixed. */}
+      <div id="month-goal-modal-backdrop">
+        <div id="month-goal-modal-box">
+          <div id="month-goal-modal-title">Edit Month Target</div>
+          <div id="month-goal-modal-sub"></div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Target for this month (RM)</div>
+          <input id="month-goal-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
+          <div id="month-goal-modal-actions">
+            <button id="month-goal-modal-cancel">Cancel</button>
+            <button id="month-goal-modal-confirm">Save</button>
+          </div>
+        </div>
+      </div>
+
       {/* Monthly Challenge drawer */}
       <div id="challenge-backdrop"></div>
       <div id="challenge-drawer">
@@ -1629,7 +1658,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260815c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260815d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

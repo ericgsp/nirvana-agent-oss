@@ -1093,9 +1093,9 @@
     var bars = (yg.months || []).map(function (m, i) {
       var pct = m.target > 0 ? Math.min(100, Math.round(m.actual / m.target * 100)) : 0;
       var isNow = m.period === curPeriod;
-      return '<div class="mgc-bar-col' + (isNow ? ' mgc-bar-now' : '') + '">' +
+      return '<div class="mgc-bar-col' + (isNow ? ' mgc-bar-now' : '') + '" data-period="' + m.period + '" data-target="' + m.target + '">' +
         '<div class="mgc-bar-track"><div class="mgc-bar-fill" style="height:' + pct + '%"></div></div>' +
-        '<div class="mgc-bar-label">' + MONTH_ABBR[i] + '</div>' +
+        '<div class="mgc-bar-label">' + (m.locked ? '📌' : '') + MONTH_ABBR[i] + '</div>' +
       '</div>';
     }).join('');
 
@@ -1107,6 +1107,7 @@
       '<div class="mgc-figs"><div class="mgc-actual mgc-actual-sm">RM ' + fmt(thisMonth ? thisMonth.actual : 0) + '</div><div class="mgc-of">of RM ' + fmt(thisMonth ? thisMonth.target : 0) + '</div></div>' +
       '<div class="home-goal-track"><div style="width:' + mPct + '%"></div></div>' +
       '<div class="mgc-bars">' + bars + '</div>' +
+      '<div class="mgc-bars-hint">Tap a month to adjust for busy/slow seasons</div>' +
       '<div class="me-goal-btn-row">' +
         '<button class="me-set-goal-btn" id="btn-set-yearly-goal">Edit yearly goal</button>' +
         '<button class="me-set-goal-btn me-goal-btn-danger" id="btn-remove-yearly-goal">Remove</button>' +
@@ -1411,6 +1412,40 @@
       if (confirmBtn) confirmBtn.disabled = false;
       dbg('mark sold failed: ' + err);
     });
+  }
+
+  var _monthGoalPeriod = null;
+
+  function openMonthGoalModal(period, currentTarget) {
+    _monthGoalPeriod = period;
+    var sub = qs('month-goal-modal-sub');
+    if (sub) sub.textContent = period;
+    var amt = qs('month-goal-modal-amount');
+    if (amt) amt.value = currentTarget ? currentTarget : '';
+    var backdrop = qs('month-goal-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeMonthGoalModal() {
+    _monthGoalPeriod = null;
+    var backdrop = qs('month-goal-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function confirmMonthGoal() {
+    var amt = qs('month-goal-modal-amount');
+    var target = amt ? parseFloat(amt.value) : NaN;
+    if (!_monthGoalPeriod || isNaN(target) || target < 0) { alert('Enter a valid target amount.'); return; }
+    fetch(API_BASE + '/api/agent/me-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_month_goal', period: _monthGoalPeriod, target_amount: target }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeMonthGoalModal();
+      _meLoaded = false;
+      loadMeSnapshot();
+    }).catch(function (err) { dbg('set month goal failed: ' + err); });
   }
 
   function openYearlyGoalModal() {
@@ -4799,6 +4834,13 @@
         return;
       }
 
+      // Tapping a month in the yearly-goal mini bar chart (Me tab)
+      var monthBarCol = e.target && e.target.closest && e.target.closest('.mgc-bar-col');
+      if (monthBarCol) {
+        openMonthGoalModal(monthBarCol.dataset.period, parseFloat(monthBarCol.dataset.target) || 0);
+        return;
+      }
+
       // Mark Sold checklist item toggled — recompute the running total
       var soldCheck = e.target && e.target.closest && e.target.closest('.sold-item-check');
       if (soldCheck) {
@@ -4955,6 +4997,15 @@
           break;
         case 'yearly-goal-modal-confirm':
           confirmYearlyGoal();
+          break;
+        case 'month-goal-modal-cancel':
+          closeMonthGoalModal();
+          break;
+        case 'month-goal-modal-backdrop':
+          if (e.target.id === 'month-goal-modal-backdrop') closeMonthGoalModal();
+          break;
+        case 'month-goal-modal-confirm':
+          confirmMonthGoal();
           break;
         case 'btn-menu-announcement':
         case 'home-whats-new-teaser':
