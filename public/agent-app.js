@@ -1118,10 +1118,21 @@
           listEl.innerHTML = data.recentQuotes.map(function (q) {
             var label = esc(q.product || q.site || 'Quotation');
             var ref = esc((q.site || '') + '|' + (q.product || '') + '|' + (q.section || '') + '|' + q.id);
+            var custName  = q.customer_name ? esc(q.customer_name) : 'No customer name';
+            var custPhone = q.customer_phone ? ' · ' + esc(q.customer_phone) : '';
+            var dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+            var validStr = q.valid_until ? 'Valid until ' + new Date(q.valid_until).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '';
+            var itemsArr = Array.isArray(q.items) ? q.items : [];
+            var itemsAttr = esc(JSON.stringify(itemsArr));
             return '<div class="me-quote-row">' +
-              '<div><div class="mqr-main">' + label + '</div>' +
-              '<div class="mqr-sub">' + esc(q.site || '') + (q.section ? ' · ' + esc(q.section) : '') + '</div></div>' +
-              '<button class="mqr-sold-btn" data-ref="' + ref + '" data-label="' + label + '" data-net-total="' + (q.net_total || 0) + '">Mark Sold</button>' +
+              '<div class="mqr-body">' +
+                '<div class="mqr-cust">' + custName + custPhone + '</div>' +
+                '<div class="mqr-main">' + label + (q.section ? ' · ' + esc(q.section) : '') + '</div>' +
+                '<div class="mqr-sub">' + esc(q.site || '') + '</div>' +
+                '<div class="mqr-amount">RM ' + fmt(q.net_total || 0) + '</div>' +
+                '<div class="mqr-meta">' + esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '') + '</div>' +
+              '</div>' +
+              '<button class="mqr-sold-btn" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">Mark Sold</button>' +
             '</div>';
           }).join('');
         }
@@ -1129,14 +1140,127 @@
     }).catch(function (err) { dbg('me snapshot failed: ' + err); });
   }
 
-  function openSoldModal(ref, label, netTotal) {
+  // ── Print flow ────────────────────────────────────────────────
+  // Split out of the old btn-pdf handler so the Customer Info modal can
+  // trigger the actual print/PDF step after (optionally) capturing who
+  // the quote is for -- printing itself is unchanged either way.
+  function doPrintFlow() {
+    var prevTitle = document.title;
+    document.title = '';
+    var pd = qs('print-date');
+    if (pd) pd.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      window.Capacitor.Plugins.NativePrint.print().catch(function (err) {
+        dbg('Native print failed: ' + (err && err.message ? err.message : err));
+      }).then(function () {
+        document.title = prevTitle;
+      });
+    } else {
+      window.print();
+      setTimeout(function () { document.title = prevTitle; }, 500);
+    }
+  }
+
+  function openCustomerInfoModal() {
+    var nameEl = qs('customer-info-name');
+    var phoneEl = qs('customer-info-phone');
+    if (nameEl) nameEl.value = '';
+    if (phoneEl) phoneEl.value = '';
+    var backdrop = qs('customer-info-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeCustomerInfoModal() {
+    var backdrop = qs('customer-info-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  // Customer name/phone are optional -- this always proceeds to log +
+  // print, whether the fields were filled in or left blank.
+  function confirmCustomerInfoAndPrint() {
+    var nameEl = qs('customer-info-name');
+    var phoneEl = qs('customer-info-phone');
+    var customerName = nameEl ? nameEl.value.trim() : '';
+    var customerPhone = phoneEl ? phoneEl.value.trim() : '';
+    closeCustomerInfoModal();
+
+    // Build the per-item breakdown + real total (was never actually sent
+    // before) + earliest promo expiry across the quoted items, from the
+    // same data already driving the printed quote table.
+    var items = [];
+    var total = 0;
+    var earliestValidUntil = null;
+    lotQuotes.forEach(function (q) {
+      var amt = 0;
+      try { amt = calcMatrix(q.levelData, dpPct).netTotalPrice; } catch (e) {}
+      total += amt;
+      items.push({ label: q.lotCode || '', amount: amt });
+      var promo = q.levelData && q.levelData.promo;
+      var promoEnd = promo && promo.promo_end_date;
+      if (promoEnd && (!earliestValidUntil || promoEnd < earliestValidUntil)) earliestValidUntil = promoEnd;
+    });
+
+    fetch(API_BASE + '/api/agent/home-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        site: site, product: product, section: lotQuotes.length + ' lot(s)',
+        netTotal: total, customerName: customerName, customerPhone: customerPhone,
+        validUntil: earliestValidUntil, items: items,
+      }),
+    }).then(function () { _homeSnapshotLoaded = false; }).catch(function (err) { dbg('log quote failed: ' + err); });
+
+    doPrintFlow();
+  }
+
+  var _soldModalMode = 'manual'; // 'checklist' when the quote has itemized data, else 'manual'
+
+  // Quotes logged with itemized data show a checklist (pick which items were
+  // actually sold, amount sums itself); older quotes logged before that data
+  // existed fall back to the original manual-amount entry.
+  function openSoldModal(ref, label, netTotal, itemsJson) {
     _soldModalRef = ref;
     var sub = document.getElementById('sold-modal-sub');
-    var amt = document.getElementById('sold-modal-amount');
     if (sub) sub.textContent = label || '';
-    if (amt) amt.value = netTotal ? netTotal : '';
+
+    var items = [];
+    try { items = JSON.parse(itemsJson || '[]'); } catch (e) {}
+
+    var itemsWrap  = document.getElementById('sold-modal-items-wrap');
+    var manualWrap = document.getElementById('sold-modal-manual-wrap');
+    var listEl     = document.getElementById('sold-modal-items');
+
+    if (items.length && listEl) {
+      _soldModalMode = 'checklist';
+      listEl.innerHTML = items.map(function (it, i) {
+        return '<label class="sold-item-row">'
+          + '<input type="checkbox" class="sold-item-check" data-amt="' + (it.amount || 0) + '" checked />'
+          + '<span class="sold-item-label">' + esc(it.label || ('Item ' + (i + 1))) + '</span>'
+          + '<span class="sold-item-amt">RM ' + fmt(it.amount || 0) + '</span>'
+          + '</label>';
+      }).join('');
+      if (itemsWrap) itemsWrap.style.display = '';
+      if (manualWrap) manualWrap.style.display = 'none';
+      updateSoldModalTotal();
+    } else {
+      _soldModalMode = 'manual';
+      var amt = document.getElementById('sold-modal-amount');
+      if (amt) amt.value = netTotal ? netTotal : '';
+      if (itemsWrap) itemsWrap.style.display = 'none';
+      if (manualWrap) manualWrap.style.display = '';
+    }
+
     var backdrop = document.getElementById('sold-modal-backdrop');
     if (backdrop) backdrop.classList.add('open');
+  }
+
+  function updateSoldModalTotal() {
+    var total = 0;
+    document.querySelectorAll('.sold-item-check:checked').forEach(function (cb) {
+      total += parseFloat(cb.dataset.amt) || 0;
+    });
+    var totalEl = document.getElementById('sold-modal-total');
+    if (totalEl) totalEl.textContent = 'RM ' + fmt(total);
   }
 
   function closeSoldModal() {
@@ -1146,9 +1270,18 @@
   }
 
   function confirmSold() {
-    var amt = document.getElementById('sold-modal-amount');
-    var amount = amt ? parseFloat(amt.value) : NaN;
-    if (!_soldModalRef || !amount || amount <= 0) { alert('Enter a valid final amount.'); return; }
+    var amount;
+    if (_soldModalMode === 'checklist') {
+      amount = 0;
+      document.querySelectorAll('.sold-item-check:checked').forEach(function (cb) {
+        amount += parseFloat(cb.dataset.amt) || 0;
+      });
+      if (!_soldModalRef || !amount || amount <= 0) { alert('Select at least one item.'); return; }
+    } else {
+      var amt = document.getElementById('sold-modal-amount');
+      amount = amt ? parseFloat(amt.value) : NaN;
+      if (!_soldModalRef || !amount || amount <= 0) { alert('Enter a valid final amount.'); return; }
+    }
     fetch(API_BASE + '/api/agent/me-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -4492,7 +4625,14 @@
       // "Mark as Sold" button on a recent-quote row (Me tab)
       var soldBtn = e.target && e.target.closest && e.target.closest('.mqr-sold-btn');
       if (soldBtn) {
-        openSoldModal(soldBtn.dataset.ref, soldBtn.dataset.label, parseFloat(soldBtn.dataset.netTotal) || 0);
+        openSoldModal(soldBtn.dataset.ref, soldBtn.dataset.label, parseFloat(soldBtn.dataset.netTotal) || 0, soldBtn.dataset.items);
+        return;
+      }
+
+      // Mark Sold checklist item toggled — recompute the running total
+      var soldCheck = e.target && e.target.closest && e.target.closest('.sold-item-check');
+      if (soldCheck) {
+        updateSoldModalTotal();
         return;
       }
 
@@ -4676,27 +4816,14 @@
           break;
         case 'browse-sticky-print':
         case 'btn-pdf':
-          var prevTitle = document.title;
-          document.title = '';
-          var pd = qs('print-date');
-          if (pd) pd.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
-          if (lotQuotes.length) {
-            fetch(API_BASE + '/api/agent/home-snapshot', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ site: site, product: product, section: lotQuotes.length + ' lot(s)' }),
-            }).then(function () { _homeSnapshotLoaded = false; }).catch(function (err) { dbg('log quote failed: ' + err); });
-          }
-          if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-            window.Capacitor.Plugins.NativePrint.print().catch(function (err) {
-              dbg('Native print failed: ' + (err && err.message ? err.message : err));
-            }).then(function () {
-              document.title = prevTitle;
-            });
-          } else {
-            window.print();
-            setTimeout(function () { document.title = prevTitle; }, 500);
-          }
+          if (lotQuotes.length) openCustomerInfoModal(); else doPrintFlow();
+          break;
+        case 'customer-info-modal-cancel':
+        case 'customer-info-modal-backdrop':
+          closeCustomerInfoModal();
+          break;
+        case 'customer-info-modal-confirm':
+          confirmCustomerInfoAndPrint();
           break;
       }
     });

@@ -154,21 +154,44 @@ export default function AgentPage() {
         .me-team-note { font-size: 10.5px; color: #94a3b8; margin-top: 6px; }
         #me-quotes-list { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
         .me-quote-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-        .mqr-main { font-size: 12.5px; font-weight: 700; color: ${G_DARK}; }
-        .mqr-sub { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
+        .mqr-body { min-width: 0; }
+        .mqr-cust { font-size: 12.5px; font-weight: 800; color: #0f172a; }
+        .mqr-main { font-size: 12.5px; font-weight: 700; color: ${G_DARK}; margin-top: 2px; }
+        .mqr-sub { font-size: 10.5px; color: #94a3b8; margin-top: 1px; }
+        .mqr-amount { font-size: 13.5px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+        .mqr-meta { font-size: 10px; color: #94a3b8; margin-top: 2px; }
         .mqr-sold-btn { flex-shrink: 0; padding: 6px 12px; border-radius: 999px; border: none; background: ${G_TEAL}; color: #fff; font-size: 11px; font-weight: 700; }
         .mqr-sold-tag { flex-shrink: 0; padding: 5px 10px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 10.5px; font-weight: 700; }
 
         #sold-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #sold-modal-backdrop.open { display:flex; }
-        #sold-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #sold-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; max-height:80vh; overflow-y:auto; }
         #sold-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
         #sold-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
         #sold-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
+        #sold-modal-items { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+        .sold-item-row { display:flex; align-items:center; gap:9px; padding:9px 10px; border:1.5px solid #e2e8f0; border-radius:10px; }
+        .sold-item-row input { flex-shrink:0; width:17px; height:17px; }
+        .sold-item-label { flex:1; font-size:12.5px; font-weight:600; color:#0f172a; }
+        .sold-item-amt { font-size:12px; font-weight:700; color:#475569; }
+        #sold-modal-total-row { display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid #e2e8f0; }
+        #sold-modal-total-label { font-size:12px; font-weight:700; color:#64748b; }
+        #sold-modal-total { font-size:16px; font-weight:800; color:${G_DARK}; }
         #sold-modal-actions { display:flex; gap:8px; margin-top:14px; }
         #sold-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #sold-modal-cancel { background:#f1f5f9; color:#475569; }
         #sold-modal-confirm { background:${G_TEAL}; color:#fff; }
+
+        #customer-info-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #customer-info-modal-backdrop.open { display:flex; }
+        #customer-info-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #customer-info-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #customer-info-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        #customer-info-name, #customer-info-phone { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; }
+        #customer-info-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #customer-info-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #customer-info-modal-cancel { background:#f1f5f9; color:#475569; }
+        #customer-info-modal-confirm { background:${G_TEAL}; color:#fff; }
 
         #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #goal-modal-backdrop.open { display:flex; }
@@ -1438,16 +1461,45 @@ export default function AgentPage() {
         </div>
       </div>
 
-      {/* Mark as Sold modal — Me tab */}
+      {/* Mark as Sold modal — Me tab. Shows a checklist (pick which quoted
+          items were actually sold, amount sums itself) when the quote has
+          itemized data; falls back to the original manual amount entry for
+          older quotes logged before that data existed. */}
       <div id="sold-modal-backdrop">
         <div id="sold-modal-box">
           <div id="sold-modal-title">Mark as Sold</div>
           <div id="sold-modal-sub"></div>
-          <div className="f-lbl" style={{marginTop:"10px"}}>Final amount (RM)</div>
-          <input id="sold-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
+          <div id="sold-modal-items-wrap" style={{display:"none"}}>
+            <div id="sold-modal-items"></div>
+            <div id="sold-modal-total-row">
+              <span id="sold-modal-total-label">Total</span>
+              <span id="sold-modal-total">RM 0</span>
+            </div>
+          </div>
+          <div id="sold-modal-manual-wrap">
+            <div className="f-lbl" style={{marginTop:"10px"}}>Final amount (RM)</div>
+            <input id="sold-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
+          </div>
           <div id="sold-modal-actions">
             <button id="sold-modal-cancel">Cancel</button>
             <button id="sold-modal-confirm">Confirm Sold</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Customer Info modal — shown before Print/PDF so a quote can be
+          followed up later (both fields optional; Print proceeds either way) */}
+      <div id="customer-info-modal-backdrop">
+        <div id="customer-info-modal-box">
+          <div id="customer-info-modal-title">Who is this quote for?</div>
+          <div id="customer-info-modal-sub">Optional — helps you follow up later</div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Customer name</div>
+          <input id="customer-info-name" type="text" placeholder="e.g. Tan Ah Kow" />
+          <div className="f-lbl" style={{marginTop:"10px"}}>Phone number</div>
+          <input id="customer-info-phone" type="tel" placeholder="e.g. 012-3456789" />
+          <div id="customer-info-modal-actions">
+            <button id="customer-info-modal-cancel">Cancel</button>
+            <button id="customer-info-modal-confirm">Print</button>
           </div>
         </div>
       </div>
@@ -1498,7 +1550,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260813e" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260813f" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

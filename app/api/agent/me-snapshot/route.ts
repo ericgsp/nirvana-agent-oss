@@ -44,7 +44,7 @@ export async function GET() {
 
   const { data: recentQuotes } = await supabaseAdmin
     .from("recent_quotes")
-    .select("id, site, product, section, net_total, created_at")
+    .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(5);

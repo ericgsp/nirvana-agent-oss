@@ -80,6 +80,12 @@ export async function POST(req: NextRequest) {
   if (typeof site !== "string" || typeof product !== "string") {
     return Response.json({ error: "site and product are required" }, { status: 400 });
   }
-  await logQuoteView(site, product, section ?? "", Number(netTotal) || 0);
+  await logQuoteView(
+    site, product, section ?? "", Number(netTotal) || 0,
+    typeof body?.customerName === "string" ? body.customerName : undefined,
+    typeof body?.customerPhone === "string" ? body.customerPhone : undefined,
+    typeof body?.validUntil === "string" ? body.validUntil : null,
+    Array.isArray(body?.items) ? body.items : undefined
+  );
   return Response.json({ ok: true });
 }

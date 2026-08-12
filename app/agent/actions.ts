@@ -411,7 +411,11 @@ export async function fetchQuotation(site: string, product: string, block: strin
 // Logged once per deliberate "Print/Share" tap, not per lot selection —
 // /agent is usable without login, so a missing user just means the quote
 // isn't attributed to anyone (still fine to log for aggregate purposes).
-export async function logQuoteView(site: string, product: string, section: string, netTotal: number) {
+export async function logQuoteView(
+  site: string, product: string, section: string, netTotal: number,
+  customerName?: string, customerPhone?: string, validUntil?: string | null,
+  items?: { label: string; amount: number }[]
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -419,6 +423,10 @@ export async function logQuoteView(site: string, product: string, section: strin
     user_id: user?.id ?? null,
     site, product, section,
     net_total: netTotal,
+    customer_name: customerName || null,
+    customer_phone: customerPhone || null,
+    valid_until: validUntil || null,
+    items: items && items.length ? items : null,
   });
 }
 
