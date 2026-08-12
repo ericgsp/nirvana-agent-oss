@@ -22,59 +22,44 @@ export async function GET() {
 
   const profile = await getMyProfile();
   const period = currentPeriod();
-
-  const { data: goalRow } = await supabaseAdmin
-    .from("sales_goals")
-    .select("target_amount, period")
-    .eq("user_id", user.id)
-    .eq("period", period)
-    .maybeSingle();
-
-  let actualAmount = 0;
-  if (goalRow) {
-    const { data: salesRows } = await supabaseAdmin
-      .from("sales_log")
-      .select("amount, sold_at")
-      .eq("user_id", user.id)
-      .gte("sold_at", `${period}-01`);
-    actualAmount = (salesRows ?? [])
-      .filter((r) => r.sold_at.slice(0, 7) === period)
-      .reduce((sum, r) => sum + Number(r.amount), 0);
-  }
-
-  const { data: recentQuotes } = await supabaseAdmin
-    .from("recent_quotes")
-    .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items, status")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  // Yearly goal tracker -- 12 sales_goals rows (one per month), plus a
-  // yearly_sales_goals row holding the fixed annual figure the agent
-  // actually typed in (separate from the 12 monthly rows, which drift as
-  // individual months get edited/redistributed -- see set_month_goal below).
   const currentYear = new Date().getFullYear();
   const yearPrefix = String(currentYear);
 
-  const { data: yearlyRow } = await supabaseAdmin
-    .from("yearly_sales_goals")
-    .select("annual_target")
-    .eq("user_id", user.id)
-    .eq("year", currentYear)
-    .maybeSingle();
-
-  const { data: yearGoalRows } = await supabaseAdmin
-    .from("sales_goals")
-    .select("period, target_amount, locked, carry_forward_handled")
-    .eq("user_id", user.id)
-    .like("period", `${yearPrefix}-%`);
-
-  const { data: yearSalesRows } = await supabaseAdmin
-    .from("sales_log")
-    .select("amount, sold_at")
-    .eq("user_id", user.id)
-    .gte("sold_at", `${yearPrefix}-01-01`)
-    .lte("sold_at", `${yearPrefix}-12-31`);
+  // These four don't depend on each other's results -- run them concurrently
+  // instead of one after another. Also drops the two separate current-month
+  // queries the old code made (target_amount + sales_log for `period` alone):
+  // the yearly query below already covers every month including this one,
+  // so `goal` is now just derived from `months` instead of a duplicate round trip.
+  const [
+    { data: yearlyRow },
+    { data: yearGoalRows },
+    { data: yearSalesRows },
+    { data: recentQuotes },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("yearly_sales_goals")
+      .select("annual_target")
+      .eq("user_id", user.id)
+      .eq("year", currentYear)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("sales_goals")
+      .select("period, target_amount, locked, carry_forward_handled")
+      .eq("user_id", user.id)
+      .like("period", `${yearPrefix}-%`),
+    supabaseAdmin
+      .from("sales_log")
+      .select("amount, sold_at")
+      .eq("user_id", user.id)
+      .gte("sold_at", `${yearPrefix}-01-01`)
+      .lte("sold_at", `${yearPrefix}-12-31`),
+    supabaseAdmin
+      .from("recent_quotes")
+      .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items, status")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
 
   const targetByMonth: Record<string, number> = {};
   const lockedByMonth: Record<string, boolean> = {};
@@ -109,6 +94,13 @@ export async function GET() {
     ? { amount: Math.round(carryForwardAmount * 100) / 100, months: shortfallMonths.map((m) => m.period) }
     : null;
   const yearlyGoal = { year: currentYear, months, yearlyTarget, yearlyActual, carryForward };
+
+  // Current-month goal card -- derived from `months` instead of its own
+  // round trip, since that array already covers every month this year.
+  const curMonth = months.find((m) => m.period === period);
+  const goal = curMonth && curMonth.target > 0
+    ? { target_amount: curMonth.target, period, actual_amount: curMonth.actual }
+    : null;
 
   // Leader-only team-progress: aggregate attainment across the downline,
   // counting only members who actually have a goal set for this period --
@@ -157,7 +149,7 @@ export async function GET() {
 
   return Response.json({
     profile: profile ? { tier: profile.tier, display_name: profile.display_name } : null,
-    goal: goalRow ? { target_amount: goalRow.target_amount, period: goalRow.period, actual_amount: actualAmount } : null,
+    goal,
     yearlyGoal,
     recentQuotes: recentQuotes ?? [],
     team,
@@ -292,20 +284,21 @@ export async function POST(req: NextRequest) {
 
     const year = parseInt(period.slice(0, 4), 10);
 
-    const { data: yearlyRow } = await supabaseAdmin
-      .from("yearly_sales_goals")
-      .select("annual_target")
-      .eq("user_id", user.id)
-      .eq("year", year)
-      .maybeSingle();
+    const [{ data: yearlyRow }, { data: monthRows }] = await Promise.all([
+      supabaseAdmin
+        .from("yearly_sales_goals")
+        .select("annual_target")
+        .eq("user_id", user.id)
+        .eq("year", year)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("sales_goals")
+        .select("period, target_amount, locked")
+        .eq("user_id", user.id)
+        .like("period", `${year}-%`),
+    ]);
     if (!yearlyRow) return Response.json({ error: "Set a yearly goal first" }, { status: 400 });
     const annualTarget = Number(yearlyRow.annual_target);
-
-    const { data: monthRows } = await supabaseAdmin
-      .from("sales_goals")
-      .select("period, target_amount, locked")
-      .eq("user_id", user.id)
-      .like("period", `${year}-%`);
     const rows = monthRows ?? [];
 
     // The edited month becomes locked at its new value; every other
@@ -354,20 +347,21 @@ export async function POST(req: NextRequest) {
 
     const year = parseInt(period.slice(0, 4), 10);
 
-    const { data: yearlyRow } = await supabaseAdmin
-      .from("yearly_sales_goals")
-      .select("annual_target")
-      .eq("user_id", user.id)
-      .eq("year", year)
-      .maybeSingle();
+    const [{ data: yearlyRow }, { data: monthRows }] = await Promise.all([
+      supabaseAdmin
+        .from("yearly_sales_goals")
+        .select("annual_target")
+        .eq("user_id", user.id)
+        .eq("year", year)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("sales_goals")
+        .select("period, target_amount, locked")
+        .eq("user_id", user.id)
+        .like("period", `${year}-%`),
+    ]);
     if (!yearlyRow) return Response.json({ error: "Set a yearly goal first" }, { status: 400 });
     const annualTarget = Number(yearlyRow.annual_target);
-
-    const { data: monthRows } = await supabaseAdmin
-      .from("sales_goals")
-      .select("period, target_amount, locked")
-      .eq("user_id", user.id)
-      .like("period", `${year}-%`);
     const rows = monthRows ?? [];
 
     const lockedSum = rows.reduce((sum, r) => {
@@ -408,19 +402,20 @@ export async function POST(req: NextRequest) {
     const year = new Date().getFullYear();
     const nowPeriod = currentPeriod();
 
-    const { data: monthRows } = await supabaseAdmin
-      .from("sales_goals")
-      .select("period, target_amount, locked, carry_forward_handled")
-      .eq("user_id", user.id)
-      .like("period", `${year}-%`);
+    const [{ data: monthRows }, { data: yearSalesRows }] = await Promise.all([
+      supabaseAdmin
+        .from("sales_goals")
+        .select("period, target_amount, locked, carry_forward_handled")
+        .eq("user_id", user.id)
+        .like("period", `${year}-%`),
+      supabaseAdmin
+        .from("sales_log")
+        .select("amount, sold_at")
+        .eq("user_id", user.id)
+        .gte("sold_at", `${year}-01-01`)
+        .lte("sold_at", `${year}-12-31`),
+    ]);
     const rows = monthRows ?? [];
-
-    const { data: yearSalesRows } = await supabaseAdmin
-      .from("sales_log")
-      .select("amount, sold_at")
-      .eq("user_id", user.id)
-      .gte("sold_at", `${year}-01-01`)
-      .lte("sold_at", `${year}-12-31`);
     const actualByMonth: Record<string, number> = {};
     (yearSalesRows ?? []).forEach((r) => {
       const m = (r.sold_at as string).slice(0, 7);
