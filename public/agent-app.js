@@ -1032,7 +1032,7 @@
 
   // ── Bottom tab bar ────────────────────────────────────────────
   var TAB_IDS = ['home', 'earning', 'browse', 'team', 'me'];
-  var TAB_TITLES = { home: 'Home', earning: 'Earning', browse: 'Browse', team: 'Team', me: 'Me (Goal)' };
+  var TAB_TITLES = { home: 'Summary', earning: 'Earning & Quota', browse: 'Quotation Browsing', team: 'My Team', me: 'Me (Goal)' };
   var _homeSnapshotLoaded = false;
   var _inventoryListLoaded = false;
   var _teamLoaded = false;
