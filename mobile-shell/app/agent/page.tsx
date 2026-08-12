@@ -393,6 +393,12 @@ export default function AgentPage() {
         #filter-stepper-body .ad-card { display:none; margin-top:0 !important; }
         #filter-stepper-body .ad-card:last-of-type { display:block; }
         #filter-stepper-body .ad-dot { display:none; }
+        /* Type pills and Site cards: wrap/stack full-width instead of the
+           horizontal scroll carousel used elsewhere — full page is visible
+           at once here, only vertical scroll needed. */
+        #filter-stepper-body .ad-chips { flex-wrap:wrap; overflow-x:visible; }
+        #filter-stepper-body .ad-sites { flex-wrap:wrap; overflow-x:visible; }
+        #filter-stepper-body .ad-site { flex:0 0 100%; }
 
         #memo-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
         #memo-backdrop.open { display:block; }
@@ -814,14 +820,16 @@ export default function AgentPage() {
                    Reuses the exact same avail-content rendering/fetch logic as
                    before; only where it's mounted (hidden overlay vs inline)
                    and how much is shown at once (one step vs all stacked) changed. */}
-              <button id="filter-banner-btn" className="qs-banner no-print" style={{margin:'0 10px 10px'}}>
-                <span className="qs-banner-icon">⚙</span>
-                <span className="qs-banner-body">
-                  <span className="qs-banner-title">Filter Products</span>
-                  <span className="qs-banner-sub" id="filter-banner-sub">Narrow down by type, site &amp; features</span>
-                </span>
-                <span className="qs-banner-chev">›</span>
-              </button>
+              <div className="qs-card no-print">
+                <button id="filter-banner-btn" className="qs-banner">
+                  <span className="qs-banner-icon">⚙</span>
+                  <span className="qs-banner-body">
+                    <span className="qs-banner-title">Filter Products</span>
+                    <span className="qs-banner-sub" id="filter-banner-sub">Narrow down by type, site &amp; features</span>
+                  </span>
+                  <span className="qs-banner-chev">›</span>
+                </button>
+              </div>
             </div>
 
             {/* ── Layout view: shown after picking a product from the list ── */}
@@ -1496,7 +1504,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812w" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812x" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
