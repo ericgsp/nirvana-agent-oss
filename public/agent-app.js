@@ -1032,6 +1032,7 @@
 
   // ── Bottom tab bar ────────────────────────────────────────────
   var TAB_IDS = ['home', 'earning', 'browse', 'team', 'me'];
+  var TAB_TITLES = { home: 'Home', earning: 'Earning', browse: 'Browse', team: 'Team', me: 'Me (Goal)' };
   var _homeSnapshotLoaded = false;
   var _inventoryListLoaded = false;
   var _teamLoaded = false;
@@ -1056,6 +1057,8 @@
     document.querySelectorAll('.tab-btn').forEach(function (btn) {
       btn.classList.toggle('active', btn.dataset.tab === name);
     });
+    var titleEl = qs('topbar-title');
+    if (titleEl) titleEl.textContent = TAB_TITLES[name] || 'Home';
     var scrollBody = document.getElementById('scroll-body');
     if (scrollBody) scrollBody.scrollTop = 0;
     if (name === 'home' && !_homeSnapshotLoaded) {
