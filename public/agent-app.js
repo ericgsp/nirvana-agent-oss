@@ -1299,6 +1299,18 @@
 
   function closeAvailDrawer() {}
 
+  // Opens the memo drawer directly to the requested tab -- Price List and
+  // Promo Memo are now two separate menu entries instead of one combined
+  // "Price List & Promo Memo" item that required a second tap to switch tabs.
+  function openMemoDrawer(tabId) {
+    var backdrop = document.getElementById('memo-backdrop');
+    var drawer = document.getElementById('memo-drawer');
+    if (backdrop) backdrop.classList.add('open');
+    if (drawer) drawer.classList.add('open');
+    document.querySelectorAll('.memo-tab').forEach(function (t) { t.classList.toggle('active', t.dataset.tab === tabId); });
+    document.querySelectorAll('.memo-panel').forEach(function (p) { p.classList.toggle('active', p.id === 'memo-panel-' + tabId); });
+  }
+
   // Browse tab's sticky total bar -- shows a running count + net total the
   // moment a niche is picked, so Print is reachable without scrolling down
   // to the full quote card. Uses calcMatrix generically across lotQuotes;
@@ -4522,10 +4534,8 @@
           if (smBackdrop) smBackdrop.classList.toggle('open');
           break;
         }
-        case 'btn-menu-memo':
-          document.getElementById('memo-backdrop').classList.add('open');
-          document.getElementById('memo-drawer').classList.add('open');
-          break;
+        case 'btn-menu-pricelist': openMemoDrawer('pricelist'); break;
+        case 'btn-menu-promo':     openMemoDrawer('promo'); break;
         case 'memo-drawer-close':
         case 'memo-backdrop':
           document.getElementById('memo-backdrop').classList.remove('open');

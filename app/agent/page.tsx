@@ -66,8 +66,9 @@ export default async function AgentPage() {
         #btn-menu span { display: block; width: 18px; height: 2px; background: #fff; border-radius: 1px; }
         #side-menu-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 90; display: none; }
         #side-menu-backdrop.open { display: block; }
-        #side-menu { position: fixed; top: 0; bottom: 0; left: 0; width: 78%; max-width: 300px; background: ${G_DARK}; box-shadow: 4px 0 20px rgba(0,0,0,0.35); z-index: 100; overflow-y: auto; padding-top: 44px; transform: translateX(-100%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1); }
+        #side-menu { position: fixed; top: 0; bottom: 0; left: 0; width: 78%; max-width: 300px; background: ${G_DARK}; box-shadow: 4px 0 20px rgba(0,0,0,0.35); z-index: 100; overflow-y: auto; padding-top: 36px; transform: translateX(-100%); transition: transform 0.25s cubic-bezier(0.32,0.72,0,1); }
         #side-menu.open { transform: translateX(0); }
+        .side-menu-title { padding: 8px 18px 14px; font-size: 17px; font-weight: 800; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.15); }
         #side-menu a, #side-menu button.menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 16px 18px; color: #fff; text-decoration: none; font-size: 14px; font-weight: 500; background: none; border: none; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.1); box-sizing: border-box; touch-action: manipulation; }
         #side-menu a:last-child, #side-menu button.menu-item:last-child { border-bottom: none; }
         #side-menu a:active, #side-menu button.menu-item:active { background: rgba(255,255,255,0.12); }
@@ -716,11 +717,15 @@ export default async function AgentPage() {
           </button>
           <div id="side-menu-backdrop"></div>
           <div id="side-menu">
+            <div className="side-menu-title">Menu</div>
             <button className="menu-item" id="btn-menu-announcement">
               <span className="menu-icon">📢</span>Announcement<span className="menu-badge">NEW</span>
             </button>
-            <button className="menu-item" id="btn-menu-memo">
-              <span className="menu-icon">📋</span>Price List & Promo Memo
+            <button className="menu-item" id="btn-menu-pricelist">
+              <span className="menu-icon">💰</span>Price List
+            </button>
+            <button className="menu-item" id="btn-menu-promo">
+              <span className="menu-icon">📄</span>Promo Memo
             </button>
             <button className="menu-item" id="btn-menu-forms">
               <span className="menu-icon">📝</span>Forms
@@ -1500,7 +1505,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260813d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260813e" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
