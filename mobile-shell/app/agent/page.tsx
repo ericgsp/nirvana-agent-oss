@@ -536,11 +536,6 @@ export default function AgentPage() {
         /* ── Inventory tab: product list ↔ layout view ── */
         #avail-scroll { padding-bottom:20px; }
         /* ── Browse: sticky total bar (Inventory + Quote combined) ── */
-        #browse-stickybar { position:sticky; bottom:0; z-index:20; background:#fff; border-top:1px solid #e2e8f0; padding:10px 14px; display:flex; align-items:center; gap:12px; box-shadow:0 -6px 16px -10px rgba(0,0,0,0.15); }
-        #browse-sticky-info { flex:1; min-width:0; }
-        #browse-sticky-count { font-size:11px; color:#94a3b8; }
-        #browse-sticky-total { font-size:16px; font-weight:800; color:${G_DARK}; }
-        #browse-sticky-print { flex-shrink:0; background:#25D366; color:#04351f; border:none; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:800; cursor:pointer; touch-action:manipulation; }
         .ad-card { margin:0 10px 10px; background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,0.08); overflow:hidden; }
         .ad-label { display:flex; align-items:center; gap:9px; padding:10px 14px; border-bottom:1px solid #f0f2f5; }
         .ad-dot { width:22px; height:22px; border-radius:50%; background:${G_DARK}; color:#fff; font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -875,16 +870,6 @@ export default function AgentPage() {
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* ── Sticky total bar — appears the moment a niche is selected,
-                 so Print is one tap away without scrolling ── */}
-            <div id="browse-stickybar" className="no-print" style={{display:"none"}}>
-              <div id="browse-sticky-info">
-                <div id="browse-sticky-count"></div>
-                <div id="browse-sticky-total"></div>
-              </div>
-              <button id="browse-sticky-print">🖨 Print</button>
             </div>
           </div>
 
@@ -1505,7 +1490,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260813a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260813b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
