@@ -531,7 +531,6 @@ export default function AgentPage() {
         .drawer-placeholder { padding:40px 20px; text-align:center; color:#94a3b8; font-size:13px; }
         /* ── Inventory tab: product list ↔ layout view ── */
         #avail-scroll { padding-bottom:20px; }
-        #btn-inventory-back { display:flex; align-items:center; gap:6px; margin:10px 10px 0; padding:9px 13px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; font-size:13px; font-weight:700; color:${G_DARK}; cursor:pointer; touch-action:manipulation; }
         /* ── Browse: sticky total bar (Inventory + Quote combined) ── */
         #browse-stickybar { position:sticky; bottom:0; z-index:20; background:#fff; border-top:1px solid #e2e8f0; padding:10px 14px; display:flex; align-items:center; gap:12px; box-shadow:0 -6px 16px -10px rgba(0,0,0,0.15); }
         #browse-sticky-info { flex:1; min-width:0; }
@@ -564,6 +563,7 @@ export default function AgentPage() {
            full-screen Site → Zone → Section stepper ── */
         .qs-card { margin:10px 10px 0; }
         .qs-banner { width:100%; display:flex; align-items:center; gap:12px; background:linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); border:none; border-radius:14px; padding:13px 14px; text-align:left; }
+        #filter-banner-btn.qs-banner { background:linear-gradient(135deg, #64748b, #94a3b8); }
         .qs-banner-icon { width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center; font-size:16px; color:#fff; flex-shrink:0; }
         .qs-banner-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
         .qs-banner-title { font-size:13.5px; font-weight:800; color:#fff; }
@@ -832,10 +832,10 @@ export default function AgentPage() {
               </div>
             </div>
 
-            {/* ── Layout view: shown after picking a product from the list ── */}
-            <div id="inventory-layout-view" style={{display:"none"}}>
-              <button id="btn-inventory-back" className="no-print">‹ Back to product list</button>
-
+            {/* ── Layout + quote: lives in the same continuous scroll as the
+                 two banners above, underneath them, instead of a separate
+                 page — no more toggling in/out of view. ── */}
+            <div id="inventory-layout-view">
               {/* ── Product Assets (between selector and layout) ── */}
               <div id="assets-panel" className="no-print">
                 <div style={{padding:"10px 14px",fontSize:"12px",color:"#94a3b8"}}>No product materials</div>
@@ -1504,7 +1504,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812x" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812y" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

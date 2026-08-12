@@ -1287,26 +1287,16 @@
     }).catch(function (err) { dbg('home snapshot failed: ' + err); });
   }
 
-  // Inventory tab has two views sharing one panel: the product list (browse by
-  // price/availability) and the zone layout (niche selection). These two
-  // functions toggle between them -- names kept from when this was a modal
-  // drawer, since applyDrawerSelection() already calls closeAvailDrawer() at
-  // the point selection completes and there's no reason to touch that.
+  // Both banners and the zone layout/quote live in one continuous scroll now --
+  // these no longer toggle between two separate views (names kept since
+  // applyDrawerSelection() and other call sites still call them; they just
+  // handle the Filter Products data-fetch side now).
   function openAvailDrawer() {
-    var listView = document.getElementById('inventory-list-view');
-    var layoutView = document.getElementById('inventory-layout-view');
-    if (listView) listView.style.display = '';
-    if (layoutView) layoutView.style.display = 'none';
     renderDrawer();
     if (!drawerState._typesFetched) fetchDrawerTypes();
   }
 
-  function closeAvailDrawer() {
-    var listView = document.getElementById('inventory-list-view');
-    var layoutView = document.getElementById('inventory-layout-view');
-    if (listView) listView.style.display = 'none';
-    if (layoutView) layoutView.style.display = '';
-  }
+  function closeAvailDrawer() {}
 
   // Browse tab's sticky total bar -- shows a running count + net total the
   // moment a niche is picked, so Print is reachable without scrolling down
@@ -4502,7 +4492,6 @@
         case 'filter-stepper-back':  filterStepBack(); break;
         case 'btn-reset':         resetAll(); break;
         case 'btn-reload':        window.location.reload(); break;
-        case 'btn-inventory-back': openAvailDrawer(); break;
         case 'btn-menu': {
           var sm = document.getElementById('side-menu');
           var smBackdrop = document.getElementById('side-menu-backdrop');
