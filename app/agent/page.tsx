@@ -548,27 +548,19 @@ export default async function AgentPage() {
         .ad-site:active { opacity:0.75; }
         .ad-site-name { font-size:13px; font-weight:700; color:#0f172a; }
         .ad-site-count { font-size:11px; color:#16a34a; font-weight:600; margin-top:3px; }
-        /* ── Quick Select card ── */
-        .qs-card { margin:10px 10px 0; background:linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); border-radius:14px; padding:12px 13px; }
-        .qs-title { font-size:11px; font-weight:800; color:#fff; text-transform:uppercase; letter-spacing:0.05em; opacity:0.9; display:flex; align-items:center; gap:6px; margin-bottom:8px; }
-        .qs-lightning { font-size:12px; }
-        .qs-entry-list { display:flex; flex-direction:column; gap:8px; }
-        .qs-entry-row { width:100%; display:flex; align-items:center; gap:11px; background:rgba(255,255,255,0.14); border:1.5px solid rgba(255,255,255,0.28); border-radius:12px; padding:11px 12px; text-align:left; }
-        .qs-entry-row:disabled { opacity:0.5; }
-        .qs-entry-icon { width:32px; height:32px; border-radius:9px; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff; flex-shrink:0; }
-        .qs-entry-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
-        .qs-entry-lbl { font-size:9.5px; color:rgba(255,255,255,0.75); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; }
-        .qs-entry-val { font-size:13.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .qs-entry-row.placeholder .qs-entry-val { color:rgba(255,255,255,0.65); font-weight:600; }
-        .qs-entry-chev { color:rgba(255,255,255,0.6); font-size:16px; flex-shrink:0; }
-        .qs-field { min-width:0; position:relative; margin-top:8px; }
-        .qs-lbl { font-size:9.5px; color:rgba(255,255,255,0.75); font-weight:700; margin-bottom:3px; }
-        .qs-select, .qs-select-native { width:100%; background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.32); border-radius:9px; padding:8px 9px; font-size:11.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
-        .qs-select.placeholder { color:rgba(255,255,255,0.6); font-weight:600; }
-        .qs-select-native { appearance:none; -webkit-appearance:none; }
-        .qs-select-native:disabled { opacity:0.55; }
-        .qs-hint { font-size:10px; color:rgba(255,255,255,0.75); margin-top:8px; text-align:center; }
-        #qs-next-btn { width:100%; margin-top:10px; padding:10px; border-radius:9px; border:none; background:#25D366; color:#04351f; font-size:12.5px; font-weight:800; cursor:pointer; touch-action:manipulation; }
+        /* ── Quick Select banner — single entry point opening the
+           full-screen Site → Zone → Section stepper ── */
+        .qs-card { margin:10px 10px 0; }
+        .qs-banner { width:100%; display:flex; align-items:center; gap:12px; background:linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); border:none; border-radius:14px; padding:13px 14px; text-align:left; }
+        .qs-banner-icon { width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center; font-size:16px; color:#fff; flex-shrink:0; }
+        .qs-banner-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+        .qs-banner-title { font-size:13.5px; font-weight:800; color:#fff; }
+        .qs-banner-sub { font-size:11px; font-weight:600; color:rgba(255,255,255,0.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .qs-banner-chev { color:rgba(255,255,255,0.7); font-size:20px; flex-shrink:0; }
+        /* Confirm / skip step (Section step, when N/A or as a bottom action) */
+        .qs-confirm-note { margin:0 12px 12px; padding:24px 18px; text-align:center; font-size:13px; color:#64748b; background:#f8fafc; border:1.5px dashed #e2e8f0; border-radius:14px; }
+        .qs-confirm-cta { display:block; width:calc(100% - 24px); margin:8px 12px 0; padding:13px; border-radius:13px; border:none; background:${G_DARK}; color:#fff; font-size:13.5px; font-weight:800; cursor:pointer; touch-action:manipulation; }
+        .qs-confirm-cta-secondary { background:#f8fafc; color:#475569; border:1.5px solid #e2e8f0; }
         .ad-divider { display:flex; align-items:center; gap:8px; margin:14px 12px 6px; }
         .ad-divider::before, .ad-divider::after { content:''; flex:1; border-top:1px dashed #e2e8f0; }
         .ad-divider span { font-size:10px; font-weight:800; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; }
@@ -781,34 +773,33 @@ export default async function AgentPage() {
               {/* ── Quick Select — fast path for agents who already know the
                    product; skips the filter wizard entirely and jumps straight
                    to the layout grid ── */}
+              {/* Quick Select — one banner opening the 3-step stepper
+                   (Site → Zone → Section) below. The buttons/select here
+                   stay in the DOM but hidden — they're the state holders
+                   the stepper logic reads/writes; only the banner itself
+                   and the stepper overlay are ever visible. */}
               <div className="qs-card no-print">
-                <div className="qs-title"><span className="qs-lightning">⚡</span>Quick Select</div>
-                <div id="zone-filter" className="qs-entry-list">
-                  <button id="site-dd-btn" className="qs-entry-row placeholder">
-                    <span className="qs-entry-icon">◈</span>
-                    <span className="qs-entry-body">
-                      <span className="qs-entry-lbl">Site</span>
-                      <span className="qs-entry-val" id="site-dd-val">Select site…</span>
-                    </span>
-                    <span className="qs-entry-chev">›</span>
+                <button id="qs-banner-btn" className="qs-banner">
+                  <span className="qs-banner-icon">⚡</span>
+                  <span className="qs-banner-body">
+                    <span className="qs-banner-title">Quick Select</span>
+                    <span className="qs-banner-sub" id="qs-banner-sub">Pick a site, zone &amp; section fast</span>
+                  </span>
+                  <span className="qs-banner-chev">›</span>
+                </button>
+                <div id="zone-filter" style={{display:'none'}}>
+                  <button id="site-dd-btn" className="placeholder">
+                    <span id="site-dd-val">Select site…</span>
                   </button>
-                  <button id="zone-dd-btn" className="qs-entry-row placeholder" disabled>
-                    <span className="qs-entry-icon">▦</span>
-                    <span className="qs-entry-body">
-                      <span className="qs-entry-lbl">Zone</span>
-                      <span className="qs-entry-val" id="zone-dd-val">Select zone…</span>
-                    </span>
-                    <span className="qs-entry-chev">›</span>
+                  <button id="zone-dd-btn" className="placeholder" disabled>
+                    <span id="zone-dd-val">Select zone…</span>
                   </button>
-                  <div className="qs-field" id="section-wrap">
-                    <div className="qs-lbl">Sec/Row</div>
-                    <select id="section-sel" className="qs-select-native" disabled>
+                  <div id="section-wrap">
+                    <select id="section-sel" disabled>
                       <option value="">N/A</option>
                     </select>
                   </div>
                 </div>
-                <div className="qs-hint">Already know the product? Pick Site &amp; Zone, then Sec/Row if needed.</div>
-                <button id="qs-next-btn" style={{display:'none'}}>Next: View Layout →</button>
               </div>
 
               <div className="ad-divider no-print"><span>or browse</span></div>
@@ -923,6 +914,7 @@ export default async function AgentPage() {
         <div id="qs-stepper-body">
           <div id="site-dd-panel" className="qs-step-panel"></div>
           <div id="zone-dd-panel" className="qs-step-panel" style={{display:'none'}}></div>
+          <div id="qs-section-panel" className="qs-step-panel" style={{display:'none'}}></div>
         </div>
       </div>
 
@@ -1469,7 +1461,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812u" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812v" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

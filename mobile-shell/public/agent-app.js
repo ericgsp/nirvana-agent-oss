@@ -351,8 +351,11 @@
     panel.innerHTML = html;
   }
 
-  // ── Quick Select stepper shell (Site → Zone, one full-screen step at a time) ──
-  var QS_STEP_TITLES = ['Choose a Site', 'Choose a Zone'];
+  // ── Quick Select stepper shell (Site → Zone → Section, one full-screen
+  // step at a time — Section step is skipped visually to a "ready" note
+  // when the zone has no sections, but still counts as step 3) ──
+  var QS_TOTAL_STEPS = 3;
+  var QS_STEP_TITLES = ['Choose a Site', 'Choose a Zone', 'Choose a Section'];
 
   function renderQsStepperShell() {
     var back  = qs('qs-stepper-back');
@@ -360,11 +363,11 @@
     var count = qs('qs-stepper-step-count');
     var dots  = qs('qs-stepper-dots');
     if (title) title.textContent = QS_STEP_TITLES[qsStep - 1] || '';
-    if (count) count.textContent = 'Step ' + qsStep + ' of 2';
+    if (count) count.textContent = 'Step ' + qsStep + ' of ' + QS_TOTAL_STEPS;
     if (back) back.style.visibility = qsStep <= 1 ? 'hidden' : 'visible';
     if (dots) {
       var html = '';
-      for (var i = 1; i <= 2; i++) {
+      for (var i = 1; i <= QS_TOTAL_STEPS; i++) {
         html += '<div class="qs-dot' + (i < qsStep ? ' done' : i === qsStep ? ' now' : '') + '"></div>';
       }
       dots.innerHTML = html;
@@ -373,16 +376,18 @@
 
   function showQsStep(n) {
     qsStep = n;
-    var sitePanel = qs('site-dd-panel');
-    var zonePanel = qs('zone-dd-panel');
-    if (sitePanel) sitePanel.style.display = n === 1 ? '' : 'none';
-    if (zonePanel) zonePanel.style.display = n === 2 ? '' : 'none';
+    var sitePanel    = qs('site-dd-panel');
+    var zonePanel    = qs('zone-dd-panel');
+    var sectionPanel = qs('qs-section-panel');
+    if (sitePanel)    sitePanel.style.display    = n === 1 ? '' : 'none';
+    if (zonePanel)    zonePanel.style.display    = n === 2 ? '' : 'none';
+    if (sectionPanel) sectionPanel.style.display = n === 3 ? '' : 'none';
     renderQsStepperShell();
     if (n === 1) {
       siteDropdownIsOpen = true;
       zoneDropdownIsOpen = false;
       renderSiteDropdownPanel();
-    } else {
+    } else if (n === 2) {
       siteDropdownIsOpen = false;
       zoneDropdownIsOpen = true;
       if (!productOpts.length) {
@@ -390,7 +395,45 @@
       } else {
         renderZoneDropdownPanel();
       }
+    } else {
+      siteDropdownIsOpen = false;
+      zoneDropdownIsOpen = false;
+      renderQsSectionPanel();
     }
+  }
+
+  function renderQsSectionPanel() {
+    var panel = qs('qs-section-panel');
+    if (!panel) return;
+    var g = null;
+    if (currentZoneGroupKey && _cachedCatGroups) {
+      _cachedCatGroups.forEach(function (cat) {
+        cat.groups.forEach(function (gr) { if (gr.key === currentZoneGroupKey) g = gr; });
+      });
+    }
+    if (!g || g.members.length === 0) {
+      panel.innerHTML = '<div class="qs-confirm-note">This zone has no sections to narrow down — you\'re ready to view the layout.</div>'
+        + '<button class="qs-confirm-cta" data-qsfinish="1">View layout →</button>';
+      return;
+    }
+    var html = '';
+    if (g.type === 'group') {
+      g.members.forEach(function (m) {
+        var label = m.name.slice(g.key.length + 1);
+        html += '<div class="f-dd-zone" data-section="' + esc(m.name) + '"><span class="f-dd-zone-name">' + esc(label) + '</span><span class="f-dd-zone-right"><span class="f-dd-zone-chev">›</span></span></div>';
+      });
+    } else if (g.type === 'subsections') {
+      g.members.forEach(function (sub) {
+        var isCombo = window.AgentCombo && window.AgentCombo.isComboSection && window.AgentCombo.isComboSection(sub.section);
+        var badges = '';
+        if (sub.instant_case) badges += '<span class="f-dd-badge-amber">Instant</span>';
+        if (isCombo) badges += '<span class="f-dd-badge-green">🎁 Combo</span>';
+        var availPill = sub.available != null ? '<span class="f-dd-avail' + (sub.available < 15 ? ' f-dd-avail-low' : '') + '">' + sub.available + ' left</span>' : '';
+        html += '<div class="f-dd-zone" data-section="' + esc(sub.section) + '"><span class="f-dd-zone-name">' + esc(sub.section) + badges + '</span><span class="f-dd-zone-right">' + availPill + '<span class="f-dd-zone-chev">›</span></span></div>';
+      });
+    }
+    html += '<button class="qs-confirm-cta qs-confirm-cta-secondary" data-qsfinish="1">Skip — view full layout →</button>';
+    panel.innerHTML = html;
   }
 
   function openQsStepper(startStep) {
@@ -553,16 +596,11 @@
 
   function onZoneSelected(groupKey) {
     currentZoneGroupKey = groupKey;
-    closeQsStepper();
     if (!_cachedCatGroups) _cachedCatGroups = buildCategoryGroups();
-    // Find the group
-    var g = null;
-    _cachedCatGroups.forEach(function (cat) {
-      cat.groups.forEach(function (gr) { if (gr.key === groupKey) g = gr; });
-    });
     // Update button label
     updateZoneDropdownBtn();
-    // Update section select
+    // Update section select (kept in sync in the background — still the
+    // source of truth the rest of the app reads/writes via its 'change' event)
     updateSectionSelect();
     product = groupKey;
     window._drawerSectionFilter = '';
@@ -571,11 +609,8 @@
     resetLayout(); saveSession(); updateUI();
     loadLayout(site, groupKey);
     renderAssetsPanel();
-    // Zone picked, but don't jump to the layout yet -- the agent may still
-    // want to narrow down by Sec/Row first. Show the Next button instead of
-    // auto-navigating; see 'qs-next-btn' click handler for the actual jump.
-    var nextBtn = qs('qs-next-btn');
-    if (nextBtn) nextBtn.style.display = '';
+    // Advance to step 3 — choose a Section, or confirm/skip straight to layout.
+    showQsStep(3);
   }
 
   function findGroupForProduct(prod, groups) {
@@ -786,8 +821,6 @@
     site = ''; product = ''; productOpts = []; currentZoneGroupKey = ''; openCategory = null; openSiteGroup = null; _cachedCatGroups = null; resetLayout();
     window._drawerPromoFilter = '';
     closeQsStepper();
-    var nextBtn = qs('qs-next-btn');
-    if (nextBtn) nextBtn.style.display = 'none';
     updateUI();
   }
 
@@ -4017,8 +4050,19 @@
     if (btn) btn.style.display = ''; // always visible — last-resort escape hatch
   }
 
+  function updateQsBannerSub() {
+    var sub = qs('qs-banner-sub');
+    if (!sub) return;
+    if (!site) { sub.textContent = 'Pick a site, zone & section fast'; return; }
+    var parts = [site];
+    if (currentZoneGroupKey) parts.push(currentZoneGroupKey);
+    var secSel = qs('section-sel');
+    if (secSel && secSel.value) parts.push(secSel.value);
+    sub.textContent = parts.join(' · ');
+  }
+
   function updateUI() {
-    updateSiteSelect(); updateZoneSelect(); updateResetBtn();
+    updateSiteSelect(); updateZoneSelect(); updateResetBtn(); updateQsBannerSub();
     renderLayoutArea(); renderQuoteSection();
   }
 
@@ -4128,8 +4172,6 @@
         if (siteChanged) {
           product = ''; currentZoneGroupKey = ''; openCategory = null; _cachedCatGroups = null;
           window._drawerSectionFilter = ''; window._drawerLevelFilter = ''; window._drawerPromoFilter = ''; productOpts = []; resetLayout();
-          var nextBtnOnSiteChange = qs('qs-next-btn');
-          if (nextBtnOnSiteChange) nextBtnOnSiteChange.style.display = 'none';
         }
         saveSession(); updateUI();
         if (!val) return;
@@ -4200,6 +4242,7 @@
           saveSession();
           applyLayoutSectionFilter();
           colorCells();
+          updateQsBannerSub();
         }
         return;
       }
@@ -4239,6 +4282,30 @@
       // Outside click — close dropdown
       if (zoneDropdownIsOpen) {
         if (ddPanel && !ddPanel.contains(e.target)) closeZoneDropdown();
+      }
+    });
+
+    // Quick Select stepper — Section step (step 3) click delegation
+    document.addEventListener('click', function (e) {
+      var secPanel = qs('qs-section-panel');
+      if (!secPanel || !secPanel.contains(e.target)) return;
+
+      var secEl = e.target.closest && e.target.closest('[data-section]');
+      if (secEl) {
+        var secVal = secEl.getAttribute('data-section');
+        var sel = qs('section-sel');
+        if (sel) {
+          sel.value = secVal;
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        closeQsStepper();
+        return;
+      }
+
+      var finishEl = e.target.closest && e.target.closest('[data-qsfinish]');
+      if (finishEl) {
+        closeQsStepper();
+        return;
       }
     });
 
@@ -4338,6 +4405,7 @@
       }
 
       switch (id) {
+        case 'qs-banner-btn':     openQsStepper(1); break;
         case 'btn-reset':         resetAll(); break;
         case 'btn-reload':        window.location.reload(); break;
         case 'btn-inventory-back': openAvailDrawer(); break;
@@ -4356,10 +4424,6 @@
         case 'memo-backdrop':
           document.getElementById('memo-backdrop').classList.remove('open');
           document.getElementById('memo-drawer').classList.remove('open');
-          break;
-        case 'qs-next-btn':
-          switchTab('browse');
-          closeAvailDrawer();
           break;
         case 'qs-stepper-close':
           closeQsStepper();
