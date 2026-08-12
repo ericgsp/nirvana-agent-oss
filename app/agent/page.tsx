@@ -387,6 +387,23 @@ export default async function AgentPage() {
         .qs-dot.now { background:${G_DARK}; }
         #qs-stepper-body { flex:1; overflow-y:auto; padding:10px 0 32px; }
         .qs-step-panel { padding:0; }
+        /* Filter Products stepper — same shell as Quick Select's, reused under
+           its own ids since the two overlays are visually independent but can
+           follow each other in a session (Quick Select never covers Filter). */
+        #filter-stepper { position:fixed; inset:0; background:#f0f2f5; z-index:1150; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
+        #filter-stepper.open { transform:translateY(0); }
+        #filter-stepper-topbar { display:flex; align-items:center; gap:10px; padding:14px 14px 10px; background:${G_DARK}; color:#fff; flex-shrink:0; }
+        #filter-stepper-back, #filter-stepper-close { width:30px; height:30px; border-radius:50%; border:none; background:rgba(255,255,255,0.18); color:#fff; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; touch-action:manipulation; }
+        #filter-stepper-title-wrap { flex:1; min-width:0; }
+        #filter-stepper-step-count { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; opacity:0.75; }
+        #filter-stepper-title { font-size:15px; font-weight:800; margin:1px 0 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        #filter-stepper-dots { display:flex; gap:5px; padding:12px 16px 4px; flex-shrink:0; background:#f0f2f5; }
+        #filter-stepper-body { flex:1; overflow-y:auto; }
+        /* Only the deepest/last card (the current step) is visible at once —
+           renderDrawer()'s existing per-step .ad-card HTML is unchanged. */
+        #filter-stepper-body .ad-card { display:none; margin-top:0 !important; }
+        #filter-stepper-body .ad-card:last-of-type { display:block; }
+        #filter-stepper-body .ad-dot { display:none; }
 
         #memo-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
         #memo-backdrop.open { display:block; }
@@ -802,9 +819,20 @@ export default async function AgentPage() {
                 </div>
               </div>
 
-              <div className="ad-divider no-print"><span>or browse</span></div>
+              <div className="ad-divider no-print"><span>or filter</span></div>
 
-              <div id="avail-scroll"><div id="avail-content"></div></div>
+              {/* Filter Products — banner opens the full-screen stepper below.
+                   Reuses the exact same avail-content rendering/fetch logic as
+                   before; only where it's mounted (hidden overlay vs inline)
+                   and how much is shown at once (one step vs all stacked) changed. */}
+              <button id="filter-banner-btn" className="qs-banner no-print" style={{margin:'0 10px 10px'}}>
+                <span className="qs-banner-icon">⚙</span>
+                <span className="qs-banner-body">
+                  <span className="qs-banner-title">Filter Products</span>
+                  <span className="qs-banner-sub" id="filter-banner-sub">Narrow down by type, site &amp; features</span>
+                </span>
+                <span className="qs-banner-chev">›</span>
+              </button>
             </div>
 
             {/* ── Layout view: shown after picking a product from the list ── */}
@@ -916,6 +944,24 @@ export default async function AgentPage() {
           <div id="zone-dd-panel" className="qs-step-panel" style={{display:'none'}}></div>
           <div id="qs-section-panel" className="qs-step-panel" style={{display:'none'}}></div>
         </div>
+      </div>
+
+      {/* Filter Products stepper — Type → Site → Available Zones → Section/
+          Lot Type → (Level), full-screen, one step at a time. avail-content
+          is the same element renderDrawer() has always rendered into; only
+          #filter-stepper-body's CSS (show last .ad-card only) makes it act
+          like a stepper instead of a stacked scroll. */}
+      <div id="filter-stepper">
+        <div id="filter-stepper-topbar">
+          <button id="filter-stepper-back">‹</button>
+          <div id="filter-stepper-title-wrap">
+            <div id="filter-stepper-step-count"></div>
+            <h2 id="filter-stepper-title"></h2>
+          </div>
+          <button id="filter-stepper-close">×</button>
+        </div>
+        <div id="filter-stepper-dots"></div>
+        <div id="filter-stepper-body"><div id="avail-scroll"><div id="avail-content"></div></div></div>
       </div>
 
       <div id="memo-backdrop"></div>
@@ -1461,7 +1507,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812v" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812w" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

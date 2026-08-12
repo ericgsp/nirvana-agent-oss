@@ -1526,6 +1526,96 @@
     bindDrawerEvents(c);
     if (drawerState._typesFetched) renderTypeChips();
     if (drawerState._sitesFetched) renderSiteCards();
+    renderFilterStepperShell();
+    updateFilterBannerSub();
+  }
+
+  // ── Filter Products stepper shell — full-screen, one step at a time.
+  // Reuses renderDrawer()'s existing per-step ".ad-card" HTML unchanged;
+  // only the LAST card (the deepest step reached) is shown at once via
+  // CSS (#filter-stepper-body .ad-card:last-of-type), so no rewrite of
+  // the card-building or fetch logic above was needed. ──
+  function isNicheFilterType(t) { return t === 'NICHE' || t === 'PET NICHE'; }
+
+  function filterStepInfo() {
+    var titles = ['Product Type', 'Site', 'Available Zones'];
+    if (drawerState.type) {
+      var isNiche = isNicheFilterType(drawerState.type);
+      if (drawerState.selectedZone) titles.push(isNiche ? 'Section' : 'Lot Type');
+      if (!isNiche && drawerState.selectedPrefix !== null && drawerState._levelOpts && drawerState._levelOpts.length) titles.push('Level');
+    }
+    return titles;
+  }
+
+  function renderFilterStepperShell() {
+    var back  = qs('filter-stepper-back');
+    var title = qs('filter-stepper-title');
+    var count = qs('filter-stepper-step-count');
+    var dots  = qs('filter-stepper-dots');
+    if (!back && !title && !count && !dots) return;
+    var titles = filterStepInfo();
+    var step = titles.length;
+    var total = drawerState.type ? (isNicheFilterType(drawerState.type) ? 4 : 5) : 3;
+    if (title) title.textContent = titles[step - 1] || '';
+    if (count) count.textContent = 'Step ' + step + ' of ' + total;
+    if (back) back.style.visibility = step <= 1 ? 'hidden' : 'visible';
+    if (dots) {
+      var html = '';
+      for (var i = 1; i <= total; i++) {
+        html += '<div class="qs-dot' + (i < step ? ' done' : i === step ? ' now' : '') + '"></div>';
+      }
+      dots.innerHTML = html;
+    }
+  }
+
+  function updateFilterBannerSub() {
+    var sub = qs('filter-banner-sub');
+    if (!sub) return;
+    if (!drawerState.type) { sub.textContent = 'Narrow down by type, site & features'; return; }
+    var parts = [drawerState.typeLabel || drawerState.type];
+    if (drawerState.site) parts.push(drawerState.site);
+    if (drawerState.selectedZone) parts.push(displayZone(drawerState.site, drawerState.selectedZone.zone));
+    sub.textContent = parts.join(' · ');
+  }
+
+  function openFilterStepper() {
+    var el = qs('filter-stepper');
+    if (!el) return;
+    el.classList.add('open');
+    if (!drawerState._typesFetched) fetchDrawerTypes(); else renderDrawer();
+  }
+
+  function closeFilterStepper() {
+    var el = qs('filter-stepper');
+    if (el) el.classList.remove('open');
+  }
+
+  function filterStepBack() {
+    if (drawerState.type && !drawerState.site) {
+      drawerState.type = ''; drawerState.typeLabel = ''; drawerState.site = ''; drawerState.levels = [];
+      drawerState.selectedZone = null; drawerState.selectedPrefix = null; drawerState.selectedSection = null;
+      renderDrawer();
+      return;
+    }
+    if (drawerState.site && !drawerState.selectedZone) {
+      drawerState.site = ''; drawerState.levels = []; drawerState.selectedZone = null;
+      drawerState.selectedPrefix = null; drawerState.selectedSection = null;
+      renderDrawer();
+      return;
+    }
+    var isNiche = isNicheFilterType(drawerState.type);
+    if (drawerState.selectedZone && !isNiche && drawerState.selectedPrefix !== null && drawerState._levelOpts && drawerState._levelOpts.length) {
+      drawerState.selectedPrefix = null; drawerState.levels = []; drawerState._levelOpts = [];
+      renderDrawer();
+      return;
+    }
+    if (drawerState.selectedZone) {
+      drawerState.selectedZone = null; drawerState.selectedPrefix = null; drawerState.selectedSection = null;
+      drawerState.levels = []; drawerState._lotTypes = []; drawerState._sections = []; drawerState._levelOpts = [];
+      renderDrawer();
+      return;
+    }
+    closeFilterStepper();
   }
 
   function bindDrawerEvents(c) {
@@ -1635,6 +1725,7 @@
 
   function applyDrawerSelection() {
     if (!drawerState.selectedZone) return;
+    closeFilterStepper();
     closeAvailDrawer();
     // Set filters FIRST so colorCells picks them up when layout renders
     window._drawerSectionFilter = drawerState.selectedPrefix || '';
@@ -4406,6 +4497,9 @@
 
       switch (id) {
         case 'qs-banner-btn':     openQsStepper(1); break;
+        case 'filter-banner-btn': openFilterStepper(); break;
+        case 'filter-stepper-close': closeFilterStepper(); break;
+        case 'filter-stepper-back':  filterStepBack(); break;
         case 'btn-reset':         resetAll(); break;
         case 'btn-reload':        window.location.reload(); break;
         case 'btn-inventory-back': openAvailDrawer(); break;
