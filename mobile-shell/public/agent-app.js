@@ -3298,11 +3298,13 @@
     if (site === 'Semenyih-NMG' && product === 'OV6-1F-AT' && dpPct !== 100) _dpFixedRm = 4000;
     var el = qs('quote-body');
     if (!el) return;
-    var pdfBtn = qs('btn-pdf');
-    if (pdfBtn) pdfBtn.style.display = lotQuotes.length ? '' : 'none';
+    // Print and Share used to be two separate buttons -- redundant in
+    // practice (nobody prints anymore; Share covers the real use case of
+    // getting the quote to a customer). One button now: native app shares
+    // a real PDF, plain browser falls back to the print dialog (as close
+    // to "share" as a browser tab can get).
     var shareBtn = qs('btn-share-pdf');
-    var isNativeApp = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
-    if (shareBtn) shareBtn.style.display = (lotQuotes.length && isNativeApp) ? '' : 'none';
+    if (shareBtn) shareBtn.style.display = lotQuotes.length ? '' : 'none';
     updateBrowseStickyBar();
     // Preserve horizontal scroll so new columns appear in place without jumping left
     var qtScrollEl = el.querySelector('.qt-scroll');
@@ -5138,13 +5140,14 @@
           document.getElementById('challenge-backdrop').classList.remove('open');
           document.getElementById('challenge-drawer').classList.remove('open');
           break;
-        case 'browse-sticky-print':
-        case 'btn-pdf':
-          if (lotQuotes.length) openCustomerInfoModal('print'); else doPrintFlow();
+        case 'btn-share-pdf': {
+          var _isNativeApp = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+          var _action = _isNativeApp ? 'share' : 'print';
+          if (lotQuotes.length) openCustomerInfoModal(_action);
+          else if (_isNativeApp) doSharePdfFlow();
+          else doPrintFlow();
           break;
-        case 'btn-share-pdf':
-          if (lotQuotes.length) openCustomerInfoModal('share'); else doSharePdfFlow();
-          break;
+        }
         case 'customer-info-modal-cancel':
         case 'customer-info-modal-backdrop':
           closeCustomerInfoModal();
