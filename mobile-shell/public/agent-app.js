@@ -1076,31 +1076,48 @@
     }
   }
 
+  var MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function renderYearlyGoalCard(yg) {
+    if (!yg || !yg.yearlyTarget) {
+      return '<button class="me-set-goal-btn me-set-goal-btn-outline" id="btn-set-yearly-goal">Set your yearly goal</button>';
+    }
+    var now = new Date();
+    var curPeriod = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    var thisMonth = null;
+    (yg.months || []).forEach(function (m) { if (m.period === curPeriod) thisMonth = m; });
+
+    var yPct = yg.yearlyTarget > 0 ? Math.min(100, Math.round(yg.yearlyActual / yg.yearlyTarget * 100)) : 0;
+    var mPct = thisMonth && thisMonth.target > 0 ? Math.min(100, Math.round(thisMonth.actual / thisMonth.target * 100)) : 0;
+
+    var bars = (yg.months || []).map(function (m, i) {
+      var pct = m.target > 0 ? Math.min(100, Math.round(m.actual / m.target * 100)) : 0;
+      var isNow = m.period === curPeriod;
+      return '<div class="mgc-bar-col' + (isNow ? ' mgc-bar-now' : '') + '">' +
+        '<div class="mgc-bar-track"><div class="mgc-bar-fill" style="height:' + pct + '%"></div></div>' +
+        '<div class="mgc-bar-label">' + MONTH_ABBR[i] + '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="mgc">' +
+      '<div class="mgc-cap">Yearly goal · ' + yg.year + '</div>' +
+      '<div class="mgc-figs"><div class="mgc-actual">RM ' + fmt(yg.yearlyActual) + '</div><div class="mgc-of">of RM ' + fmt(yg.yearlyTarget) + '</div></div>' +
+      '<div class="home-goal-track"><div style="width:' + yPct + '%"></div></div>' +
+      '<div class="mgc-month-cap">This month (' + esc(curPeriod) + ')</div>' +
+      '<div class="mgc-figs"><div class="mgc-actual mgc-actual-sm">RM ' + fmt(thisMonth ? thisMonth.actual : 0) + '</div><div class="mgc-of">of RM ' + fmt(thisMonth ? thisMonth.target : 0) + '</div></div>' +
+      '<div class="home-goal-track"><div style="width:' + mPct + '%"></div></div>' +
+      '<div class="mgc-bars">' + bars + '</div>' +
+      '<div class="me-goal-btn-row">' +
+        '<button class="me-set-goal-btn" id="btn-set-yearly-goal">Edit yearly goal</button>' +
+        '<button class="me-set-goal-btn me-goal-btn-danger" id="btn-remove-yearly-goal">Remove</button>' +
+      '</div>' +
+    '</div>';
+  }
+
   function loadMeSnapshot() {
     fetch(API_BASE + '/api/agent/me-snapshot').then(function (res) { return res.json(); }).then(function (data) {
       var goalCard = document.getElementById('me-goal-card');
-      if (goalCard) {
-        if (data.goal) {
-          var pct = data.goal.target_amount > 0 ? Math.min(100, Math.round(data.goal.actual_amount / data.goal.target_amount * 100)) : 0;
-          goalCard.innerHTML =
-            '<div class="home-goal">' +
-              '<div class="home-goal-cap">Your sales vs goal · ' + esc(data.goal.period) + '</div>' +
-              '<div class="home-goal-figs"><div class="home-goal-actual">RM ' + fmt(data.goal.actual_amount) + '</div>' +
-                '<div class="home-goal-of">of RM ' + fmt(data.goal.target_amount) + '</div></div>' +
-              '<div class="home-goal-track"><div style="width:' + pct + '%"></div></div>' +
-              '<div class="me-goal-btn-row">' +
-                '<button class="me-set-goal-btn" id="btn-set-my-goal">Edit my goal</button>' +
-                '<button class="me-set-goal-btn me-goal-btn-danger" id="btn-remove-my-goal">Remove</button>' +
-              '</div>' +
-            '</div>';
-        } else {
-          goalCard.innerHTML =
-            '<div class="home-stat-row">' +
-              '<div class="home-stat-card"><div class="home-stat-num">' + (data.recentQuotes ? data.recentQuotes.length : 0) + '</div><div class="home-stat-cap">Quotes generated recently</div></div>' +
-            '</div>' +
-            '<button class="me-set-goal-btn me-set-goal-btn-outline" id="btn-set-my-goal">Set my goal for this month</button>';
-        }
-      }
+      if (goalCard) goalCard.innerHTML = renderYearlyGoalCard(data.yearlyGoal);
 
       var teamCard = document.getElementById('me-team-card');
       if (teamCard) {
@@ -1381,6 +1398,34 @@
     }).catch(function (err) { dbg('mark sold failed: ' + err); });
   }
 
+  function openYearlyGoalModal() {
+    var amt = qs('yearly-goal-modal-amount');
+    if (amt) amt.value = '';
+    var backdrop = qs('yearly-goal-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeYearlyGoalModal() {
+    var backdrop = qs('yearly-goal-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function confirmYearlyGoal() {
+    var amt = qs('yearly-goal-modal-amount');
+    var annual = amt ? parseFloat(amt.value) : NaN;
+    if (!annual || annual <= 0) { alert('Enter a valid yearly target amount.'); return; }
+    fetch(API_BASE + '/api/agent/me-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_yearly_goal', annual_target: annual }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeYearlyGoalModal();
+      _meLoaded = false;
+      loadMeSnapshot();
+    }).catch(function (err) { dbg('set yearly goal failed: ' + err); });
+  }
+
   function openGoalModal(userId, label, isSelf) {
     _goalModalUserId = userId;
     _goalModalSelf = !!isSelf;
@@ -1404,7 +1449,7 @@
     var amount = amt ? parseFloat(amt.value) : NaN;
     if ((!_goalModalSelf && !_goalModalUserId) || !amount || amount <= 0) { alert('Enter a valid target amount.'); return; }
 
-    var url = _goalModalSelf ? '/api/agent/me-snapshot' : '/api/agent/team-snapshot';
+    var url = API_BASE + (_goalModalSelf ? '/api/agent/me-snapshot' : '/api/agent/team-snapshot');
     var payload = _goalModalSelf
       ? { action: 'set_goal', target_amount: amount }
       : { user_id: _goalModalUserId, target_amount: amount };
@@ -4871,21 +4916,30 @@
         case 'goal-modal-confirm':
           confirmGoal();
           break;
-        case 'btn-set-my-goal':
-          openGoalModal(null, 'Your monthly goal', true);
+        case 'btn-set-yearly-goal':
+          openYearlyGoalModal();
           break;
-        case 'btn-remove-my-goal':
-          if (confirm('Remove your goal for this month? You can set a new one anytime.')) {
+        case 'btn-remove-yearly-goal':
+          if (confirm('Remove your yearly goal? This clears the target for all 12 months. You can set a new one anytime.')) {
             fetch(API_BASE + '/api/agent/me-snapshot', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'delete_goal' })
+              body: JSON.stringify({ action: 'delete_yearly_goal' })
             }).then(function (res) { return res.json(); }).then(function (data) {
               if (data.error) { alert(data.error); return; }
               _meLoaded = false;
               loadMeSnapshot();
-            }).catch(function (err) { dbg('delete goal failed: ' + err); });
+            }).catch(function (err) { dbg('delete yearly goal failed: ' + err); });
           }
+          break;
+        case 'yearly-goal-modal-cancel':
+          closeYearlyGoalModal();
+          break;
+        case 'yearly-goal-modal-backdrop':
+          if (e.target.id === 'yearly-goal-modal-backdrop') closeYearlyGoalModal();
+          break;
+        case 'yearly-goal-modal-confirm':
+          confirmYearlyGoal();
           break;
         case 'btn-menu-announcement':
         case 'home-whats-new-teaser':

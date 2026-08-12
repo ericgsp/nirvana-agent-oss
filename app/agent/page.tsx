@@ -149,6 +149,20 @@ export default async function AgentPage() {
         .me-goal-btn-row { display: flex; gap: 8px; margin-top: 10px; }
         .me-goal-btn-row .me-set-goal-btn { margin-top: 0; flex: 1; }
         .me-goal-btn-danger { background: rgba(255,255,255,0.10); color: #fecaca; }
+        .mgc { padding: 16px; border-radius: 16px; color: #fff; background: linear-gradient(150deg, ${G_DARK} 0%, ${G_TEAL} 130%); }
+        .mgc-cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; font-weight: 700; }
+        .mgc-figs { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
+        .mgc-actual { font-size: 22px; font-weight: 700; }
+        .mgc-actual-sm { font-size: 16px; }
+        .mgc-of { font-size: 12px; opacity: 0.8; }
+        .mgc-month-cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; font-weight: 700; margin-top: 16px; }
+        .mgc-bars { display: flex; align-items: flex-end; gap: 5px; margin-top: 16px; height: 56px; }
+        .mgc-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+        .mgc-bar-track { flex: 1; width: 100%; max-width: 14px; background: rgba(255,255,255,0.18); border-radius: 4px; display: flex; align-items: flex-end; overflow: hidden; }
+        .mgc-bar-fill { width: 100%; background: #fff; border-radius: 4px; min-height: 2px; }
+        .mgc-bar-label { font-size: 8.5px; opacity: 0.7; margin-top: 3px; font-weight: 600; }
+        .mgc-bar-now .mgc-bar-track { background: rgba(255,255,255,0.32); }
+        .mgc-bar-now .mgc-bar-label { opacity: 1; font-weight: 800; }
         .team-remove-goal-btn { display: block; margin-top: 8px; padding: 5px 0; border: none; background: transparent; color: #b91c1c; font-size: 10.5px; font-weight: 700; text-align: left; }
         #me-team-card { margin: 10px 10px 0; }
         .me-team-card { padding: 14px; border-radius: 16px; background: #fff; border: 1px solid #e2e8f0; }
@@ -215,6 +229,17 @@ export default async function AgentPage() {
         #edit-customer-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #edit-customer-modal-cancel { background:#f1f5f9; color:#475569; }
         #edit-customer-modal-confirm { background:${G_TEAL}; color:#fff; }
+
+        #yearly-goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #yearly-goal-modal-backdrop.open { display:flex; }
+        #yearly-goal-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #yearly-goal-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #yearly-goal-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        #yearly-goal-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
+        #yearly-goal-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #yearly-goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #yearly-goal-modal-cancel { background:#f1f5f9; color:#475569; }
+        #yearly-goal-modal-confirm { background:${G_TEAL}; color:#fff; }
 
         #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #goal-modal-backdrop.open { display:flex; }
@@ -940,7 +965,7 @@ export default async function AgentPage() {
             <div id="me-team-card"></div>
 
             <div className="s-label no-print" style={{marginTop:"6px"}}>
-              <span className="s-title">Your Quotes</span>
+              <span className="s-title">Quotation generated</span>
             </div>
             <div id="me-quotes-list"></div>
           </div>
@@ -1542,6 +1567,22 @@ export default async function AgentPage() {
         </div>
       </div>
 
+      {/* Yearly goal modal — Me tab. Splits equally across the 12 months of
+          the current year; an individual month can still be adjusted later
+          via the Team tab's per-member goal modal reused for "self". */}
+      <div id="yearly-goal-modal-backdrop">
+        <div id="yearly-goal-modal-box">
+          <div id="yearly-goal-modal-title">Set Yearly Goal</div>
+          <div id="yearly-goal-modal-sub">Splits equally across all 12 months</div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Yearly target (RM)</div>
+          <input id="yearly-goal-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
+          <div id="yearly-goal-modal-actions">
+            <button id="yearly-goal-modal-cancel">Cancel</button>
+            <button id="yearly-goal-modal-confirm">Save</button>
+          </div>
+        </div>
+      </div>
+
       {/* Monthly Challenge drawer */}
       <div id="challenge-backdrop"></div>
       <div id="challenge-drawer">
@@ -1588,7 +1629,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260814f" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260815a" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

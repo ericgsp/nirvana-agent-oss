@@ -49,6 +49,43 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(5);
 
+  // Yearly goal tracker -- a "yearly goal" is just 12 sales_goals rows (one
+  // per month) all set together via the /12 equal split, reusing the exact
+  // same table/upsert an individual month's goal already used. Agents can
+  // still edit a single month afterward through the existing set_goal path.
+  const currentYear = new Date().getFullYear();
+  const yearPrefix = String(currentYear);
+
+  const { data: yearGoalRows } = await supabaseAdmin
+    .from("sales_goals")
+    .select("period, target_amount")
+    .eq("user_id", user.id)
+    .like("period", `${yearPrefix}-%`);
+
+  const { data: yearSalesRows } = await supabaseAdmin
+    .from("sales_log")
+    .select("amount, sold_at")
+    .eq("user_id", user.id)
+    .gte("sold_at", `${yearPrefix}-01-01`)
+    .lte("sold_at", `${yearPrefix}-12-31`);
+
+  const targetByMonth: Record<string, number> = {};
+  (yearGoalRows ?? []).forEach((r) => { targetByMonth[r.period as string] = Number(r.target_amount); });
+
+  const actualByMonth: Record<string, number> = {};
+  (yearSalesRows ?? []).forEach((r) => {
+    const m = (r.sold_at as string).slice(0, 7);
+    actualByMonth[m] = (actualByMonth[m] ?? 0) + Number(r.amount);
+  });
+
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const p = `${yearPrefix}-${String(i + 1).padStart(2, "0")}`;
+    return { period: p, target: targetByMonth[p] ?? 0, actual: actualByMonth[p] ?? 0 };
+  });
+  const yearlyTarget = months.reduce((s, m) => s + m.target, 0);
+  const yearlyActual = months.reduce((s, m) => s + m.actual, 0);
+  const yearlyGoal = { year: currentYear, months, yearlyTarget, yearlyActual };
+
   // Leader-only team-progress: aggregate attainment across the downline,
   // counting only members who actually have a goal set for this period --
   // same "no goal = no pressure" rule, just summed instead of per-self.
@@ -97,6 +134,7 @@ export async function GET() {
   return Response.json({
     profile: profile ? { tier: profile.tier, display_name: profile.display_name } : null,
     goal: goalRow ? { target_amount: goalRow.target_amount, period: goalRow.period, actual_amount: actualAmount } : null,
+    yearlyGoal,
     recentQuotes: recentQuotes ?? [],
     team,
   });
@@ -141,6 +179,48 @@ export async function POST(req: NextRequest) {
       .delete()
       .eq("user_id", user.id)
       .eq("period", period);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  // Sets all 12 months of the current year to target/12 in one shot -- an
+  // "equal split" yearly goal. Agents can still tweak a single month
+  // afterward via action: "set_goal" above, same table either way.
+  if (body?.action === "set_yearly_goal") {
+    const annualTarget = body?.annual_target;
+    if (typeof annualTarget !== "number" || annualTarget <= 0) {
+      return Response.json({ error: "A positive annual_target is required" }, { status: 400 });
+    }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const monthlyTarget = Math.round((annualTarget / 12) * 100) / 100;
+    const year = new Date().getFullYear();
+    const rows = Array.from({ length: 12 }, (_, i) => ({
+      user_id: user.id,
+      period: `${year}-${String(i + 1).padStart(2, "0")}`,
+      target_amount: monthlyTarget,
+      set_by: user.id,
+    }));
+    const { error } = await supabaseAdmin
+      .from("sales_goals")
+      .upsert(rows, { onConflict: "user_id,period" });
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  if (body?.action === "delete_yearly_goal") {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const year = new Date().getFullYear();
+    const { error } = await supabaseAdmin
+      .from("sales_goals")
+      .delete()
+      .eq("user_id", user.id)
+      .like("period", `${year}-%`);
     if (error) return Response.json({ error: error.message }, { status: 500 });
     return Response.json({ ok: true });
   }
