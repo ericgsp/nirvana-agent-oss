@@ -12,19 +12,23 @@ const G_TEAL = "#128C7E";
 // the main nirvana-agent-oss app's app/agent/page.tsx for the original).
 // A locally-bundled static shell has no Node server on the phone to do
 // that, so the exact same check (now GET /api/agent/session on the main
-// app) is called once on mount instead. Unlike the old version, this does
-// NOT gate the render behind the fetch -- the shell paints immediately
-// (that's the whole point of bundling it locally), and the check only
-// redirects away if the session turns out to be invalid. agent-app.js
-// fetches the site list itself asynchronously (same pattern it already
-// uses for every other piece of data), so it doesn't need to be blocked on
-// here either -- the `sites` state below is just a best-effort initial
-// value for the data-sites attribute. The rest of this file (all CSS +
-// JSX below) is unchanged from the original.
+// app) used to be called again here on mount -- but Capacitor always
+// enters through app/page.tsx first, which already just ran this exact
+// check a moment ago and passes its result (the site list) along via the
+// URL query string. If it's present, trust it and skip the second,
+// redundant network round trip entirely; only fall back to fetching here
+// if the page was somehow opened without that context (e.g. a manual
+// deep link), so a direct visit still self-corrects instead of breaking.
 export default function AgentPage() {
   const [sites, setSites] = useState<string[]>([]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sitesParam = params.get("sites");
+    if (sitesParam !== null) {
+      setSites(sitesParam ? sitesParam.split(",") : []);
+      return;
+    }
     fetch(`${API_BASE}/api/agent/session`, { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {

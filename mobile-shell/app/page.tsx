@@ -14,11 +14,18 @@ export default function RootEntry() {
     fetch(`${API_BASE}/api/agent/session`, { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        window.location.href = toLocalPath(
-          data.valid
-            ? "/agent"
-            : (data.redirectReason ? `/login?reason=${data.redirectReason}` : "/login")
-        );
+        if (!data.valid) {
+          window.location.href = toLocalPath(
+            data.redirectReason ? `/login?reason=${data.redirectReason}` : "/login"
+          );
+          return;
+        }
+        // Sites list is passed along in the query string so /agent doesn't
+        // need to re-run this same session check a second time -- Capacitor
+        // always enters through this file first, so a fresh check here is
+        // already as good as one on /agent itself.
+        const sitesParam = encodeURIComponent((data.sites ?? []).join(","));
+        window.location.href = toLocalPath(`/agent?sites=${sitesParam}`);
       })
       .catch(() => {
         window.location.href = toLocalPath("/login");
