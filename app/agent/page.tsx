@@ -255,6 +255,17 @@ export default async function AgentPage() {
         #month-goal-modal-confirm { background:${G_TEAL}; color:#fff; }
         #month-goal-modal-unpin { display:block; width:100%; margin-top:10px; padding:9px; border-radius:10px; border:1px solid #fde68a; background:#fffbeb; color:#92400e; font-size:12.5px; font-weight:700; text-align:center; cursor:pointer; }
 
+        #carry-forward-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #carry-forward-modal-backdrop.open { display:flex; }
+        #carry-forward-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #carry-forward-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #carry-forward-modal-sub { font-size:12.5px; color:#475569; margin-top:6px; line-height:1.5; }
+        #carry-forward-modal-amount { font-size:22px; font-weight:800; color:#b91c1c; margin-top:10px; text-align:center; }
+        #carry-forward-modal-actions { display:flex; gap:8px; margin-top:16px; }
+        #carry-forward-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #carry-forward-modal-deny { background:#f1f5f9; color:#475569; }
+        #carry-forward-modal-accept { background:${G_TEAL}; color:#fff; }
+
         #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #goal-modal-backdrop.open { display:flex; }
         #goal-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
@@ -1614,6 +1625,21 @@ export default async function AgentPage() {
         </div>
       </div>
 
+      {/* Carry-forward prompt — Me tab. Auto-shown when a past month fell
+          short of its target and hasn't been offered yet; no backdrop-tap
+          dismiss, an explicit Accept/Deny choice is required. */}
+      <div id="carry-forward-modal-backdrop">
+        <div id="carry-forward-modal-box">
+          <div id="carry-forward-modal-title">Carry Forward Missed Goal?</div>
+          <div id="carry-forward-modal-sub">A past month fell short of its target. Spread the shortfall evenly across your remaining months?</div>
+          <div id="carry-forward-modal-amount"></div>
+          <div id="carry-forward-modal-actions">
+            <button id="carry-forward-modal-deny">Deny</button>
+            <button id="carry-forward-modal-accept">Accept</button>
+          </div>
+        </div>
+      </div>
+
       {/* Monthly Challenge drawer */}
       <div id="challenge-backdrop"></div>
       <div id="challenge-drawer">
@@ -1660,7 +1686,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260815e" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260815f" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

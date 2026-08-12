@@ -65,7 +65,7 @@ export async function GET() {
 
   const { data: yearGoalRows } = await supabaseAdmin
     .from("sales_goals")
-    .select("period, target_amount, locked")
+    .select("period, target_amount, locked, carry_forward_handled")
     .eq("user_id", user.id)
     .like("period", `${yearPrefix}-%`);
 
@@ -96,7 +96,19 @@ export async function GET() {
   const monthSum = months.reduce((s, m) => s + m.target, 0);
   const yearlyTarget = yearlyRow ? Number(yearlyRow.annual_target) : monthSum;
   const yearlyActual = months.reduce((s, m) => s + m.actual, 0);
-  const yearlyGoal = { year: currentYear, months, yearlyTarget, yearlyActual };
+
+  // Carry-forward: any past month this year that fell short and hasn't
+  // been offered to the agent yet (accepted or denied). Summed into one
+  // combined prompt rather than asking about each month separately.
+  const handledByMonth: Record<string, boolean> = {};
+  (yearGoalRows ?? []).forEach((r) => { handledByMonth[r.period as string] = !!r.carry_forward_handled; });
+  const nowPeriod = currentPeriod();
+  const shortfallMonths = months.filter((m) => m.period < nowPeriod && m.target > m.actual && !handledByMonth[m.period]);
+  const carryForwardAmount = shortfallMonths.reduce((s, m) => s + (m.target - m.actual), 0);
+  const carryForward = carryForwardAmount > 0
+    ? { amount: Math.round(carryForwardAmount * 100) / 100, months: shortfallMonths.map((m) => m.period) }
+    : null;
+  const yearlyGoal = { year: currentYear, months, yearlyTarget, yearlyActual, carryForward };
 
   // Leader-only team-progress: aggregate attainment across the downline,
   // counting only members who actually have a goal set for this period --
@@ -376,6 +388,92 @@ export async function POST(req: NextRequest) {
       const target = isLast ? Math.round((remaining - base * (unlockedPeriods.length - 1)) * 100) / 100 : base;
       return { user_id: user.id, period: p, target_amount: target, set_by: user.id, locked: false };
     });
+
+    const { error } = await supabaseAdmin
+      .from("sales_goals")
+      .upsert(updates, { onConflict: "user_id,period" });
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  // Carry-forward: a past month (or several) fell short of its target.
+  // "Accept" spreads that combined shortfall evenly across the remaining
+  // unlocked future months (on top of what they already had); "Deny" just
+  // marks those months handled so the prompt doesn't ask again.
+  if (body?.action === "accept_carry_forward" || body?.action === "deny_carry_forward") {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const year = new Date().getFullYear();
+    const nowPeriod = currentPeriod();
+
+    const { data: monthRows } = await supabaseAdmin
+      .from("sales_goals")
+      .select("period, target_amount, locked, carry_forward_handled")
+      .eq("user_id", user.id)
+      .like("period", `${year}-%`);
+    const rows = monthRows ?? [];
+
+    const { data: yearSalesRows } = await supabaseAdmin
+      .from("sales_log")
+      .select("amount, sold_at")
+      .eq("user_id", user.id)
+      .gte("sold_at", `${year}-01-01`)
+      .lte("sold_at", `${year}-12-31`);
+    const actualByMonth: Record<string, number> = {};
+    (yearSalesRows ?? []).forEach((r) => {
+      const m = (r.sold_at as string).slice(0, 7);
+      actualByMonth[m] = (actualByMonth[m] ?? 0) + Number(r.amount);
+    });
+
+    const shortfallRows = rows.filter((r) => {
+      const actual = actualByMonth[r.period as string] ?? 0;
+      return (r.period as string) < nowPeriod && Number(r.target_amount) > actual && !r.carry_forward_handled;
+    });
+    const shortfallPeriods = shortfallRows.map((r) => r.period as string);
+
+    if (shortfallPeriods.length === 0) {
+      return Response.json({ ok: true }); // nothing pending -- already handled, no-op
+    }
+
+    const updates: any[] = shortfallPeriods.map((p) => {
+      const row = rows.find((r) => r.period === p)!;
+      return { user_id: user.id, period: p, target_amount: Number(row.target_amount), set_by: user.id, locked: !!row.locked, carry_forward_handled: true };
+    });
+
+    if (body.action === "accept_carry_forward") {
+      const shortfallAmount = shortfallRows.reduce((sum, r) => {
+        const actual = actualByMonth[r.period as string] ?? 0;
+        return sum + (Number(r.target_amount) - actual);
+      }, 0);
+
+      const futureUnlocked = rows.filter((r) => (r.period as string) > nowPeriod && !r.locked && !shortfallPeriods.includes(r.period as string));
+      if (futureUnlocked.length > 0) {
+        const base = Math.floor((shortfallAmount / futureUnlocked.length) * 100) / 100;
+        futureUnlocked.forEach((r, i) => {
+          const isLast = i === futureUnlocked.length - 1;
+          const extra = isLast ? Math.round((shortfallAmount - base * (futureUnlocked.length - 1)) * 100) / 100 : base;
+          updates.push({ user_id: user.id, period: r.period, target_amount: Number(r.target_amount) + extra, set_by: user.id, locked: false, carry_forward_handled: !!r.carry_forward_handled });
+        });
+
+        // Raises the yearly target too, since carrying forward a shortfall
+        // is a new commitment on top of the original annual figure.
+        const { data: yearlyRow } = await supabaseAdmin
+          .from("yearly_sales_goals")
+          .select("annual_target")
+          .eq("user_id", user.id)
+          .eq("year", year)
+          .maybeSingle();
+        if (yearlyRow) {
+          await supabaseAdmin
+            .from("yearly_sales_goals")
+            .update({ annual_target: Number(yearlyRow.annual_target) + shortfallAmount })
+            .eq("user_id", user.id)
+            .eq("year", year);
+        }
+      }
+    }
 
     const { error } = await supabaseAdmin
       .from("sales_goals")

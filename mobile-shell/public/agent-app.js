@@ -1119,6 +1119,7 @@
     fetch(API_BASE + '/api/agent/me-snapshot').then(function (res) { return res.json(); }).then(function (data) {
       var goalCard = document.getElementById('me-goal-card');
       if (goalCard) goalCard.innerHTML = renderYearlyGoalCard(data.yearlyGoal);
+      maybeShowCarryForwardPrompt(data.yearlyGoal);
 
       var teamCard = document.getElementById('me-team-card');
       if (teamCard) {
@@ -1464,6 +1465,35 @@
       _meLoaded = false;
       loadMeSnapshot();
     }).catch(function (err) { dbg('unlock month goal failed: ' + err); });
+  }
+
+  // Auto-shown once per load when a past month fell short and hasn't been
+  // offered to the agent yet -- doesn't re-open on its own if already open.
+  function maybeShowCarryForwardPrompt(yg) {
+    var backdrop = qs('carry-forward-modal-backdrop');
+    if (!backdrop || !yg || !yg.carryForward) return;
+    if (backdrop.classList.contains('open')) return;
+    var amtEl = qs('carry-forward-modal-amount');
+    if (amtEl) amtEl.textContent = 'RM ' + fmt(yg.carryForward.amount);
+    backdrop.classList.add('open');
+  }
+
+  function closeCarryForwardModal() {
+    var backdrop = qs('carry-forward-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function respondCarryForward(accept) {
+    fetch(API_BASE + '/api/agent/me-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: accept ? 'accept_carry_forward' : 'deny_carry_forward' }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      closeCarryForwardModal();
+      if (data.error) { alert(data.error); return; }
+      _meLoaded = false;
+      loadMeSnapshot();
+    }).catch(function (err) { dbg('carry forward response failed: ' + err); });
   }
 
   function openYearlyGoalModal() {
@@ -5027,6 +5057,12 @@
           break;
         case 'month-goal-modal-unpin':
           unpinMonthGoal();
+          break;
+        case 'carry-forward-modal-accept':
+          respondCarryForward(true);
+          break;
+        case 'carry-forward-modal-deny':
+          respondCarryForward(false);
           break;
         case 'btn-menu-announcement':
         case 'home-whats-new-teaser':
