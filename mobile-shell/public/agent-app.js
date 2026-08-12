@@ -1324,6 +1324,9 @@
 
   function openSoldModal(ref, label, netTotal, itemsJson) {
     _soldModalRef = ref;
+    _soldModalSubmitting = false;
+    var confirmBtnReset = qs('sold-modal-confirm');
+    if (confirmBtnReset) confirmBtnReset.disabled = false;
     var sub = document.getElementById('sold-modal-sub');
     if (sub) sub.textContent = label || '';
 
@@ -1373,7 +1376,10 @@
     if (backdrop) backdrop.classList.remove('open');
   }
 
+  var _soldModalSubmitting = false;
+
   function confirmSold() {
+    if (_soldModalSubmitting) return; // guards against a fast double-tap writing the sale twice
     var amount;
     if (_soldModalMode === 'checklist') {
       amount = 0;
@@ -1386,16 +1392,25 @@
       amount = amt ? parseFloat(amt.value) : NaN;
       if (!_soldModalRef || !amount || amount <= 0) { alert('Enter a valid final amount.'); return; }
     }
+    _soldModalSubmitting = true;
+    var confirmBtn = qs('sold-modal-confirm');
+    if (confirmBtn) confirmBtn.disabled = true;
     fetch(API_BASE + '/api/agent/me-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quotationRef: _soldModalRef, amount: amount })
     }).then(function (res) { return res.json(); }).then(function (data) {
+      _soldModalSubmitting = false;
+      if (confirmBtn) confirmBtn.disabled = false;
       if (data.error) { alert(data.error); return; }
       closeSoldModal();
       _meLoaded = false;
       loadMeSnapshot();
-    }).catch(function (err) { dbg('mark sold failed: ' + err); });
+    }).catch(function (err) {
+      _soldModalSubmitting = false;
+      if (confirmBtn) confirmBtn.disabled = false;
+      dbg('mark sold failed: ' + err);
+    });
   }
 
   function openYearlyGoalModal() {

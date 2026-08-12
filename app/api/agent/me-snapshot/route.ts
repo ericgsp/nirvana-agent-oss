@@ -195,14 +195,24 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
 
-    const monthlyTarget = Math.round((annualTarget / 12) * 100) / 100;
+    // Round down for 11 months, then give the 12th whatever's left over --
+    // rounding every month independently (annual/12, each to the nearest
+    // cent) loses a few cents off the total when summed back for display.
+    // This way the 12 months always sum to exactly what was typed in.
+    const monthlyBase = Math.floor((annualTarget / 12) * 100) / 100;
     const year = new Date().getFullYear();
-    const rows = Array.from({ length: 12 }, (_, i) => ({
-      user_id: user.id,
-      period: `${year}-${String(i + 1).padStart(2, "0")}`,
-      target_amount: monthlyTarget,
-      set_by: user.id,
-    }));
+    const rows = Array.from({ length: 12 }, (_, i) => {
+      const isLast = i === 11;
+      const target = isLast
+        ? Math.round((annualTarget - monthlyBase * 11) * 100) / 100
+        : monthlyBase;
+      return {
+        user_id: user.id,
+        period: `${year}-${String(i + 1).padStart(2, "0")}`,
+        target_amount: target,
+        set_by: user.id,
+      };
+    });
     const { error } = await supabaseAdmin
       .from("sales_goals")
       .upsert(rows, { onConflict: "user_id,period" });
