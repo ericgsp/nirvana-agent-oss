@@ -4329,6 +4329,18 @@
           document.getElementById('sites-backdrop').classList.add('open');
           document.getElementById('sites-drawer').classList.add('open');
           break;
+        case 'btn-menu-logout':
+          fetch(API_BASE + '/api/auth/logout', { method: 'POST', credentials: 'include' })
+            .catch(function (err) { dbg('logout failed: ' + err); })
+            .then(function () {
+              try { localStorage.removeItem('agent_session'); } catch (e) {}
+              // Locally-bundled shell (Capacitor) needs the literal
+              // login.html file path; the remotely-loaded main app's own
+              // server resolves the clean "/login" path itself.
+              var isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+              window.location.href = isNative ? '/login.html' : '/login';
+            });
+          break;
         case 'sites-drawer-close':
         case 'sites-backdrop':
           document.getElementById('sites-backdrop').classList.remove('open');

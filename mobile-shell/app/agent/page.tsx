@@ -692,6 +692,9 @@ export default function AgentPage() {
             <button className="menu-item" id="btn-menu-sites">
               <span className="menu-icon">📍</span>Site Address &amp; Phone
             </button>
+            <button className="menu-item" id="btn-menu-logout">
+              <span className="menu-icon">🚪</span>Log Out
+            </button>
           </div>
           <h1>Sales Agent Assist</h1>
           <a href="https://www.nirvana.com.my/getting-started/home-english/360-virtual-tour/" target="_blank" rel="noopener noreferrer" className="btn-pdf">360°</a>
@@ -1439,7 +1442,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812q" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812r" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
