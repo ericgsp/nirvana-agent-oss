@@ -79,7 +79,7 @@ function LoginForm() {
     >
       <div style={{ marginBottom: "28px" }}>
         <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#0f172a", margin: "0 0 4px" }}>
-          BDD1228 Agent Assistance
+          DG Group Sales Agent Assistance
         </h1>
         <p style={{ fontSize: "14px", color: "#64748b", margin: 0 }}>
           Sign in to continue
