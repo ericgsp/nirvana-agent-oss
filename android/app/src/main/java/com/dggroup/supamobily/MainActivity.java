@@ -14,12 +14,17 @@ public class MainActivity extends BridgeActivity {
         // the custom JS pull-to-refresh gesture (agent-app.js initPullToRefresh())
         // at the scroll boundary and was swallowing the drag before JS ever saw it.
         getBridge().getWebView().setOverScrollMode(View.OVER_SCROLL_NEVER);
-        // capacitor.config.ts points server.url at the live Vercel deployment
-        // (this app streams /agent from the network, it doesn't run from
-        // bundled local assets) -- default WebView caching was serving stale
-        // HTML/JS across app launches, making new deploys invisible until the
-        // cache happened to expire on its own. Force every load to hit the
-        // network so a fresh deploy is always what the app shows.
-        getBridge().getWebView().getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
+        // NOTE: LOAD_NO_CACHE was set here temporarily while chasing a React
+        // hydration race that looked like "stale content stuck across app
+        // opens" -- that bug is now fixed at its actual source (agent-app.js
+        // defers start() via requestIdleCallback, and the broken bfcache-
+        // reload workaround was removed entirely). LOAD_NO_CACHE forced a
+        // full re-download of everything (including the ~4600-line
+        // agent-app.js) on every single app open, which was the biggest
+        // contributor to slow startup. Back to normal WebView caching now
+        // that the real bug is gone -- if stale content ever comes back,
+        // it's a caching/deploy problem to fix directly, not a reason to
+        // reintroduce this.
+        getBridge().getWebView().getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
     }
 }
