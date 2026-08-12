@@ -821,6 +821,7 @@
     site = ''; product = ''; productOpts = []; currentZoneGroupKey = ''; openCategory = null; openSiteGroup = null; _cachedCatGroups = null; resetLayout();
     window._drawerPromoFilter = '';
     closeQsStepper();
+    renderAssetsPanel();
     updateUI();
   }
 
@@ -4228,6 +4229,17 @@
     // Populate site dropdown on load
     populateSiteSelect();
 
+    // ── Quick Select / Filter Products banners — closest()-based so a tap
+    // anywhere inside (including child spans that carry their own id, like
+    // qs-banner-sub) still resolves to the banner button, not just the
+    // literal element under the finger. Checked ahead of the generic
+    // id-based switch-case below, which would otherwise stop at the first
+    // id it finds walking up and miss these. ──
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.closest('#qs-banner-btn')) { openQsStepper(1); return; }
+      if (e.target && e.target.closest('#filter-banner-btn')) { openFilterStepper(); return; }
+    });
+
     // ── Site custom dropdown (all via delegation — survives Next.js hydration) ──
     document.addEventListener('click', function (e) {
       // Site dropdown: button toggle
@@ -4825,7 +4837,9 @@
   // bottom tab bar order. Ignores gestures that start inside a horizontally
   // scrollable area already in the app (Product Type/Site carousels, the
   // quote comparison table) -- those need to keep their own horizontal
-  // scroll, not trigger a tab change.
+  // scroll, not trigger a tab change -- and inside the layout/quote areas
+  // entirely, since agents select lots/rows there and an accidental
+  // horizontal drag shouldn't ever bounce them to a different tab.
   function initTabSwipe() {
     var scrollBody = document.getElementById('scroll-body');
     if (!scrollBody) return;
@@ -4833,7 +4847,7 @@
 
     scrollBody.addEventListener('touchstart', function (e) {
       var t = e.target;
-      blocked = !!(t && t.closest && t.closest('.ad-chips, .ad-sites, .qt-scroll'));
+      blocked = !!(t && t.closest && t.closest('.ad-chips, .ad-sites, .qt-scroll, #layout-area, #quote-section'));
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       swiping = false;
