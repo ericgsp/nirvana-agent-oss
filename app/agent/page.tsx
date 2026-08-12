@@ -216,12 +216,18 @@ export default async function AgentPage() {
         .f-dd-trigger.placeholder { color: #94a3b8; }
         .f-dd-trigger:disabled { background-color: #f8fafc; color: #cbd5e1; cursor: default; }
         .f-dd-panel { position: fixed; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 9px; z-index: 2000; max-height: 55vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15); min-width: 180px; }
-        .f-dd-cat { padding: 10px 14px; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.07em; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; user-select: none; }
+        /* Quick Select stepper rows — card style matching the approved preview */
+        .f-dd-cat { margin: 0 12px 8px; padding: 11px 14px; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.07em; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; user-select: none; }
         .f-dd-cat:active { background: #f1f5f9; }
-        .f-dd-cat-open { background: #f1f5f9; color: #0f172a; border-bottom: 2px solid #e2e8f0; }
-        .f-dd-zone { padding: 10px 14px 10px 22px; font-size: 13px; color: #0f172a; cursor: pointer; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid #f8fafc; }
-        .f-dd-zone:active { background: #eff6ff; }
-        .f-dd-zone-sel { background: #dbeafe; font-weight: 600; }
+        .f-dd-cat-open { background: #eef2ff; color: #0f172a; border-color: ${G_TEAL}; }
+        .f-dd-zone { margin: 0 12px 8px; padding: 13px 14px; font-size: 14px; font-weight: 700; color: #0f172a; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #f8fafc; border: 1.5px solid transparent; border-radius: 13px; }
+        .f-dd-zone:active { border-color: ${G_TEAL}; }
+        .f-dd-zone-sel { background: #f0fdfa; border-color: ${G_TEAL}; }
+        .f-dd-zone-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+        .f-dd-zone-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .f-dd-zone-chev { color: #94a3b8; font-size: 15px; }
+        .f-dd-avail { font-size: 10.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #dcfce7; color: #15803d; white-space: nowrap; }
+        .f-dd-avail-low { background: #fef3c7; color: #92400e; }
         .f-dd-badge { font-size: 10px; background: #dbeafe; color: #1d4ed8; border-radius: 4px; padding: 1px 5px; font-weight: 600; flex-shrink: 0; }
         .f-dd-badge-amber { font-size: 10px; background: #fef3c7; color: #92400e; border-radius: 4px; padding: 1px 5px; font-weight: 600; flex-shrink: 0; }
         .f-dd-badge-green { font-size: 10px; background: #dcfce7; color: #166534; border-radius: 4px; padding: 1px 5px; font-weight: 600; flex-shrink: 0; }
@@ -379,7 +385,7 @@ export default async function AgentPage() {
         .qs-dot { flex:1; height:4px; border-radius:99px; background:#e2e8f0; transition:background 0.2s; }
         .qs-dot.done { background:#25D366; }
         .qs-dot.now { background:${G_DARK}; }
-        #qs-stepper-body { flex:1; overflow-y:auto; padding:6px 0 32px; }
+        #qs-stepper-body { flex:1; overflow-y:auto; padding:10px 0 32px; }
         .qs-step-panel { padding:0; }
 
         #memo-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
@@ -546,8 +552,16 @@ export default async function AgentPage() {
         .qs-card { margin:10px 10px 0; background:linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); border-radius:14px; padding:12px 13px; }
         .qs-title { font-size:11px; font-weight:800; color:#fff; text-transform:uppercase; letter-spacing:0.05em; opacity:0.9; display:flex; align-items:center; gap:6px; margin-bottom:8px; }
         .qs-lightning { font-size:12px; }
-        .qs-row { display:flex; flex-direction:column; gap:7px; }
-        .qs-field { min-width:0; position:relative; }
+        .qs-entry-list { display:flex; flex-direction:column; gap:8px; }
+        .qs-entry-row { width:100%; display:flex; align-items:center; gap:11px; background:rgba(255,255,255,0.14); border:1.5px solid rgba(255,255,255,0.28); border-radius:12px; padding:11px 12px; text-align:left; }
+        .qs-entry-row:disabled { opacity:0.5; }
+        .qs-entry-icon { width:32px; height:32px; border-radius:9px; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff; flex-shrink:0; }
+        .qs-entry-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+        .qs-entry-lbl { font-size:9.5px; color:rgba(255,255,255,0.75); font-weight:700; text-transform:uppercase; letter-spacing:0.04em; }
+        .qs-entry-val { font-size:13.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .qs-entry-row.placeholder .qs-entry-val { color:rgba(255,255,255,0.65); font-weight:600; }
+        .qs-entry-chev { color:rgba(255,255,255,0.6); font-size:16px; flex-shrink:0; }
+        .qs-field { min-width:0; position:relative; margin-top:8px; }
         .qs-lbl { font-size:9.5px; color:rgba(255,255,255,0.75); font-weight:700; margin-bottom:3px; }
         .qs-select, .qs-select-native { width:100%; background:rgba(255,255,255,0.16); border:1px solid rgba(255,255,255,0.32); border-radius:9px; padding:8px 9px; font-size:11.5px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
         .qs-select.placeholder { color:rgba(255,255,255,0.6); font-weight:600; }
@@ -769,15 +783,23 @@ export default async function AgentPage() {
                    to the layout grid ── */}
               <div className="qs-card no-print">
                 <div className="qs-title"><span className="qs-lightning">⚡</span>Quick Select</div>
-                <div id="zone-filter" className="qs-row">
-                  <div className="qs-field">
-                    <div className="qs-lbl">Site</div>
-                    <button id="site-dd-btn" className="qs-select placeholder">Select site…</button>
-                  </div>
-                  <div className="qs-field">
-                    <div className="qs-lbl">Zone</div>
-                    <button id="zone-dd-btn" className="qs-select placeholder" disabled>Select zone…</button>
-                  </div>
+                <div id="zone-filter" className="qs-entry-list">
+                  <button id="site-dd-btn" className="qs-entry-row placeholder">
+                    <span className="qs-entry-icon">◈</span>
+                    <span className="qs-entry-body">
+                      <span className="qs-entry-lbl">Site</span>
+                      <span className="qs-entry-val" id="site-dd-val">Select site…</span>
+                    </span>
+                    <span className="qs-entry-chev">›</span>
+                  </button>
+                  <button id="zone-dd-btn" className="qs-entry-row placeholder" disabled>
+                    <span className="qs-entry-icon">▦</span>
+                    <span className="qs-entry-body">
+                      <span className="qs-entry-lbl">Zone</span>
+                      <span className="qs-entry-val" id="zone-dd-val">Select zone…</span>
+                    </span>
+                    <span className="qs-entry-chev">›</span>
+                  </button>
                   <div className="qs-field" id="section-wrap">
                     <div className="qs-lbl">Sec/Row</div>
                     <select id="section-sel" className="qs-select-native" disabled>
@@ -1447,7 +1469,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812t" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812u" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

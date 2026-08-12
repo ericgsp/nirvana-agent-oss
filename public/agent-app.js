@@ -344,7 +344,7 @@
       html += '<div class="f-dd-cat' + (isOpen ? ' f-dd-cat-open' : '') + '" data-sitecat="' + grp.label + '">' + grp.label + '<span>' + (isOpen ? '▲' : '▼') + '</span></div>';
       if (isOpen) {
         members.forEach(function (s) {
-          html += '<div class="f-dd-zone' + (s === site ? ' f-dd-zone-sel' : '') + '" data-siteitem="' + esc(s) + '">' + esc(s) + '</div>';
+          html += '<div class="f-dd-zone' + (s === site ? ' f-dd-zone-sel' : '') + '" data-siteitem="' + esc(s) + '"><span class="f-dd-zone-name">' + esc(s) + '</span><span class="f-dd-zone-chev">›</span></div>';
         });
       }
     });
@@ -420,9 +420,10 @@
 
   function updateSiteDropdownBtn() {
     var btn = qs('site-dd-btn');
-    if (!btn) return;
-    if (!site) { btn.textContent = 'Select site…'; btn.classList.add('placeholder'); }
-    else { btn.textContent = site; btn.classList.remove('placeholder'); }
+    var val = qs('site-dd-val');
+    if (!btn || !val) return;
+    if (!site) { val.textContent = 'Select site…'; btn.classList.add('placeholder'); }
+    else { val.textContent = site; btn.classList.remove('placeholder'); }
   }
 
   function populateSiteSelect() {
@@ -525,7 +526,14 @@
           var badge = isChristian ? '<span class="f-dd-badge">Christian</span>' : '';
           if (isNewLaunch) badge += '<span class="f-dd-badge-green">New Launch</span>';
           if (isCombo) badge += '<span class="f-dd-badge-amber">Combo Lot</span>';
-          html += '<div class="f-dd-zone' + (isSel ? ' f-dd-zone-sel' : '') + '" data-zone="' + g.key + '" data-cat="' + activeCat.label + '">' + g.display + badge + '</div>';
+          var availPill = '';
+          if (g.type !== 'group' && origOpt && origOpt.available != null) {
+            availPill = '<span class="f-dd-avail' + (origOpt.available < 15 ? ' f-dd-avail-low' : '') + '">' + origOpt.available + ' left</span>';
+          }
+          html += '<div class="f-dd-zone' + (isSel ? ' f-dd-zone-sel' : '') + '" data-zone="' + g.key + '" data-cat="' + activeCat.label + '">'
+            + '<span class="f-dd-zone-name">' + g.display + badge + '</span>'
+            + '<span class="f-dd-zone-right">' + availPill + '<span class="f-dd-zone-chev">›</span></span>'
+            + '</div>';
         });
       }
     }
@@ -3987,13 +3995,14 @@
 
   function updateZoneDropdownBtn() {
     var btn = qs('zone-dd-btn');
-    if (!btn) return;
+    var val = qs('zone-dd-val');
+    if (!btn || !val) return;
     btn.disabled = !site;
     if (!currentZoneGroupKey) {
-      btn.textContent = 'Select zone…';
+      val.textContent = 'Select zone…';
       btn.classList.add('placeholder');
     } else {
-      btn.textContent = currentZoneGroupKey;
+      val.textContent = currentZoneGroupKey;
       btn.classList.remove('placeholder');
     }
   }
