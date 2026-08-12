@@ -16,7 +16,14 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              // The locally-bundled mobile shell calls these API routes
+              // cross-origin (capacitor://localhost -> the Vercel domain),
+              // so every auth cookie needs SameSite=None to actually be
+              // sent back on those requests -- SameSite=Lax (the library's
+              // default) silently drops cookies on cross-site subrequests.
+              // Harmless for the existing same-origin desktop admin pages;
+              // None only relaxes the restriction, it never tightens it.
+              cookieStore.set(name, value, { ...options, sameSite: "none", secure: true })
             );
           } catch {
             // Called from a Server Component — cookies can only be set from
