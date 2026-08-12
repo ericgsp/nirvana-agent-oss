@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { API_BASE } from "./api-base";
+import { toLocalPath } from "./local-nav";
 
 // Capacitor's native shell always loads index.html (this route) as the
 // app's entry point. This is the actual app entry: check the session once,
@@ -13,12 +14,14 @@ export default function RootEntry() {
     fetch(`${API_BASE}/api/agent/session`, { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        window.location.href = data.valid
-          ? "/agent"
-          : (data.redirectReason ? `/login?reason=${data.redirectReason}` : "/login");
+        window.location.href = toLocalPath(
+          data.valid
+            ? "/agent"
+            : (data.redirectReason ? `/login?reason=${data.redirectReason}` : "/login")
+        );
       })
       .catch(() => {
-        window.location.href = "/login";
+        window.location.href = toLocalPath("/login");
       });
   }, []);
 

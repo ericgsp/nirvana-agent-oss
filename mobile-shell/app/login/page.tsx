@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Device } from "@capacitor/device";
 import { API_BASE } from "../api-base";
+import { toLocalPath } from "../local-nav";
 
 type LoginResult = { error: string; redirectTo?: string };
 
@@ -60,7 +61,13 @@ function LoginForm() {
 
   useEffect(() => {
     if (state?.redirectTo) {
-      window.location.href = state.redirectTo;
+      // The admin dashboard ("/") isn't part of this bundle -- this shell
+      // only contains "/", "/agent", "/login". An admin logging in via the
+      // mobile app needs the real deployed dashboard, not a local path that
+      // doesn't exist here.
+      window.location.href = state.redirectTo === "/"
+        ? `${API_BASE}/`
+        : toLocalPath(state.redirectTo);
     }
   }, [state?.redirectTo]);
 

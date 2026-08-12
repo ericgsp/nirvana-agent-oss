@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_BASE } from "../api-base";
+import { toLocalPath } from "../local-nav";
 
 const G_DARK = "#075E54";
 const G_TEAL = "#128C7E";
@@ -28,15 +29,15 @@ export default function AgentPage() {
       .then((r) => r.json())
       .then((data) => {
         if (!data.valid) {
-          window.location.href = data.redirectReason
-            ? `/login?reason=${data.redirectReason}`
-            : `/login`;
+          window.location.href = toLocalPath(
+            data.redirectReason ? `/login?reason=${data.redirectReason}` : `/login`
+          );
           return;
         }
         setSites(data.sites ?? []);
       })
       .catch(() => {
-        window.location.href = `/login`;
+        window.location.href = toLocalPath(`/login`);
       });
   }, []);
 
