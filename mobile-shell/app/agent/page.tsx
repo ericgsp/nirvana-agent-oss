@@ -160,10 +160,10 @@ export default function AgentPage() {
         .mqr-main { font-size: 12px; font-weight: 600; color: #475569; margin-top: 4px; }
         .mqr-amount { font-size: 12px; font-weight: 800; color: #0f172a; }
         .mqr-meta { font-size: 10.5px; color: #94a3b8; margin-top: 3px; }
-        .mqr-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
-        .mqr-edit-btn { flex-shrink: 0; padding: 5px 11px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 11px; font-weight: 700; }
-        .mqr-delete-btn { flex-shrink: 0; margin-left: auto; padding: 5px 11px; border-radius: 999px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font-size: 11px; font-weight: 700; }
-        .mqr-status-sel { appearance: none; -webkit-appearance: none; padding: 6px 26px 6px 11px; border-radius: 999px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1.5px solid #e2e8f0; background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center; color: #64748b; }
+        .mqr-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+        .mqr-edit-btn { flex-shrink: 0; padding: 4px 9px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 10.5px; font-weight: 700; }
+        .mqr-delete-btn { flex-shrink: 0; margin-left: auto; padding: 4px 9px; border-radius: 999px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font-size: 10.5px; font-weight: 700; }
+        .mqr-status-sel { appearance: none; -webkit-appearance: none; padding: 4px 22px 4px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; cursor: pointer; border: 1.5px solid #e2e8f0; background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center; color: #64748b; }
         .mqr-status-sel.st-followup { border-color: #f59e0b; background: #f59e0b url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center; color: #fff; }
         .mqr-status-sel.st-lost { border-color: #dc2626; background: #dc2626 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center; color: #fff; }
         .mqr-status-sel.st-closed { border-color: #16a34a; background: #16a34a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center; color: #fff; }
@@ -1581,7 +1581,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260814e" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260814f" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

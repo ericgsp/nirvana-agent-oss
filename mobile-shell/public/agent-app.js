@@ -1140,12 +1140,12 @@
             var phoneHtml = rawPhone
               ? (waLink ? '<a class="mqr-wa-link" href="' + esc(waLink) + '" target="_blank" rel="noopener noreferrer">💬 ' + esc(rawPhone) + '</a>' : esc(rawPhone))
               : '';
-            var statusOpts = ['', 'followup', 'lost', 'closed'];
-            var statusLabels = { '': 'Update status…', followup: 'Follow-up', lost: 'Lost', closed: 'Close' };
-            var statusClass = q.status ? ' st-' + q.status : '';
-            var statusSel = '<select class="mqr-status-sel' + statusClass + '" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
+            var statusOpts = ['followup', 'lost', 'closed'];
+            var statusLabels = { followup: 'Follow-up', lost: 'Lost', closed: 'Close' };
+            var effectiveStatus = q.status || 'followup'; // unset quotes default to Follow-up, no blank placeholder
+            var statusSel = '<select class="mqr-status-sel st-' + effectiveStatus + '" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
               + statusOpts.map(function (v) {
-                  return '<option value="' + v + '"' + (q.status === v || (!q.status && v === '') ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
+                  return '<option value="' + v + '"' + (effectiveStatus === v ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
                 }).join('')
               + '</select>';
             var line1Parts = [esc(q.site || '')];
