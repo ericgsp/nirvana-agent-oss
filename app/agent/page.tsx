@@ -366,18 +366,21 @@ export default async function AgentPage() {
         .wm-text  { display: none; }
         #print-footer { display: none; }
         /* ── Memo drawer ── */
-        /* ── Site/Zone select drawers (Quick Select) — same bottom-drawer
-           pattern as memo/forms/sites/training below, sized a bit taller
-           since these lists can be long ── */
-        #site-select-backdrop, #zone-select-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1150; }
-        #site-select-backdrop.open, #zone-select-backdrop.open { display:block; }
-        #site-select-drawer, #zone-select-drawer { position:fixed; left:0; right:0; bottom:0; background:#f0f2f5; border-radius:20px 20px 0 0; z-index:1151; max-height:85vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
-        #site-select-drawer.open, #zone-select-drawer.open { transform:translateY(0); }
-        #site-select-handle, #zone-select-handle { width:36px; height:4px; background:#cbd5e1; border-radius:2px; margin:12px auto 0; flex-shrink:0; }
-        #site-select-topbar, #zone-select-topbar { display:flex; align-items:center; padding:10px 14px 12px; flex-shrink:0; border-bottom:1px solid #e2e8f0; }
-        #site-select-topbar h2, #zone-select-topbar h2 { font-size:15px; font-weight:800; color:#0f172a; flex:1; }
-        #site-select-close, #zone-select-close { font-size:22px; line-height:1; color:#94a3b8; background:none; border:none; cursor:pointer; padding:4px; }
-        #site-select-scroll, #zone-select-scroll { flex:1; overflow-y:auto; padding:6px 0 32px; }
+        /* ── Quick Select stepper (Site → Zone) — full-screen, one step at a
+           time, instead of two separate small bottom drawers ── */
+        #qs-stepper { position:fixed; inset:0; background:#f0f2f5; z-index:1150; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
+        #qs-stepper.open { transform:translateY(0); }
+        #qs-stepper-topbar { display:flex; align-items:center; gap:10px; padding:14px 14px 10px; background:${G_DARK}; color:#fff; flex-shrink:0; }
+        #qs-stepper-back, #qs-stepper-close { width:30px; height:30px; border-radius:50%; border:none; background:rgba(255,255,255,0.18); color:#fff; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; touch-action:manipulation; }
+        #qs-stepper-title-wrap { flex:1; min-width:0; }
+        #qs-stepper-step-count { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; opacity:0.75; }
+        #qs-stepper-title { font-size:15px; font-weight:800; margin:1px 0 0; }
+        #qs-stepper-dots { display:flex; gap:5px; padding:12px 16px 4px; flex-shrink:0; background:#f0f2f5; }
+        .qs-dot { flex:1; height:4px; border-radius:99px; background:#e2e8f0; transition:background 0.2s; }
+        .qs-dot.done { background:#25D366; }
+        .qs-dot.now { background:${G_DARK}; }
+        #qs-stepper-body { flex:1; overflow-y:auto; padding:6px 0 32px; }
+        .qs-step-panel { padding:0; }
 
         #memo-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
         #memo-backdrop.open { display:block; }
@@ -883,30 +886,21 @@ export default async function AgentPage() {
       </div>
 
       {/* Price List & Promo Memo drawer */}
-      {/* Site select drawer — Quick Select's Site dropdown, as a full bottom
-          drawer instead of a small flyout, so agents can see options clearly */}
-      <div id="site-select-backdrop"></div>
-      <div id="site-select-drawer">
-        <div id="site-select-handle"></div>
-        <div id="site-select-topbar">
-          <h2>Select Site</h2>
-          <button id="site-select-close">×</button>
+      {/* Quick Select stepper — Site then Zone, full-screen, one step at a
+          time (replaces the old two small bottom drawers) */}
+      <div id="qs-stepper">
+        <div id="qs-stepper-topbar">
+          <button id="qs-stepper-back">‹</button>
+          <div id="qs-stepper-title-wrap">
+            <div id="qs-stepper-step-count"></div>
+            <h2 id="qs-stepper-title"></h2>
+          </div>
+          <button id="qs-stepper-close">×</button>
         </div>
-        <div id="site-select-scroll">
-          <div id="site-dd-panel"></div>
-        </div>
-      </div>
-
-      {/* Zone select drawer — same treatment as Site */}
-      <div id="zone-select-backdrop"></div>
-      <div id="zone-select-drawer">
-        <div id="zone-select-handle"></div>
-        <div id="zone-select-topbar">
-          <h2>Select Zone</h2>
-          <button id="zone-select-close">×</button>
-        </div>
-        <div id="zone-select-scroll">
-          <div id="zone-dd-panel"></div>
+        <div id="qs-stepper-dots"></div>
+        <div id="qs-stepper-body">
+          <div id="site-dd-panel" className="qs-step-panel"></div>
+          <div id="zone-dd-panel" className="qs-step-panel" style={{display:'none'}}></div>
         </div>
       </div>
 
@@ -1453,7 +1447,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260812s" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260812t" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

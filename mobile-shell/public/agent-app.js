@@ -55,6 +55,9 @@
   var currentZoneGroupKey = '';     // D2 selection (group key or zone name)
   var zoneDropdownIsOpen  = false;
 
+  // Quick Select stepper — 1 = Site, 2 = Zone
+  var qsStep = 1;
+
   // Derive lot type prefix from a section code — longest known prefix wins
   // e.g. "DL" → "D", "SF3" → "SF", "D1" → "D", "TDA" → "TD"
   var _LOT_PFXS = ['SF','TD','F','S','D','R','A'];
@@ -348,30 +351,72 @@
     panel.innerHTML = html;
   }
 
-  function openSiteDropdown() {
-    var backdrop = qs('site-select-backdrop');
-    var drawer   = qs('site-select-drawer');
-    if (!backdrop || !drawer) return;
-    // Auto-expand the group containing the current site
-    if (!openSiteGroup) {
+  // ── Quick Select stepper shell (Site → Zone, one full-screen step at a time) ──
+  var QS_STEP_TITLES = ['Choose a Site', 'Choose a Zone'];
+
+  function renderQsStepperShell() {
+    var back  = qs('qs-stepper-back');
+    var title = qs('qs-stepper-title');
+    var count = qs('qs-stepper-step-count');
+    var dots  = qs('qs-stepper-dots');
+    if (title) title.textContent = QS_STEP_TITLES[qsStep - 1] || '';
+    if (count) count.textContent = 'Step ' + qsStep + ' of 2';
+    if (back) back.style.visibility = qsStep <= 1 ? 'hidden' : 'visible';
+    if (dots) {
+      var html = '';
+      for (var i = 1; i <= 2; i++) {
+        html += '<div class="qs-dot' + (i < qsStep ? ' done' : i === qsStep ? ' now' : '') + '"></div>';
+      }
+      dots.innerHTML = html;
+    }
+  }
+
+  function showQsStep(n) {
+    qsStep = n;
+    var sitePanel = qs('site-dd-panel');
+    var zonePanel = qs('zone-dd-panel');
+    if (sitePanel) sitePanel.style.display = n === 1 ? '' : 'none';
+    if (zonePanel) zonePanel.style.display = n === 2 ? '' : 'none';
+    renderQsStepperShell();
+    if (n === 1) {
+      siteDropdownIsOpen = true;
+      zoneDropdownIsOpen = false;
+      renderSiteDropdownPanel();
+    } else {
+      siteDropdownIsOpen = false;
+      zoneDropdownIsOpen = true;
+      if (!productOpts.length) {
+        if (zonePanel) zonePanel.innerHTML = '<div style="padding:24px 18px;font-size:12.5px;color:#94a3b8;text-align:center">Loading zones…</div>';
+      } else {
+        renderZoneDropdownPanel();
+      }
+    }
+  }
+
+  function openQsStepper(startStep) {
+    var el = qs('qs-stepper');
+    if (!el) return;
+    if (startStep === 1 && !openSiteGroup) {
+      // Auto-expand the group containing the current site
       SITE_GROUPS.forEach(function (grp) {
         if (site && SITES.filter(grp.filter).indexOf(site) !== -1) openSiteGroup = grp.label;
       });
-      // All groups start closed; only auto-expand when a site is already selected
     }
-    siteDropdownIsOpen = true;
-    backdrop.classList.add('open');
-    drawer.classList.add('open');
-    renderSiteDropdownPanel();
+    el.classList.add('open');
+    showQsStep(startStep || 1);
   }
 
-  function closeSiteDropdown() {
-    var backdrop = qs('site-select-backdrop');
-    var drawer   = qs('site-select-drawer');
-    if (backdrop) backdrop.classList.remove('open');
-    if (drawer) drawer.classList.remove('open');
+  function closeQsStepper() {
+    var el = qs('qs-stepper');
+    if (el) el.classList.remove('open');
     siteDropdownIsOpen = false;
+    zoneDropdownIsOpen = false;
   }
+
+  // Back-compat aliases — same open/close entry points, now backed by the
+  // single full-screen stepper instead of two separate drawers.
+  function openSiteDropdown() { openQsStepper(1); }
+  function closeSiteDropdown() { if (qsStep === 1) closeQsStepper(); }
 
   function updateSiteDropdownBtn() {
     var btn = qs('site-dd-btn');
@@ -489,26 +534,18 @@
   window._agentRenderZoneDropdown = renderZoneDropdownPanel;
 
   function openZoneDropdown() {
-    var btn      = qs('zone-dd-btn');
-    var backdrop = qs('zone-select-backdrop');
-    var drawer   = qs('zone-select-drawer');
-    if (!backdrop || !drawer || !btn || btn.disabled) return;
-    zoneDropdownIsOpen = true;
-    backdrop.classList.add('open');
-    drawer.classList.add('open');
+    var btn = qs('zone-dd-btn');
+    if (!btn || btn.disabled) return;
+    openQsStepper(2);
   }
 
   function closeZoneDropdown() {
-    var backdrop = qs('zone-select-backdrop');
-    var drawer   = qs('zone-select-drawer');
-    if (backdrop) backdrop.classList.remove('open');
-    if (drawer) drawer.classList.remove('open');
     zoneDropdownIsOpen = false;
   }
 
   function onZoneSelected(groupKey) {
     currentZoneGroupKey = groupKey;
-    closeZoneDropdown();
+    closeQsStepper();
     if (!_cachedCatGroups) _cachedCatGroups = buildCategoryGroups();
     // Find the group
     var g = null;
@@ -740,7 +777,7 @@
     } catch(e) {}
     site = ''; product = ''; productOpts = []; currentZoneGroupKey = ''; openCategory = null; openSiteGroup = null; _cachedCatGroups = null; resetLayout();
     window._drawerPromoFilter = '';
-    closeSiteDropdown(); closeZoneDropdown();
+    closeQsStepper();
     var nextBtn = qs('qs-next-btn');
     if (nextBtn) nextBtn.style.display = 'none';
     updateUI();
@@ -4078,7 +4115,7 @@
         var val = itemEl.getAttribute('data-siteitem');
         var siteChanged = (val !== site);
         site = val;
-        closeSiteDropdown();
+        showQsStep(2);
         if (siteChanged) {
           product = ''; currentZoneGroupKey = ''; openCategory = null; _cachedCatGroups = null;
           window._drawerSectionFilter = ''; window._drawerLevelFilter = ''; window._drawerPromoFilter = ''; productOpts = []; resetLayout();
@@ -4177,13 +4214,6 @@
         var cat = catEl.dataset.cat;
         openCategory = (openCategory === cat) ? null : cat;
         renderZoneDropdownPanel();
-        // Reposition panel in case height changed
-        if (ddBtn) {
-          var rect = ddBtn.getBoundingClientRect();
-          ddPanel.style.top  = (rect.bottom + 4) + 'px';
-          ddPanel.style.left = rect.left + 'px';
-          ddPanel.style.width = rect.width + 'px';
-        }
         e.stopPropagation();
         return;
       }
@@ -4322,13 +4352,11 @@
           switchTab('browse');
           closeAvailDrawer();
           break;
-        case 'site-select-close':
-        case 'site-select-backdrop':
-          closeSiteDropdown();
+        case 'qs-stepper-close':
+          closeQsStepper();
           break;
-        case 'zone-select-close':
-        case 'zone-select-backdrop':
-          closeZoneDropdown();
+        case 'qs-stepper-back':
+          if (qsStep > 1) showQsStep(qsStep - 1); else closeQsStepper();
           break;
         case 'btn-menu-forms':
           document.getElementById('forms-backdrop').classList.add('open');
