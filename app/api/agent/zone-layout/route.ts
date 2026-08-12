@@ -24,31 +24,30 @@ export async function GET(request: NextRequest) {
   const isSemenyih = semenyihVariants.includes(site);
   const sitesToSearch = isSemenyih ? semenyihVariants : [site];
 
-  async function queryLayouts(zoneFilter: (q: any) => any) {
-    const { data } = await supabaseAdmin
-      .from("zone_layouts")
-      .select("zone, layout_html, synced_at, site_code")
-      .in("site_code", sitesToSearch)
-      .order("synced_at", { ascending: false });
-    const rows = zoneFilter(data ?? []) as any[];
-    // Deduplicate by zone name — keep most recently synced (already sorted)
-    const seen = new Set<string>();
-    return rows.filter((r: any) => {
-      if (seen.has(r.zone)) return false;
-      seen.add(r.zone);
-      return true;
-    });
-  }
-
   // Return exact zone match AND all sub-section rows (prefix match) together.
   // This handles zones like MP3-GF that have both a parent row (zone="MP3-GF") and
   // per-section sub-rows (zone="MP3-GF-D/S1,…", zone="MP3-GF-CD1,…", etc.).
+  // Filtered at the DB level (was: fetch every zone_layouts row for the whole
+  // site -- full layout_html blobs included -- then filter in JS) since only
+  // one zone's rows are ever used here.
   const prefix = product.toUpperCase() + "-";
-  let layouts = await queryLayouts((rows: any[]) =>
-    rows
-      .filter((r: any) => r.zone === product || (r.zone as string).toUpperCase().startsWith(prefix))
-      .sort((a: any, b: any) => (a.zone as string).localeCompare(b.zone))
-  );
+  const { data: layoutRows } = await supabaseAdmin
+    .from("zone_layouts")
+    .select("zone, layout_html, synced_at, site_code")
+    .in("site_code", sitesToSearch)
+    .or(`zone.eq.${product},zone.ilike.${prefix}%`)
+    .order("synced_at", { ascending: false });
+
+  const sortedRows = (layoutRows ?? [])
+    .filter((r: any) => r.zone === product || (r.zone as string).toUpperCase().startsWith(prefix))
+    .sort((a: any, b: any) => (a.zone as string).localeCompare(b.zone));
+  // Deduplicate by zone name — keep most recently synced (already sorted by synced_at above)
+  const seenZones = new Set<string>();
+  let layouts = sortedRows.filter((r: any) => {
+    if (seenZones.has(r.zone)) return false;
+    seenZones.add(r.zone);
+    return true;
+  });
 
   if (layouts.length === 0)
     return NextResponse.json({ layouts: [] });

@@ -44,16 +44,37 @@ export async function GET(request: NextRequest) {
   }
 
   if (step === "products") {
-    const { data, error } = await supabaseAdmin.rpc("get_available_zones", { p_site: site });
+    // These four queries are independent of each other -- none filters on
+    // another's result -- so run them concurrently instead of one after
+    // another. This was previously ~4 sequential round trips serialized.
+    const semenyihVariantsEarly = ["Semenyih", "Semenyih-NMG", "Semenyih-NMP"];
+    const layoutSitesEarly = semenyihVariantsEarly.includes(site) ? semenyihVariantsEarly : [site];
+    const [
+      { data, error },
+      { data: relData },
+      { data: plProducts },
+      { data: layoutZoneRows },
+    ] = await Promise.all([
+      supabaseAdmin.rpc("get_available_zones", { p_site: site }),
+      supabaseAdmin
+        .from("product_price_list")
+        .select("product_name, block, religion")
+        .eq("active", true)
+        .not("religion", "is", null),
+      supabaseAdmin
+        .from("product_price_list")
+        .select("product_name, product_category")
+        .eq("site_code", site)
+        .eq("active", true)
+        .in("product_category", ["NLP", "EBL"]),
+      supabaseAdmin
+        .from("zone_layouts")
+        .select("zone")
+        .in("site_code", layoutSitesEarly)
+        .ilike("zone", "%-%"),
+    ]);
     if (error) return NextResponse.json({ options: [], error: error.message });
 
-    // Fetch religion per zone from product_price_list (not in the view)
-    const zoneNames = (data ?? []).map((r: any) => r.zone as string);
-    const { data: relData } = await supabaseAdmin
-      .from("product_price_list")
-      .select("product_name, block, religion")
-      .eq("active", true)
-      .not("religion", "is", null);
     const religionMap: Record<string, string> = {};
     (relData ?? []).forEach((r: any) => {
       const k = (r.product_name as string).toLowerCase();
@@ -79,12 +100,6 @@ export async function GET(request: NextRequest) {
 
     // Merge in price-list-only products (e.g. NLP, EBL) not in the portal view
     // These products have price_list_id = null in the availability view so get_available_zones skips them.
-    const { data: plProducts } = await supabaseAdmin
-      .from("product_price_list")
-      .select("product_name, product_category")
-      .eq("site_code", site)
-      .eq("active", true)
-      .in("product_category", ["NLP", "EBL"]);
     const existingNames = new Set(options.map((o: any) => (o.name as string).toLowerCase()));
     const seen = new Set<string>();
     (plProducts ?? []).forEach((r: any) => {
@@ -99,14 +114,6 @@ export async function GET(request: NextRequest) {
     // When a product's layouts are stored as "PRODUCT-SECTION" rows, replace the base
     // product option with one entry per section. The existing prefix-grouping code in the
     // agent app then automatically groups them under "EBL" exactly like DZW-A / DZW-B / DZW-D.
-    const semenyihVariants = ["Semenyih", "Semenyih-NMG", "Semenyih-NMP"];
-    const layoutSites = semenyihVariants.includes(site) ? semenyihVariants : [site];
-    const { data: layoutZoneRows } = await supabaseAdmin
-      .from("zone_layouts")
-      .select("zone")
-      .in("site_code", layoutSites)
-      .ilike("zone", "%-%");
-
     const sectionMap: Record<string, string[]> = {};
     const seenSections = new Set<string>();
     for (const r of (layoutZoneRows ?? [])) {
