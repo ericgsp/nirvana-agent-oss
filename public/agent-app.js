@@ -1213,11 +1213,33 @@
     }
   }
 
-  function openCustomerInfoModal() {
+  // Generates a real PDF from the same WebView content print() uses (so
+  // Chinese characters render correctly, same as print already does), then
+  // hands it straight to the OS share sheet -- WhatsApp/email/etc in one
+  // tap instead of Print -> Save as PDF -> find the file -> open WhatsApp.
+  function doSharePdfFlow() {
+    var prevTitle = document.title;
+    document.title = '';
+    var pd = qs('print-date');
+    if (pd) pd.textContent = new Date().toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' });
+    window.Capacitor.Plugins.NativePrint.sharePdf().catch(function (err) {
+      dbg('Share PDF failed: ' + (err && err.message ? err.message : err));
+      alert('Could not generate the PDF to share. Please try again.');
+    }).then(function () {
+      document.title = prevTitle;
+    });
+  }
+
+  var _pendingQuoteAction = 'print'; // 'print' or 'share' -- which action the Customer Info modal should trigger on confirm
+
+  function openCustomerInfoModal(action) {
+    _pendingQuoteAction = action || 'print';
     var nameEl = qs('customer-info-name');
     var phoneEl = qs('customer-info-phone');
     if (nameEl) nameEl.value = '';
     if (phoneEl) phoneEl.value = '';
+    var confirmBtn = qs('customer-info-modal-confirm');
+    if (confirmBtn) confirmBtn.textContent = _pendingQuoteAction === 'share' ? 'Share' : 'Print';
     var backdrop = qs('customer-info-modal-backdrop');
     if (backdrop) backdrop.classList.add('open');
   }
@@ -1262,7 +1284,7 @@
       }),
     }).then(function () { _homeSnapshotLoaded = false; }).catch(function (err) { dbg('log quote failed: ' + err); });
 
-    doPrintFlow();
+    if (_pendingQuoteAction === 'share') doSharePdfFlow(); else doPrintFlow();
   }
 
   var _soldModalMode = 'manual'; // 'checklist' when the quote has itemized data, else 'manual'
@@ -3278,6 +3300,9 @@
     if (!el) return;
     var pdfBtn = qs('btn-pdf');
     if (pdfBtn) pdfBtn.style.display = lotQuotes.length ? '' : 'none';
+    var shareBtn = qs('btn-share-pdf');
+    var isNativeApp = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+    if (shareBtn) shareBtn.style.display = (lotQuotes.length && isNativeApp) ? '' : 'none';
     updateBrowseStickyBar();
     // Preserve horizontal scroll so new columns appear in place without jumping left
     var qtScrollEl = el.querySelector('.qt-scroll');
@@ -5115,7 +5140,10 @@
           break;
         case 'browse-sticky-print':
         case 'btn-pdf':
-          if (lotQuotes.length) openCustomerInfoModal(); else doPrintFlow();
+          if (lotQuotes.length) openCustomerInfoModal('print'); else doPrintFlow();
+          break;
+        case 'btn-share-pdf':
+          if (lotQuotes.length) openCustomerInfoModal('share'); else doSharePdfFlow();
           break;
         case 'customer-info-modal-cancel':
         case 'customer-info-modal-backdrop':

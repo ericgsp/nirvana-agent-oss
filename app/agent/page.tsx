@@ -834,6 +834,7 @@ export default async function AgentPage() {
           </div>
           <h1 id="topbar-title">Summary</h1>
           <button id="btn-pdf" className="btn-pdf" style={{ display: "none" }}>🖨 PDF</button>
+          <button id="btn-share-pdf" className="btn-pdf" style={{ display: "none" }}>💬 Share</button>
         </div>
 
         <div id="pr-debug" className="no-print" style={{position:'fixed', top:'62px', right:'6px', zIndex:9999, background:'rgba(0,0,0,0.75)', color:'#0f0', fontSize:'10px', padding:'3px 6px', borderRadius:'6px', fontFamily:'monospace', pointerEvents:'none'}}>pr:idle</div>
@@ -1686,7 +1687,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260816b" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260816c" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
