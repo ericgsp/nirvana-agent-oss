@@ -321,6 +321,7 @@ export default async function AgentPage() {
         .dp-pill.on   { background: ${G_TEAL}; border-color: ${G_TEAL}; color: #fff; }
         .dp-asneed    { border-color: #f59e0b; color: #92400e; }
         .dp-asneed.on { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+        .dp-select    { appearance: none; -webkit-appearance: none; padding: 6px 28px 6px 13px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1.5px solid ${G_TEAL}; cursor: pointer; background: ${G_TEAL} url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 11px center; color: #fff; }
         .promo-collapse       { border-bottom: 1px solid #fde68a; }
         .promo-collapse-header{ padding: 5px 14px; background: #fffbeb; font-size: 10px; font-weight: 600; color: #78350f; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
         .promo-collapse-header:hover { background: #fef3c7; }
@@ -1497,7 +1498,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260813b" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260813c" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

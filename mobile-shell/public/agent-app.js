@@ -3023,21 +3023,23 @@
     if (!isOneTimePayment) {
       dpHtml = '<div id="dp-strip" class="no-print"><span class="lbl">Down Payment:</span>';
       if (!isInstantCase) {
+        dpHtml += '<select class="dp-select" id="dp-select">';
         if (_rmDpValues.length > 0) {
           _rmDpValues.slice().sort(function (a, b) { return a - b; }).forEach(function (v) {
-            // Default "on" to smallest RM value when nothing has been explicitly clicked yet.
-            var isOn = !asNeedMode && (_dpFixedRm === v || (_dpFixedRm == null && v === Math.min.apply(null, _rmDpValues)));
-            dpHtml += '<div class="dp-pill' + (isOn ? ' on' : '') + '" data-pct="rm' + v + '">RM' + fmt(v) + '</div>';
+            // Default-selected to smallest RM value when nothing has been explicitly picked yet.
+            var isSel = !asNeedMode && (_dpFixedRm === v || (_dpFixedRm == null && v === Math.min.apply(null, _rmDpValues)));
+            dpHtml += '<option value="rm' + v + '"' + (isSel ? ' selected' : '') + '>RM' + fmt(v) + '</option>';
           });
-          dpHtml += '<div class="dp-pill' + (!asNeedMode && dpPct === 100 ? ' on' : '') + '" data-pct="100">Full Payment</div>';
+          dpHtml += '<option value="100"' + (!asNeedMode && dpPct === 100 ? ' selected' : '') + '>Full Payment</option>';
         } else {
           [10, 20, 30, 50, 100].filter(function (p) {
             return p === 100 || !_minPromoDp || p >= _minPromoDp;
           }).forEach(function (p) {
             var label = p === 100 ? 'Full Payment' : p + '%';
-            dpHtml += '<div class="dp-pill' + (!asNeedMode && dpPct === p ? ' on' : '') + '" data-pct="' + p + '">' + label + '</div>';
+            dpHtml += '<option value="' + p + '"' + (!asNeedMode && dpPct === p ? ' selected' : '') + '>' + label + '</option>';
           });
         }
+        dpHtml += '</select>';
       }
       if (!hideAsNeed) dpHtml += '<div class="dp-pill dp-asneed' + (asNeedMode ? ' on' : '') + '" data-pct="as-need">As-Need</div>';
       dpHtml += '</div>';
@@ -3141,21 +3143,15 @@
       });
     }
 
-    el.querySelectorAll('.dp-pill[data-pct]').forEach(function (pill) {
-      pill.addEventListener('click', function () {
-        if (pill.dataset.pct === 'as-need') {
-          asNeedMode = !asNeedMode;
-          saveSession(); renderQuoteSection();
-          return;
-        }
+    function applyDpPct(pctStr) {
         asNeedMode = false;
         var prevDp = dpPct;
-        if (pill.dataset.pct.startsWith('rm')) {
-          _dpFixedRm = parseInt(pill.dataset.pct.replace('rm', ''), 10);
+        if (pctStr.startsWith('rm')) {
+          _dpFixedRm = parseInt(pctStr.replace('rm', ''), 10);
           dpPct = 10; // instalment sentinel — ensures API excludes cash_purchase promo
         } else {
           _dpFixedRm = null;
-          dpPct = parseInt(pill.dataset.pct);
+          dpPct = parseInt(pctStr);
         }
         // Virtual sections (lot-range-restricted) must re-filter levels for the new DP tier
         if (prevDp !== dpPct && _virtualBlk && _virtualSec) {
@@ -3255,8 +3251,23 @@
           }
         }
         saveSession(); renderQuoteSection();
+    }
+
+    // As-Need is still a standalone toggle pill (not part of the DP dropdown —
+    // it's a different kind of choice, not a percentage value).
+    el.querySelectorAll('.dp-pill[data-pct="as-need"]').forEach(function (pill) {
+      pill.addEventListener('click', function () {
+        asNeedMode = !asNeedMode;
+        saveSession(); renderQuoteSection();
       });
     });
+
+    var dpSelectEl = el.querySelector('#dp-select');
+    if (dpSelectEl) {
+      dpSelectEl.addEventListener('change', function () {
+        applyDpPct(dpSelectEl.value);
+      });
+    }
 
     // Tomb type buttons (Southern Region combo lot zones)
     el.querySelectorAll('[data-tomb-code]').forEach(function (btn) {
