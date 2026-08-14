@@ -84,10 +84,23 @@ export async function GET() {
     };
   });
 
+  // Who this agent reports to -- shown even when they have no downline of
+  // their own (e.g. a base-tier AGENT), so the tab isn't just an empty state.
+  let myLeader: { display_name: string | null; agent_code: string | null; tier: string } | null = null;
+  if (me?.leader_id) {
+    const { data: leaderRow } = await supabaseAdmin
+      .from("agent_profiles")
+      .select("display_name, agent_code, tier")
+      .eq("user_id", me.leader_id)
+      .maybeSingle();
+    if (leaderRow) myLeader = leaderRow;
+  }
+
   return Response.json({
     access: true,
     scope: seesEverything ? "org" : "team",
     members,
+    myLeader,
   });
 }
 

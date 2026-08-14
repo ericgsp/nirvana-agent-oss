@@ -126,6 +126,10 @@ export default function AgentPage() {
 
         #team-scope-banner { margin: 10px 10px 0; padding: 10px 14px; border-radius: 12px; background: #f1f5f9; color: #475569; font-size: 11.5px; font-weight: 600; }
         #team-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .team-leader-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
+        .team-leader-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
+        .team-leader-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+        .team-leader-name { font-size: 13px; font-weight: 700; color: ${G_DARK}; flex: 1; }
         .team-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
         .team-row-top { display: flex; align-items: center; gap: 8px; }
         .team-tier-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
@@ -1741,7 +1745,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817g" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260817h" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

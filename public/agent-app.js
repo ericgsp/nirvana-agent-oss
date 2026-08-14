@@ -1671,10 +1671,23 @@
           : 'Showing your direct team';
       }
       if (listEl) {
+        var leaderHtml = '';
+        if (data.myLeader) {
+          var lColor = TIER_COLOR[data.myLeader.tier] || TIER_COLOR.AGENT;
+          var lName = esc(data.myLeader.display_name || data.myLeader.agent_code || 'Leader');
+          leaderHtml = '<div class="team-leader-card">' +
+            '<div class="team-leader-label">Reports to</div>' +
+            '<div class="team-leader-row">' +
+              '<span class="team-tier-badge" style="background:' + lColor.bg + ';color:' + lColor.fg + '">' + esc(data.myLeader.tier) + '</span>' +
+              '<span class="team-leader-name">' + lName + '</span>' +
+              (data.myLeader.agent_code ? '<span class="team-row-code">' + esc(data.myLeader.agent_code) + '</span>' : '') +
+            '</div>' +
+          '</div>';
+        }
         if (!data.members || !data.members.length) {
-          listEl.innerHTML = '<div class="home-empty">No team members found yet.</div>';
+          listEl.innerHTML = leaderHtml + '<div class="home-empty">No team members found yet.</div>';
         } else {
-          listEl.innerHTML = data.members.map(function (m) {
+          listEl.innerHTML = leaderHtml + data.members.map(function (m) {
             var color = TIER_COLOR[m.tier] || TIER_COLOR.AGENT;
             var name = esc(m.display_name || m.agent_code || 'Agent');
             var badge = '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(m.tier) + '</span>';
