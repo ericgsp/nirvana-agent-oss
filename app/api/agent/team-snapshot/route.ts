@@ -169,6 +169,71 @@ export async function GET() {
     active: (salesByUser[p.user_id] || 0) > 0,
   }));
 
+  // Self performance matrix -- shown above the Team Performance table, since
+  // the Me tab only ever shows "your sales vs your goal" and never how that
+  // compares to your team's total or last year. Own month figures reuse the
+  // same period as the table above; year figures come from yearly_sales_goals
+  // + a full-year sales_log sum, current year and previous year.
+  const currentYear = new Date().getFullYear();
+  const [
+    { data: ownGoalRow },
+    { data: ownMonthSalesRows },
+    { data: ownYearGoalRows },
+    { data: ownYearSalesRows },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("sales_goals")
+      .select("target_amount")
+      .eq("user_id", user.id)
+      .eq("period", period)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("sales_log")
+      .select("amount, sold_at")
+      .eq("user_id", user.id)
+      .gte("sold_at", `${period}-01`),
+    supabaseAdmin
+      .from("yearly_sales_goals")
+      .select("year, annual_target")
+      .eq("user_id", user.id)
+      .in("year", [currentYear, currentYear - 1]),
+    supabaseAdmin
+      .from("sales_log")
+      .select("amount, sold_at")
+      .eq("user_id", user.id)
+      .gte("sold_at", `${currentYear - 1}-01-01`),
+  ]);
+
+  const ownMonthActual = (ownMonthSalesRows ?? [])
+    .filter((r) => r.sold_at.slice(0, 7) === period)
+    .reduce((sum, r) => sum + Number(r.amount), 0);
+
+  const yearTargetByYear: Record<number, number> = {};
+  (ownYearGoalRows ?? []).forEach((r) => { yearTargetByYear[r.year] = Number(r.annual_target); });
+
+  let ownYearActual = 0;
+  let ownPrevYearActual = 0;
+  (ownYearSalesRows ?? []).forEach((r) => {
+    const y = Number(r.sold_at.slice(0, 4));
+    if (y === currentYear) ownYearActual += Number(r.amount);
+    else if (y === currentYear - 1) ownPrevYearActual += Number(r.amount);
+  });
+
+  const teamMonthActual = performance.reduce((sum, p) => sum + p.actual_amount, 0);
+
+  const selfPerformance = {
+    period,
+    ownMonthActual,
+    ownMonthTarget: ownGoalRow ? Number(ownGoalRow.target_amount) : null,
+    teamMonthActual,
+    currentYear,
+    ownYearActual,
+    ownYearTarget: yearTargetByYear[currentYear] ?? null,
+    prevYear: currentYear - 1,
+    ownPrevYearActual,
+    ownPrevYearTarget: yearTargetByYear[currentYear - 1] ?? null,
+  };
+
   // Full upward chain -- immediate leader first, then their leader, and so
   // on up to CBDD -- not just the one directly above. An SD should see their
   // DSD, then BDD, then CBDD; a BDD's direct report to CBDD should show just
@@ -194,6 +259,7 @@ export async function GET() {
     leaderChain,
     self: me ? { display_name: me.display_name, agent_code: me.agent_code, tier: me.tier } : null,
     performance,
+    selfPerformance,
   });
 }
 

@@ -159,6 +159,15 @@ export default function AgentPage() {
         #team-perf-table thead th.sorted-desc::after { content: ' ▼'; }
         .team-perf-status-active { color: #16a34a; font-weight: 700; }
         .team-perf-status-inactive { color: #94a3b8; }
+        #team-perf-self-matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
+        .tpm-tile { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; }
+        .tpm-tile-label { font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+        .tpm-tile-value { font-size: 16px; font-weight: 800; color: ${G_DARK}; margin-top: 3px; }
+        .tpm-tile-sub { font-size: 10.5px; color: #64748b; margin-top: 2px; }
+        .tpm-tile-wide { grid-column: 1 / -1; }
+        .tpm-track { height: 6px; border-radius: 4px; background: #e2e8f0; margin-top: 6px; overflow: hidden; }
+        .tpm-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
+        .tpm-compare-row { display: flex; justify-content: space-between; font-size: 11px; color: #475569; margin-top: 4px; }
         .team-row-top { display: flex; align-items: center; gap: 8px; }
         .team-tier-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
         .team-row-name { font-size: 13px; font-weight: 700; color: ${G_DARK}; flex: 1; }
@@ -1059,6 +1068,7 @@ export default function AgentPage() {
               <span id="team-perf-title">Team Performance</span>
               <button id="team-perf-print">🖨 Print</button>
             </div>
+            <div id="team-perf-self-matrix"></div>
             <div id="team-perf-controls" className="no-print">
               <input id="team-perf-search" type="text" placeholder="Search name or agent code…" />
               <select id="team-perf-tier-filter">
@@ -1823,7 +1833,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817l" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818a" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

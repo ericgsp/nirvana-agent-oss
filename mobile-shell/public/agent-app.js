@@ -1657,12 +1657,14 @@
   }
 
   var _teamPerfCache = [];
+  var _teamSelfPerfCache = null;
 
   function loadTeamSnapshot() {
     var banner = document.getElementById('team-scope-banner');
     var listEl = document.getElementById('team-list');
     fetch(API_BASE + '/api/agent/team-snapshot').then(function (res) { return res.json(); }).then(function (data) {
       _teamPerfCache = data.performance || [];
+      _teamSelfPerfCache = data.selfPerformance || null;
       if (!data.access) {
         if (banner) banner.innerHTML = '';
         if (listEl) listEl.innerHTML = '<div class="home-empty">Team view isn&apos;t set up for your account yet. Ask an admin to assign your tier and leader in /users.</div>';
@@ -1760,7 +1762,44 @@
   function openTeamPerfView() {
     var view = qs('team-perf-view');
     if (view) view.classList.add('open');
+    renderSelfPerfMatrix();
     renderTeamPerfTable();
+  }
+
+  // Self performance matrix -- shown above the Team Performance table.
+  // Unlike the Me tab (own sales vs own goal only), this also shows the
+  // team's combined sales and a this-year-vs-last-year quota comparison.
+  function renderSelfPerfMatrix() {
+    var el = qs('team-perf-self-matrix');
+    if (!el) return;
+    var sp = _teamSelfPerfCache;
+    if (!sp) { el.innerHTML = ''; return; }
+
+    var monthPct = sp.ownMonthTarget ? Math.min(100, Math.round(sp.ownMonthActual / sp.ownMonthTarget * 100)) : 0;
+
+    el.innerHTML =
+      '<div class="tpm-tile">' +
+        '<div class="tpm-tile-label">Your Sales · ' + esc(sp.period) + '</div>' +
+        '<div class="tpm-tile-value">RM ' + fmt(sp.ownMonthActual) + '</div>' +
+      '</div>' +
+      '<div class="tpm-tile">' +
+        '<div class="tpm-tile-label">Team Sales · ' + esc(sp.period) + '</div>' +
+        '<div class="tpm-tile-value">RM ' + fmt(sp.teamMonthActual) + '</div>' +
+      '</div>' +
+      '<div class="tpm-tile tpm-tile-wide">' +
+        '<div class="tpm-tile-label">Your Quota · ' + esc(sp.period) + '</div>' +
+        (sp.ownMonthTarget != null
+          ? '<div class="tpm-compare-row"><span>RM ' + fmt(sp.ownMonthActual) + '</span><span>of RM ' + fmt(sp.ownMonthTarget) + '</span></div>' +
+            '<div class="tpm-track"><div style="width:' + monthPct + '%"></div></div>'
+          : '<div class="tpm-tile-sub">No quota set for this month</div>') +
+      '</div>' +
+      '<div class="tpm-tile tpm-tile-wide">' +
+        '<div class="tpm-tile-label">' + sp.currentYear + ' vs ' + sp.prevYear + ' Quota</div>' +
+        '<div class="tpm-compare-row"><span>' + sp.currentYear + ' target</span><span>' + (sp.ownYearTarget != null ? 'RM ' + fmt(sp.ownYearTarget) : '—') + '</span></div>' +
+        '<div class="tpm-compare-row"><span>' + sp.currentYear + ' actual</span><span>RM ' + fmt(sp.ownYearActual) + '</span></div>' +
+        '<div class="tpm-compare-row"><span>' + sp.prevYear + ' target</span><span>' + (sp.ownPrevYearTarget != null ? 'RM ' + fmt(sp.ownPrevYearTarget) : '—') + '</span></div>' +
+        '<div class="tpm-compare-row"><span>' + sp.prevYear + ' actual</span><span>RM ' + fmt(sp.ownPrevYearActual) + '</span></div>' +
+      '</div>';
   }
 
   function closeTeamPerfView() {
