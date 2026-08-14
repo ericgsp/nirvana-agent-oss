@@ -5974,19 +5974,12 @@
     var indicator  = document.getElementById('pull-refresh-indicator');
     var spinner    = document.getElementById('pull-refresh-spinner');
     var label      = document.getElementById('pull-refresh-label');
-    var dbgElInit  = document.getElementById('pr-debug');
-    if (!scrollBody || !indicator) {
-      if (dbgElInit) dbgElInit.textContent = 'INIT FAILED: missing el';
-      return;
-    }
-    if (dbgElInit) dbgElInit.textContent = 'pr:ready';
+    if (!scrollBody || !indicator) return;
 
     var THRESHOLD = 64;
     var startY = null, pulling = false, triggered = false;
-    var dbgEl = document.getElementById('pr-debug');
 
     scrollBody.addEventListener('touchstart', function (e) {
-      if (dbgEl) dbgEl.textContent = 'ts sT:' + scrollBody.scrollTop;
       // Full-screen overlays (quote viewer, Team Performance) have their own
       // independent scroll region -- #scroll-body's own scrollTop being 0
       // doesn't mean there's nothing to scroll up inside them, so pull-to-
@@ -6000,10 +5993,8 @@
     }, { passive: true });
 
     scrollBody.addEventListener('touchmove', function (e) {
-      if (dbgEl) dbgEl.textContent = 'tm sT:' + scrollBody.scrollTop + ' startY:' + startY;
       if (startY == null) return;
       var dy = e.touches[0].clientY - startY;
-      if (dbgEl) dbgEl.textContent = 'tm dy:' + Math.round(dy) + ' sT:' + scrollBody.scrollTop;
       if (dy <= 0) { indicator.style.height = '0px'; return; }
       if (scrollBody.scrollTop > 0) return; // scrolled away mid-gesture
       // Not passive + preventDefault: some WebViews stop delivering touchmove
@@ -6015,11 +6006,9 @@
       indicator.style.height = h + 'px';
       triggered = h >= THRESHOLD;
       label.textContent = triggered ? 'Release to refresh' : 'Pull down to refresh';
-      if (dbgEl) dbgEl.textContent = 'PULLING h:' + Math.round(h);
     }, { passive: false });
 
     scrollBody.addEventListener('touchend', function () {
-      if (dbgEl) dbgEl.textContent = 'te pulling:' + pulling;
       if (!pulling) { startY = null; return; }
       pulling = false;
       indicator.classList.add('pr-anim');

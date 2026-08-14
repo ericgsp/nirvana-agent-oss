@@ -936,7 +936,6 @@ export default function AgentPage() {
           <button id="btn-share-pdf" className="btn-pdf" style={{ display: "none" }}>💬 Share</button>
         </div>
 
-        <div id="pr-debug" className="no-print" style={{position:'fixed', top:'62px', right:'6px', zIndex:9999, background:'rgba(0,0,0,0.75)', color:'#0f0', fontSize:'10px', padding:'3px 6px', borderRadius:'6px', fontFamily:'monospace', pointerEvents:'none'}}>pr:idle</div>
         <div id="scroll-body">
           <div id="pull-refresh-indicator" className="no-print">
             <div id="pull-refresh-spinner"></div>
@@ -1870,7 +1869,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818g" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818h" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
