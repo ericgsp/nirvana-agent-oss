@@ -143,17 +143,27 @@ export default async function AgentPage() {
         .team-goal-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
         .team-no-goal { font-size: 11px; color: #94a3b8; margin-top: 8px; font-style: italic; }
 
-        .earning-summary-card { margin: 10px 10px 0; padding: 16px; border-radius: 16px; background: linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); color: #fff; }
-        .earning-total-label { font-size: 11px; opacity: 0.8; }
-        .earning-total-amt { font-size: 26px; font-weight: 800; margin-top: 2px; }
-        .earning-tier-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-        .earning-rate { font-size: 11px; opacity: 0.85; }
-        .earning-pv-row { font-size: 11px; opacity: 0.75; margin-top: 4px; }
-        #earning-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-        .earning-sale-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
-        .earning-items { margin-top: 6px; padding-top: 6px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 2px; }
-        .earning-item-row { display: flex; justify-content: space-between; font-size: 11.5px; color: #334155; }
-        .earning-pending { color: #94a3b8; font-style: italic; }
+        .leads-toolbar { display: flex; gap: 8px; padding: 10px; }
+        .leads-tb-btn { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; color: #475569; font-size: 12.5px; font-weight: 700; }
+        .leads-tb-btn-primary { background: linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); color: #fff; border: none; }
+        #leads-list { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
+        .lead-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
+        .lead-row-top { display: flex; align-items: center; gap: 8px; }
+        .lead-name { font-size: 13px; font-weight: 700; color: ${G_DARK}; flex: 1; }
+        .lead-source-tag { font-size: 9.5px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 7px; border-radius: 999px; }
+        .lead-phone-row { margin-top: 4px; font-size: 12px; }
+        .lead-no-phone { color: #94a3b8; font-style: italic; font-size: 11.5px; }
+        .lead-delete-btn { margin-top: 8px; padding: 4px 9px; border-radius: 999px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font-size: 10.5px; font-weight: 700; }
+
+        #contact-picker-modal-backdrop, #add-lead-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #contact-picker-modal-backdrop.open, #add-lead-modal-backdrop.open { display:flex; }
+        #add-lead-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #contact-picker-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; max-height:80vh; display:flex; flex-direction:column; }
+        #contact-picker-search { margin-top:10px; }
+        #contact-picker-list { flex:1; overflow-y:auto; margin-top:10px; display:flex; flex-direction:column; gap:2px; max-height: 45vh; }
+        .contact-pick-row { display:flex; align-items:center; gap:8px; padding:8px 4px; border-bottom:1px solid #f1f5f9; }
+        .contact-pick-name { flex:1; font-size:12.5px; font-weight:600; color:#334155; }
+        .contact-pick-phone { font-size:11px; color:#94a3b8; }
 
         #me-goal-card { margin: 10px 10px 0; }
         .me-set-goal-btn { display: block; width: 100%; margin-top: 10px; padding: 9px; border-radius: 10px; border: none; background: rgba(255,255,255,0.18); color: #fff; font-size: 12px; font-weight: 700; }
@@ -238,15 +248,15 @@ export default async function AgentPage() {
         #customer-info-modal-cancel { background:#f1f5f9; color:#475569; }
         #customer-info-modal-confirm { background:${G_TEAL}; color:#fff; }
 
-        #edit-customer-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
-        #edit-customer-modal-backdrop.open { display:flex; }
-        #edit-customer-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
-        #edit-customer-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
-        #edit-customer-name, #edit-customer-phone { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; }
-        #edit-customer-modal-actions { display:flex; gap:8px; margin-top:14px; }
-        #edit-customer-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
-        #edit-customer-modal-cancel { background:#f1f5f9; color:#475569; }
-        #edit-customer-modal-confirm { background:${G_TEAL}; color:#fff; }
+        #edit-customer-modal-backdrop, #add-lead-modal-backdrop, #contact-picker-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #edit-customer-modal-backdrop.open, #add-lead-modal-backdrop.open, #contact-picker-modal-backdrop.open { display:flex; }
+        #edit-customer-modal-box, #add-lead-modal-box, #contact-picker-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #edit-customer-modal-title, #add-lead-modal-title, #contact-picker-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #edit-customer-name, #edit-customer-phone, #add-lead-name, #add-lead-phone, #contact-picker-search { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; }
+        #edit-customer-modal-actions, #add-lead-modal-actions, #contact-picker-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #edit-customer-modal-actions button, #add-lead-modal-actions button, #contact-picker-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #edit-customer-modal-cancel, #add-lead-modal-cancel, #contact-picker-modal-cancel { background:#f1f5f9; color:#475569; }
+        #edit-customer-modal-confirm, #add-lead-modal-confirm, #contact-picker-modal-confirm { background:${G_TEAL}; color:#fff; }
 
         #yearly-goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #yearly-goal-modal-backdrop.open { display:flex; }
@@ -777,7 +787,7 @@ export default async function AgentPage() {
           .print-only { display: block !important; }
           #topbar, .s-label, #zone-filter, #layout-area, .no-print,
           #dp-strip, .avail-banner, #btn-challenge, .s-card:not(#quote-section), .tab-placeholder,
-          #tab-home, #tab-earning, #tab-team, #tab-me, #inventory-list-view, #assets-panel,
+          #tab-home, #tab-leads, #tab-team, #tab-me, #inventory-list-view, #assets-panel,
           #memo-backdrop, #memo-drawer, #forms-backdrop, #forms-drawer, #sites-backdrop, #sites-drawer, #training-backdrop, #training-drawer, #challenge-backdrop, #challenge-drawer, #announcement-backdrop, #announcement-drawer, #poster-modal-backdrop { display: none !important; }
           #tab-browse, #inventory-layout-view { display: block !important; }
           #phone { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; }
@@ -887,11 +897,14 @@ export default async function AgentPage() {
             <div id="home-recent-quotes"></div>
           </div>
 
-          {/* ── Tab: Earning — commission from Close Sales, computed from PV
-               captured at quote time × the agent's tier rate ── */}
-          <div id="tab-earning" className="tab-panel">
-            <div id="earning-summary" className="earning-summary-card"></div>
-            <div id="earning-list"></div>
+          {/* ── Tab: Leads — a per-agent contact list, either typed in
+               manually or synced from the phone's own contacts ── */}
+          <div id="tab-leads" className="tab-panel">
+            <div className="leads-toolbar no-print">
+              <button id="btn-add-lead" className="leads-tb-btn leads-tb-btn-primary">+ Add Lead</button>
+              <button id="btn-sync-contacts" className="leads-tb-btn">📇 Sync Contacts</button>
+            </div>
+            <div id="leads-list"></div>
           </div>
 
           {/* ── Tab: Browse (combined Inventory + Quote — list, layout, and quote
@@ -1015,7 +1028,7 @@ export default async function AgentPage() {
         {/* ── Bottom tab bar ── */}
         <div id="tab-bar" className="no-print">
           <button className="tab-btn active" data-tab="home"><span className="tab-btn-icon">⌂</span>Home</button>
-          <button className="tab-btn" data-tab="earning"><span className="tab-btn-icon">$</span>Earning</button>
+          <button className="tab-btn" data-tab="leads"><span className="tab-btn-icon">👤</span>Leads</button>
           <button className="tab-btn" data-tab="browse"><span className="tab-btn-icon">▦</span>Browse</button>
           <button className="tab-btn" data-tab="team"><span className="tab-btn-icon">⋔</span>Team</button>
           <button className="tab-btn" data-tab="me"><span className="tab-btn-icon">♟</span>Me</button>
@@ -1608,6 +1621,34 @@ export default async function AgentPage() {
         </div>
       </div>
 
+      {/* Add Lead modal — Leads tab */}
+      <div id="add-lead-modal-backdrop">
+        <div id="add-lead-modal-box">
+          <div id="add-lead-modal-title">Add Lead</div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Name</div>
+          <input id="add-lead-name" type="text" placeholder="e.g. Tan Ah Kow" />
+          <div className="f-lbl" style={{marginTop:"10px"}}>Phone number</div>
+          <input id="add-lead-phone" type="tel" placeholder="e.g. 012-3456789" />
+          <div id="add-lead-modal-actions">
+            <button id="add-lead-modal-cancel">Cancel</button>
+            <button id="add-lead-modal-confirm">Save</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Contact picker modal — Leads tab, native phone contacts import */}
+      <div id="contact-picker-modal-backdrop">
+        <div id="contact-picker-modal-box">
+          <div id="contact-picker-modal-title">Import Contacts</div>
+          <input id="contact-picker-search" type="text" placeholder="Search contacts…" />
+          <div id="contact-picker-list"></div>
+          <div id="contact-picker-modal-actions">
+            <button id="contact-picker-modal-cancel">Cancel</button>
+            <button id="contact-picker-modal-confirm">Import Selected</button>
+          </div>
+        </div>
+      </div>
+
       {/* Yearly goal modal — Me tab. Splits equally across the 12 months of
           the current year; an individual month can still be adjusted later
           via the Team tab's per-member goal modal reused for "self". */}
@@ -1702,7 +1743,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260817e" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

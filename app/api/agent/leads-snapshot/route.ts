@@ -1,0 +1,71 @@
+import { NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/server-admin";
+
+export const runtime = "nodejs";
+
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return Response.json({ leads: [] });
+
+  const { data: leads } = await supabaseAdmin
+    .from("leads")
+    .select("id, name, phone, source, notes, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  return Response.json({ leads: leads ?? [] });
+}
+
+export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return Response.json({ error: "Not signed in" }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const action = body?.action;
+
+  if (action === "add_lead") {
+    const name = typeof body?.name === "string" ? body.name.trim() : "";
+    const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
+    if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
+    const { error } = await supabaseAdmin.from("leads").insert({
+      user_id: user.id, name, phone: phone || null, source: "manual",
+    });
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  if (action === "bulk_import") {
+    const contacts = Array.isArray(body?.contacts) ? body.contacts : [];
+    if (!contacts.length) return Response.json({ error: "No contacts provided" }, { status: 400 });
+
+    // Skip contacts whose phone already exists as a lead for this agent --
+    // syncing the same phone contacts repeatedly shouldn't pile up duplicates.
+    const { data: existing } = await supabaseAdmin
+      .from("leads").select("phone").eq("user_id", user.id).not("phone", "is", null);
+    const existingPhones = new Set((existing ?? []).map((r) => r.phone));
+
+    const rows = contacts
+      .filter((c: { name?: string; phone?: string }) => c?.name && (!c.phone || !existingPhones.has(c.phone)))
+      .map((c: { name: string; phone?: string }) => ({
+        user_id: user.id, name: c.name.trim(), phone: c.phone ? c.phone.trim() : null, source: "contact_sync",
+      }));
+
+    if (!rows.length) return Response.json({ ok: true, imported: 0 });
+    const { error } = await supabaseAdmin.from("leads").insert(rows);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true, imported: rows.length });
+  }
+
+  if (action === "delete_lead") {
+    const id = body?.id;
+    if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+    const { error } = await supabaseAdmin.from("leads").delete().eq("id", id).eq("user_id", user.id);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  return Response.json({ error: "Unknown action" }, { status: 400 });
+}

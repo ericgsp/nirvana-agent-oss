@@ -1031,13 +1031,13 @@
   }
 
   // ── Bottom tab bar ────────────────────────────────────────────
-  var TAB_IDS = ['home', 'earning', 'browse', 'team', 'me'];
-  var TAB_TITLES = { home: 'Summary', earning: 'Earning & Quota', browse: 'Quotation Browsing', team: 'My Team', me: 'Me (Goal)' };
+  var TAB_IDS = ['home', 'leads', 'browse', 'team', 'me'];
+  var TAB_TITLES = { home: 'Summary', leads: 'Leads', browse: 'Quotation Browsing', team: 'My Team', me: 'Me (Goal)' };
   var _homeSnapshotLoaded = false;
   var _inventoryListLoaded = false;
   var _teamLoaded = false;
   var _meLoaded = false;
-  var _earningLoaded = false;
+  var _leadsLoaded = false;
   var _soldModalRef = null;
   var _editCustomerRef = null;
   var _goalModalUserId = null;
@@ -1078,9 +1078,9 @@
       _meLoaded = true;
       loadMeSnapshot();
     }
-    if (name === 'earning' && !_earningLoaded) {
-      _earningLoaded = true;
-      loadEarningSnapshot();
+    if (name === 'leads' && !_leadsLoaded) {
+      _leadsLoaded = true;
+      loadLeadsSnapshot();
     }
   }
 
@@ -1672,52 +1672,163 @@
     }).catch(function (err) { dbg('team snapshot failed: ' + err); });
   }
 
-  // Earning tab: commission from Close Sales, computed from PV captured at
-  // quote time (Land: PV - trust - backwall; Niche: PV - trust; both minus
-  // the same promo discount used on the quote) times the agent's tier rate.
-  // Only Burial Plot and Columbarium have a confirmed formula so far --
-  // other categories show "Pending" instead of guessing a commission.
-  function loadEarningSnapshot() {
-    var summaryEl = document.getElementById('earning-summary');
-    var listEl = document.getElementById('earning-list');
-    fetch(API_BASE + '/api/agent/earning-snapshot').then(function (res) { return res.json(); }).then(function (data) {
-      if (summaryEl) {
-        var color = TIER_COLOR[data.tier] || TIER_COLOR.AGENT;
-        summaryEl.innerHTML =
-          '<div class="earning-total-label">Total commission</div>' +
-          '<div class="earning-total-amt">RM ' + fmt(data.totalCommission || 0) + '</div>' +
-          '<div class="earning-tier-row">' +
-            '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(data.tier || 'AGENT') + '</span>' +
-            '<span class="earning-rate">' + (data.ratePct || 0) + '% commission rate</span>' +
-          '</div>' +
-          '<div class="earning-pv-row">Net PV: ' + fmt(data.totalPv || 0) + '</div>';
-      }
-      if (listEl) {
-        if (!data.closedSales || !data.closedSales.length) {
-          listEl.innerHTML = '<div class="home-empty">No closed sales yet — commission shows up here once a quote is marked Close Sales.</div>';
-        } else {
-          listEl.innerHTML = data.closedSales.map(function (sale) {
-            var dateStr = sale.created_at ? new Date(sale.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-            var custName = sale.customer_name ? esc(sale.customer_name) : 'No customer name';
-            var itemsHtml = (sale.items || []).map(function (it) {
-              var right = it.supported
-                ? 'RM ' + fmt(it.commission || 0)
-                : '<span class="earning-pending">Pending</span>';
-              return '<div class="earning-item-row">' +
-                '<span>' + esc(it.label || '') + '</span>' +
-                '<span>' + right + '</span>' +
-              '</div>';
-            }).join('');
-            return '<div class="earning-sale-row">' +
-              '<div class="mqr-cust">' + custName + '</div>' +
-              '<div class="mqr-main">' + esc(sale.site || '') + (sale.product ? ' · ' + esc(sale.product) : '') + '</div>' +
-              '<div class="earning-items">' + itemsHtml + '</div>' +
-              '<div class="mqr-meta">' + esc(dateStr) + '</div>' +
-            '</div>';
-          }).join('');
-        }
-      }
-    }).catch(function (err) { dbg('earning snapshot failed: ' + err); });
+  // Leads tab: a per-agent contact list, either typed in manually or
+  // synced from the phone's own contacts via the Contacts native plugin.
+  var _leadsCache = [];
+
+  function loadLeadsSnapshot() {
+    var listEl = document.getElementById('leads-list');
+    fetch(API_BASE + '/api/agent/leads-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      _leadsCache = data.leads || [];
+      renderLeadsList();
+    }).catch(function (err) { dbg('leads snapshot failed: ' + err); });
+  }
+
+  function renderLeadsList() {
+    var listEl = document.getElementById('leads-list');
+    if (!listEl) return;
+    if (!_leadsCache.length) {
+      listEl.innerHTML = '<div class="home-empty">No leads yet — add one manually or sync from your phone contacts.</div>';
+      return;
+    }
+    listEl.innerHTML = _leadsCache.map(function (l) {
+      var waLink = toWaLink(l.phone || '');
+      var phoneHtml = l.phone
+        ? (waLink ? '<a class="mqr-wa-link" href="' + esc(waLink) + '" target="_blank" rel="noopener noreferrer">💬 ' + esc(l.phone) + '</a>' : esc(l.phone))
+        : '<span class="lead-no-phone">No phone</span>';
+      var sourceTag = l.source === 'contact_sync' ? '<span class="lead-source-tag">Synced</span>' : '';
+      return '<div class="lead-row">' +
+        '<div class="lead-row-top">' +
+          '<span class="lead-name">' + esc(l.name || '') + '</span>' + sourceTag +
+        '</div>' +
+        '<div class="lead-phone-row">' + phoneHtml + '</div>' +
+        '<button class="lead-delete-btn" data-id="' + esc(l.id) + '">🗑 Delete</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function openAddLeadModal() {
+    var nameEl = qs('add-lead-name');
+    var phoneEl = qs('add-lead-phone');
+    if (nameEl) nameEl.value = '';
+    if (phoneEl) phoneEl.value = '';
+    var backdrop = qs('add-lead-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeAddLeadModal() {
+    var backdrop = qs('add-lead-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function confirmAddLead() {
+    var nameEl = qs('add-lead-name');
+    var phoneEl = qs('add-lead-phone');
+    var name = nameEl ? nameEl.value.trim() : '';
+    var phone = phoneEl ? phoneEl.value.trim() : '';
+    if (!name) { alert('Enter a name.'); return; }
+    fetch(API_BASE + '/api/agent/leads-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_lead', name: name, phone: phone }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeAddLeadModal();
+      loadLeadsSnapshot();
+    }).catch(function (err) { dbg('add lead failed: ' + err); });
+  }
+
+  function deleteLead(id) {
+    if (!confirm('Delete this lead?')) return;
+    fetch(API_BASE + '/api/agent/leads-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_lead', id: id }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      loadLeadsSnapshot();
+    }).catch(function (err) { dbg('delete lead failed: ' + err); });
+  }
+
+  // ── Contact sync ──────────────────────────────────────────────────────
+  var _pickedContacts = []; // full list fetched from the phone, before selection
+  var _contactSelection = {}; // contactId -> boolean
+
+  function syncPhoneContacts() {
+    if (!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
+      alert('Contact sync only works inside the installed app, not this preview.');
+      return;
+    }
+    var Contacts = window.Capacitor.Plugins.Contacts;
+    if (!Contacts) { alert('Contacts plugin not available.'); return; }
+    Contacts.checkPermissions().then(function (status) {
+      if (status.contacts === 'granted') return true;
+      return Contacts.requestPermissions().then(function (s2) { return s2.contacts === 'granted'; });
+    }).then(function (granted) {
+      if (!granted) { alert('Contacts permission was denied.'); return; }
+      return Contacts.getContacts({ projection: { name: true, phones: true } });
+    }).then(function (result) {
+      if (!result) return;
+      _pickedContacts = (result.contacts || []).filter(function (c) {
+        return c.name && c.name.display;
+      });
+      _contactSelection = {};
+      openContactPickerModal();
+    }).catch(function (err) { dbg('contact sync failed: ' + err); alert('Could not read contacts.'); });
+  }
+
+  function openContactPickerModal() {
+    renderContactPickerList('');
+    var searchEl = qs('contact-picker-search');
+    if (searchEl) searchEl.value = '';
+    var backdrop = qs('contact-picker-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeContactPickerModal() {
+    var backdrop = qs('contact-picker-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function renderContactPickerList(filterText) {
+    var listEl = qs('contact-picker-list');
+    if (!listEl) return;
+    var filt = (filterText || '').toLowerCase();
+    var rows = _pickedContacts.filter(function (c) {
+      return !filt || (c.name.display || '').toLowerCase().indexOf(filt) >= 0;
+    });
+    if (!rows.length) {
+      listEl.innerHTML = '<div class="home-empty">No contacts found.</div>';
+      return;
+    }
+    listEl.innerHTML = rows.map(function (c) {
+      var phone = (c.phones && c.phones[0] && c.phones[0].number) || '';
+      var checked = _contactSelection[c.contactId] ? ' checked' : '';
+      return '<label class="contact-pick-row">' +
+        '<input type="checkbox" class="contact-pick-check" data-id="' + esc(c.contactId) + '"' + checked + ' />' +
+        '<span class="contact-pick-name">' + esc(c.name.display || '') + '</span>' +
+        '<span class="contact-pick-phone">' + esc(phone) + '</span>' +
+      '</label>';
+    }).join('');
+  }
+
+  function confirmContactImport() {
+    var contacts = [];
+    _pickedContacts.forEach(function (c) {
+      if (!_contactSelection[c.contactId]) return;
+      var phone = (c.phones && c.phones[0] && c.phones[0].number) || '';
+      contacts.push({ name: c.name.display || '', phone: phone });
+    });
+    if (!contacts.length) { alert('Select at least one contact.'); return; }
+    fetch(API_BASE + '/api/agent/leads-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'bulk_import', contacts: contacts }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeContactPickerModal();
+      loadLeadsSnapshot();
+    }).catch(function (err) { dbg('import contacts failed: ' + err); });
   }
 
   function loadHomeSnapshot() {
@@ -4716,6 +4827,16 @@
       // col-hidden only takes effect during print (@media print) — no screen change needed
     });
 
+    document.addEventListener('input', function (e) {
+      if (e.target && e.target.id === 'contact-picker-search') renderContactPickerList(e.target.value);
+    });
+
+    document.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t || !t.classList.contains('contact-pick-check')) return;
+      _contactSelection[t.dataset.id] = t.checked;
+    });
+
     // Stamp col-hidden just before the browser renders the print preview,
     // and clean up immediately after — works correctly across all browsers.
     window.addEventListener('beforeprint', function () {
@@ -4997,6 +5118,10 @@
         return;
       }
 
+      // "Delete" button on a lead row (Leads tab)
+      var deleteLeadBtn = e.target && e.target.closest && e.target.closest('.lead-delete-btn');
+      if (deleteLeadBtn) { deleteLead(deleteLeadBtn.dataset.id); return; }
+
       // Tapping a month in the yearly-goal mini bar chart (Me tab)
       var monthBarCol = e.target && e.target.closest && e.target.closest('.mgc-bar-col');
       if (monthBarCol) {
@@ -5126,6 +5251,30 @@
           break;
         case 'edit-customer-modal-confirm':
           confirmEditCustomer();
+          break;
+        case 'btn-add-lead':
+          openAddLeadModal();
+          break;
+        case 'btn-sync-contacts':
+          syncPhoneContacts();
+          break;
+        case 'add-lead-modal-cancel':
+          closeAddLeadModal();
+          break;
+        case 'add-lead-modal-backdrop':
+          if (e.target.id === 'add-lead-modal-backdrop') closeAddLeadModal();
+          break;
+        case 'add-lead-modal-confirm':
+          confirmAddLead();
+          break;
+        case 'contact-picker-modal-cancel':
+          closeContactPickerModal();
+          break;
+        case 'contact-picker-modal-backdrop':
+          if (e.target.id === 'contact-picker-modal-backdrop') closeContactPickerModal();
+          break;
+        case 'contact-picker-modal-confirm':
+          confirmContactImport();
           break;
         case 'goal-modal-cancel':
           closeGoalModal();
@@ -5384,9 +5533,9 @@
         _meLoaded = false;
         loadMeSnapshot();
         break;
-      case 'earning':
-        _earningLoaded = false;
-        loadEarningSnapshot();
+      case 'leads':
+        _leadsLoaded = false;
+        loadLeadsSnapshot();
         break;
       case 'home':
       default:
