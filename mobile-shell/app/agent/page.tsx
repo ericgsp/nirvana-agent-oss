@@ -130,6 +130,11 @@ export default function AgentPage() {
         .team-leader-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; }
         .team-leader-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
         .team-leader-name { font-size: 13px; font-weight: 700; color: ${G_DARK}; flex: 1; }
+        .team-self-card { background: linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); border-radius: 14px; padding: 12px; }
+        .team-self-card .team-leader-label { color: rgba(255,255,255,0.75); }
+        .team-self-card .team-leader-name { color: #fff; }
+        .team-self-you-tag { flex-shrink: 0; font-size: 9.5px; font-weight: 700; color: #fff; background: rgba(255,255,255,0.22); padding: 2px 8px; border-radius: 999px; }
+        .team-section-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin: 4px 2px 0; }
         .team-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
         .team-row-top { display: flex; align-items: center; gap: 8px; }
         .team-tier-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
@@ -1745,7 +1750,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817i" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260817j" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

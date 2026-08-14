@@ -111,6 +111,7 @@ export async function GET() {
     scope: seesEverything ? "org" : "team",
     members,
     leaderChain,
+    self: me ? { display_name: me.display_name, agent_code: me.agent_code, tier: me.tier } : null,
   });
 }
 

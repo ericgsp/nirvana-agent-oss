@@ -1686,10 +1686,24 @@
             }).join('') +
           '</div>';
         }
+        var selfHtml = '';
+        if (data.self) {
+          var sColor = TIER_COLOR[data.self.tier] || TIER_COLOR.AGENT;
+          var sName = esc(data.self.display_name || data.self.agent_code || 'You');
+          selfHtml = '<div class="team-self-card">' +
+            '<div class="team-leader-label">Your position</div>' +
+            '<div class="team-leader-row">' +
+              '<span class="team-tier-badge" style="background:' + sColor.bg + ';color:' + sColor.fg + '">' + esc(data.self.tier) + '</span>' +
+              '<span class="team-leader-name">' + sName + '</span>' +
+              (data.self.agent_code ? '<span class="team-row-code">' + esc(data.self.agent_code) + '</span>' : '') +
+              '<span class="team-self-you-tag">You</span>' +
+            '</div>' +
+          '</div>';
+        }
         if (!data.members || !data.members.length) {
-          listEl.innerHTML = leaderHtml + '<div class="home-empty">No team members found yet.</div>';
+          listEl.innerHTML = leaderHtml + selfHtml + '<div class="home-empty">No team members found yet.</div>';
         } else {
-          listEl.innerHTML = leaderHtml + data.members.map(function (m) {
+          listEl.innerHTML = leaderHtml + selfHtml + '<div class="team-section-label">Your team</div>' + data.members.map(function (m) {
             var color = TIER_COLOR[m.tier] || TIER_COLOR.AGENT;
             var name = esc(m.display_name || m.agent_code || 'Agent');
             var badge = '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(m.tier) + '</span>';
