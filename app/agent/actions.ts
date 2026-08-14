@@ -407,6 +407,41 @@ export async function fetchQuotation(site: string, product: string, block: strin
   };
 }
 
+// Every quote gets a lead so Leads tab is the single place quote follow-up
+// ever lives -- matches an existing lead by phone (more reliable than name,
+// which can have spelling variants), then by exact name, and only creates a
+// new one if neither matches. Unnamed quotes still get a placeholder lead
+// (rather than being left unmanageable) that the agent can rename later.
+async function resolveLeadId(
+  userId: string,
+  customerName: string | undefined,
+  customerPhone: string | undefined,
+  site: string,
+  product: string
+): Promise<string | null> {
+  const name = (customerName || "").trim();
+  const phone = (customerPhone || "").trim();
+
+  if (phone) {
+    const { data } = await supabaseAdmin
+      .from("leads").select("id").eq("user_id", userId).eq("phone", phone).limit(1);
+    if (data && data.length) return data[0].id;
+  }
+  if (name) {
+    const { data } = await supabaseAdmin
+      .from("leads").select("id").eq("user_id", userId).eq("name", name).limit(1);
+    if (data && data.length) return data[0].id;
+  }
+
+  const leadName = name || `Unnamed — ${site} ${product}`.trim();
+  const { data: created } = await supabaseAdmin
+    .from("leads")
+    .insert({ user_id: userId, name: leadName, phone: phone || null, source: "quote" })
+    .select("id")
+    .limit(1);
+  return created && created.length ? created[0].id : null;
+}
+
 // ── Recent quotes (Home tab) ────────────────────────────────────────────────
 // Logged once per deliberate "Print/Share" tap, not per lot selection —
 // /agent is usable without login, so a missing user just means the quote
@@ -419,6 +454,8 @@ export async function logQuoteView(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  const leadId = user ? await resolveLeadId(user.id, customerName, customerPhone, site, product) : null;
+
   await supabaseAdmin.from("recent_quotes").insert({
     user_id: user?.id ?? null,
     site, product, section,
@@ -427,6 +464,7 @@ export async function logQuoteView(
     customer_phone: customerPhone || null,
     valid_until: validUntil || null,
     items: items && items.length ? items : null,
+    lead_id: leadId,
   });
 }
 
