@@ -63,8 +63,15 @@ export async function GET(req: NextRequest) {
     return Response.json({ checklist: [], reason: "no_category_data" });
   }
 
+  // Always show every one of the 3 core products the lead has actually
+  // bought, ticked, alongside whatever's still needed -- not just whichever
+  // ones happen to be a suggestion target of something else they bought.
+  // Without this, a lead who only bought Burial Plot would never see
+  // "Burial Plot" ticked in their own checklist (it isn't a suggestion
+  // target of itself), while a lead who bought two of the three would.
   const suggested = new Set<string>();
   boughtCategories.forEach((cat) => {
+    if (CROSS_SELL_MAP[cat]) suggested.add(cat);
     (CROSS_SELL_MAP[cat] ?? []).forEach((s) => suggested.add(s));
   });
 
