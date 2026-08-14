@@ -39,4 +39,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- The Contacts plugin bundles READ+WRITE into one permission group even
+         though this app only ever reads contacts (Leads, Sync Contacts).
+         WRITE_CONTACTS is required here to satisfy Capacitor's permission
+         check, not because the app writes to the phone's contacts. -->
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
 </manifest>
