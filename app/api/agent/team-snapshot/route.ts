@@ -11,6 +11,40 @@ function currentPeriod() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// Every tier sees its ENTIRE downline, not just direct reports -- a CBDD
+// sees every BDD/DSD/SD/AGENT under it, a BDD sees every DSD/SD/AGENT under
+// it, and so on down to SD seeing its AGENTs. This walks the whole
+// agent_profiles tree from `userId` downward (BFS), so "my team" always
+// means my full subtree, however many levels deep. Two people never share a
+// subtree unless one's upline chain actually passes through the other, so
+// this also naturally keeps separate CBDD groups from ever seeing each other.
+async function getRecursiveDownline(userId: string): Promise<AgentProfile[]> {
+  const { data } = await supabaseAdmin
+    .from("agent_profiles")
+    .select("user_id, tier, leader_id, agent_code, display_name");
+  const all = (data as AgentProfile[]) ?? [];
+
+  const childrenByLeader: Record<string, AgentProfile[]> = {};
+  all.forEach((p) => {
+    if (!p.leader_id) return;
+    (childrenByLeader[p.leader_id] ??= []).push(p);
+  });
+
+  const result: AgentProfile[] = [];
+  const visited = new Set<string>([userId]);
+  const queue = [userId];
+  while (queue.length) {
+    const current = queue.shift()!;
+    for (const child of childrenByLeader[current] ?? []) {
+      if (visited.has(child.user_id)) continue; // cycle safety net
+      visited.add(child.user_id);
+      result.push(child);
+      queue.push(child.user_id);
+    }
+  }
+  return result;
+}
+
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -21,10 +55,8 @@ export async function GET() {
 
   const me = await getMyProfile();
   const role = await getUserRole();
-  // CBDD is the top MLM tier but is NOT special-cased to see the whole org --
-  // a CBDD only sees their own direct downline, same as every other tier.
   // Only the "admin" role (a separate concept from MLM tier, for internal
-  // support/management) sees everything.
+  // support/management) sees the entire org regardless of tier or position.
   const seesEverything = role === "admin";
 
   if (!me && !seesEverything) {
@@ -32,15 +64,16 @@ export async function GET() {
     return Response.json({ access: false, scope: null, members: [] });
   }
 
-  const query = supabaseAdmin
-    .from("agent_profiles")
-    .select("user_id, tier, leader_id, agent_code, display_name");
-
-  const { data: downlineData } = seesEverything
-    ? await query.neq("user_id", user.id)
-    : await query.eq("leader_id", user.id);
-
-  const downline = (downlineData as AgentProfile[]) ?? [];
+  let downline: AgentProfile[];
+  if (seesEverything) {
+    const { data } = await supabaseAdmin
+      .from("agent_profiles")
+      .select("user_id, tier, leader_id, agent_code, display_name")
+      .neq("user_id", user.id);
+    downline = (data as AgentProfile[]) ?? [];
+  } else {
+    downline = await getRecursiveDownline(user.id);
+  }
 
   const period = currentPeriod();
   const memberIds = downline.map((m) => m.user_id);
@@ -116,8 +149,9 @@ export async function GET() {
 }
 
 // POST — set a downline member's goal for the current period. Only the
-// caller's own visible downline can be targeted (same scoping as GET) --
-// a BDD can set a goal for their direct report, but not for someone else's.
+// caller's own visible (recursive) downline can be targeted, same scoping
+// as GET -- a BDD can set a goal for anyone under it, direct or not, but
+// never for someone outside its own subtree.
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -131,23 +165,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "user_id and a positive target_amount are required" }, { status: 400 });
   }
 
-  const me = await getMyProfile();
   const role = await getUserRole();
-  // CBDD is the top MLM tier but is NOT special-cased to see the whole org --
-  // a CBDD only sees their own direct downline, same as every other tier.
-  // Only the "admin" role (a separate concept from MLM tier, for internal
-  // support/management) sees everything.
+  // Only the "admin" role sees/manages the entire org; everyone else can
+  // only set goals within their own recursive downline (same scoping as GET).
   const seesEverything = role === "admin";
 
   if (!seesEverything) {
-    const { data: targetRow } = await supabaseAdmin
-      .from("agent_profiles")
-      .select("user_id")
-      .eq("user_id", targetUserId)
-      .eq("leader_id", user.id)
-      .maybeSingle();
-    if (!targetRow) {
-      return Response.json({ error: "You can only manage goals for your direct team" }, { status: 403 });
+    const downline = await getRecursiveDownline(user.id);
+    const allowed = downline.some((d) => d.user_id === targetUserId);
+    if (!allowed) {
+      return Response.json({ error: "You can only manage goals for your own team" }, { status: 403 });
     }
   }
 
