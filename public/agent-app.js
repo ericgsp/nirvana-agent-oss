@@ -2037,23 +2037,25 @@
     }).join('');
   }
 
-  var _leadSuggestCache = {};
-
   // Complete pre-plan checklist: NLP/Burial Plot/Niche/Pedestal/EBL are auto-
   // ticked from what's actually been closed for this lead; Tomb and EC have
   // no data source to check against (see route comment) and always show
   // unticked with a note instead of guessing.
+  //
+  // Always re-fetches on open rather than caching -- the leads list fully
+  // re-renders (fresh DOM) whenever a sale's status changes, which would
+  // otherwise leave a stale "already loaded" flag pointing at a panel that
+  // no longer has any content, showing an empty box on the next click.
   function toggleLeadSuggestions(leadId) {
     var panel = document.getElementById('lead-suggest-' + leadId);
     if (!panel) return;
     var opening = !panel.classList.contains('open');
     panel.classList.toggle('open', opening);
-    if (!opening || _leadSuggestCache[leadId]) return;
+    if (!opening) return;
     panel.innerHTML = '<div class="home-empty">Loading…</div>';
     fetch(API_BASE + '/api/agent/lead-product-suggestions?leadId=' + encodeURIComponent(leadId))
       .then(function (res) { return res.json(); })
       .then(function (data) {
-        _leadSuggestCache[leadId] = true;
         var checklist = data.checklist || [];
         if (!checklist.length) {
           panel.innerHTML = '<div class="home-empty">No product data captured for this lead\'s closed sale yet — only sales closed after this feature shipped can be matched.</div>';
