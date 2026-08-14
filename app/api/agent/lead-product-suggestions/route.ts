@@ -23,7 +23,7 @@ const CROSS_SELL_MAP: Record<string, string[]> = {
 // still shown (the family still needs them) but can't be auto-ticked.
 const UNTRACKABLE: Record<string, string> = {
   TOMB: "Not tracked separately from the Burial Plot sale — check with the family.",
-  EC: "Not a quoted product — find this year's form in the Forms menu.",
+  EC: "See Menu for EC form",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -33,7 +33,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   "Pedestal": "Pedestal",
   "EBL": "Yearly Blessing Light (EBL)",
   "TOMB": "Tomb",
-  "EC": "Yearly Enlightenment Ceremony (EC)",
+  "EC": "Enlightenment Ceremony (EC)",
 };
 
 export async function GET(req: NextRequest) {
