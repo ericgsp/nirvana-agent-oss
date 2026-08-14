@@ -1976,8 +1976,22 @@
     }).catch(function (err) { dbg('add lead failed: ' + err); });
   }
 
+  // Friction scales with what's actually at risk: an empty synced contact
+  // is low-stakes, but a lead with a closed sale carries real customer
+  // contact info an agent shouldn't be able to lose with one tap.
   function deleteLead(id) {
-    if (!confirm('Delete this lead?')) return;
+    var lead = _leadsCache.find(function (l) { return l.id === id; });
+    var quotes = (lead && lead.quotes) || [];
+    var hasClosed = quotes.some(function (q) { return q.status === 'closed'; });
+
+    if (hasClosed) {
+      alert('This lead has a closed sale on record -- it can\'t be deleted. Use Edit if something needs correcting.');
+      return;
+    }
+    var msg = quotes.length
+      ? 'This lead has ' + quotes.length + ' quote' + (quotes.length > 1 ? 's' : '') + ' on record. Deleting the lead removes their contact info -- the quotes themselves stay in Me tab. Continue?'
+      : 'Delete this lead?';
+    if (!confirm(msg)) return;
     fetch(API_BASE + '/api/agent/leads-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

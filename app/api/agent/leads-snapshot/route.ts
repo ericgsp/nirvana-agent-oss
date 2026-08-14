@@ -81,6 +81,21 @@ export async function POST(req: NextRequest) {
   if (action === "delete_lead") {
     const id = body?.id;
     if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+
+    // A lead with a closed sale on record can't be deleted -- same rule as
+    // the client-side check, enforced here too since a direct API call
+    // could otherwise skip the confirm dialog entirely.
+    const { data: closedQuote } = await supabaseAdmin
+      .from("recent_quotes")
+      .select("id")
+      .eq("lead_id", id)
+      .eq("user_id", user.id)
+      .eq("status", "closed")
+      .limit(1);
+    if (closedQuote && closedQuote.length) {
+      return Response.json({ error: "This lead has a closed sale on record and can't be deleted." }, { status: 403 });
+    }
+
     const { error } = await supabaseAdmin.from("leads").delete().eq("id", id).eq("user_id", user.id);
     if (error) return Response.json({ error: error.message }, { status: 500 });
     return Response.json({ ok: true });
