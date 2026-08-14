@@ -12,7 +12,7 @@ export async function GET() {
   const [{ data: leads }, { data: quotes }] = await Promise.all([
     supabaseAdmin
       .from("leads")
-      .select("id, name, phone, source, notes, created_at")
+      .select("id, name, phone, source, notes, label, next_action_date, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
     supabaseAdmin
@@ -45,13 +45,40 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const action = body?.action;
 
+  const LABELS = ["prospect", "hot", "cold", "customer"];
+
   if (action === "add_lead") {
     const name = typeof body?.name === "string" ? body.name.trim() : "";
     const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
+    const label = LABELS.includes(body?.label) ? body.label : "prospect";
+    const notes = typeof body?.notes === "string" ? body.notes.trim() : "";
+    const nextActionDate = typeof body?.nextActionDate === "string" ? body.nextActionDate : null;
     if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
     const { error } = await supabaseAdmin.from("leads").insert({
       user_id: user.id, name, phone: phone || null, source: "manual",
+      label, notes: notes || null, next_action_date: nextActionDate || null,
     });
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  // Edits an existing lead's own fields -- separate from a quote's own Edit
+  // (customer name/phone on the quote itself), which stays independent so
+  // the two never surprise-overwrite each other.
+  if (action === "update_lead") {
+    const id = body?.id;
+    if (!id) return Response.json({ error: "Missing id" }, { status: 400 });
+    const name = typeof body?.name === "string" ? body.name.trim() : "";
+    if (!name) return Response.json({ error: "Name is required" }, { status: 400 });
+    const phone = typeof body?.phone === "string" ? body.phone.trim() : "";
+    const label = LABELS.includes(body?.label) ? body.label : "prospect";
+    const notes = typeof body?.notes === "string" ? body.notes.trim() : "";
+    const nextActionDate = typeof body?.nextActionDate === "string" ? body.nextActionDate : null;
+    const { error } = await supabaseAdmin
+      .from("leads")
+      .update({ name, phone: phone || null, label, notes: notes || null, next_action_date: nextActionDate || null })
+      .eq("id", id)
+      .eq("user_id", user.id);
     if (error) return Response.json({ error: error.message }, { status: 500 });
     return Response.json({ ok: true });
   }

@@ -1954,6 +1954,8 @@
     return { label: 'Following up', cls: 'st-followup' };
   }
 
+  var LEAD_LABELS = { prospect: 'Prospect', hot: 'Hot Lead', cold: 'Cold Lead', customer: 'Customer' };
+
   function renderLeadsList() {
     var listEl = document.getElementById('leads-list');
     if (!listEl) return;
@@ -1961,15 +1963,53 @@
       listEl.innerHTML = '<div class="home-empty">No leads yet — add one manually or sync from your phone contacts.</div>';
       return;
     }
-    listEl.innerHTML = _leadsCache.map(function (l) {
+
+    var searchEl = qs('leads-search');
+    var labelFilterEl = qs('leads-label-filter');
+    var sortEl = qs('leads-sort');
+    var q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+    var labelFilter = labelFilterEl ? labelFilterEl.value : '';
+    var sortBy = sortEl ? sortEl.value : 'recent';
+
+    var rows = _leadsCache.filter(function (l) {
+      if (labelFilter && (l.label || 'prospect') !== labelFilter) return false;
+      if (!q) return true;
+      var name = (l.name || '').toLowerCase();
+      var phone = (l.phone || '').toLowerCase();
+      return name.indexOf(q) >= 0 || phone.indexOf(q) >= 0;
+    });
+
+    rows = rows.slice().sort(function (a, b) {
+      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+      if (sortBy === 'next_action') {
+        var av = a.next_action_date || '9999-99-99';
+        var bv = b.next_action_date || '9999-99-99';
+        return av < bv ? -1 : av > bv ? 1 : 0;
+      }
+      return (b.created_at || '').localeCompare(a.created_at || ''); // recent first
+    });
+
+    if (!rows.length) {
+      listEl.innerHTML = '<div class="home-empty">No leads match your search/filter.</div>';
+      return;
+    }
+
+    var todayStr = new Date().toISOString().slice(0, 10);
+    listEl.innerHTML = rows.map(function (l) {
       var waLink = toWaLink(l.phone || '');
       var phoneHtml = l.phone
         ? (waLink ? '<a class="mqr-wa-link" href="' + esc(waLink) + '" target="_blank" rel="noopener noreferrer">💬 ' + esc(l.phone) + '</a>' : esc(l.phone))
         : '<span class="lead-no-phone">No phone</span>';
       var sourceTag = l.source === 'contact_sync' ? '<span class="lead-source-tag">Synced</span>' : '';
+      var lbl = l.label || 'prospect';
+      var labelBadge = '<span class="lead-label-badge lbl-' + lbl + '">' + esc(LEAD_LABELS[lbl] || lbl) + '</span>';
       var quotes = l.quotes || [];
       var status = deriveLeadStatus(quotes);
       var statusBadge = '<span class="lead-status-badge ' + status.cls + '">' + status.label + '</span>';
+      var nextActionHtml = l.next_action_date
+        ? '<div class="lead-next-action' + (l.next_action_date < todayStr ? ' overdue' : '') + '">📅 Follow up ' + esc(new Date(l.next_action_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' })) + (l.next_action_date < todayStr ? ' (overdue)' : '') + '</div>'
+        : '';
+      var notesHtml = l.notes ? '<div class="lead-notes">' + esc(l.notes) + '</div>' : '';
       var toggle = quotes.length
         ? '<button class="lead-expand-toggle" aria-label="Show quotes">▸ ' + quotes.length + ' quote' + (quotes.length > 1 ? 's' : '') + '</button>'
         : '';
@@ -1978,22 +2018,38 @@
         : '';
       return '<div class="lead-row">' +
         '<div class="lead-row-top">' +
-          '<span class="lead-name">' + esc(l.name || '') + '</span>' + sourceTag + statusBadge +
+          '<span class="lead-name">' + esc(l.name || '') + '</span>' + sourceTag + labelBadge + statusBadge +
         '</div>' +
         '<div class="lead-phone-row">' + phoneHtml + '</div>' +
+        nextActionHtml + notesHtml +
         '<div class="lead-actions-row">' +
           toggle +
+          '<button class="lead-edit-btn" data-id="' + esc(l.id) + '">✎ Edit</button>' +
           '<button class="lead-delete-btn" data-id="' + esc(l.id) + '" aria-label="Delete lead">🗑</button>' +
         '</div>' +
       '</div>' + quotesHtml;
     }).join('');
   }
 
-  function openAddLeadModal() {
+  // Same modal serves Add and Edit -- passing a leadId pre-fills every field
+  // from that lead's current data and switches confirmAddLead() to update
+  // instead of insert.
+  function openAddLeadModal(leadId) {
+    var lead = leadId ? _leadsCache.find(function (l) { return l.id === leadId; }) : null;
+    var titleEl = qs('add-lead-modal-title');
+    if (titleEl) titleEl.textContent = lead ? 'Edit Lead' : 'Add Lead';
+    var idEl = qs('add-lead-edit-id');
+    if (idEl) idEl.value = lead ? lead.id : '';
     var nameEl = qs('add-lead-name');
     var phoneEl = qs('add-lead-phone');
-    if (nameEl) nameEl.value = '';
-    if (phoneEl) phoneEl.value = '';
+    var labelEl = qs('add-lead-label');
+    var nextActionEl = qs('add-lead-next-action');
+    var notesEl = qs('add-lead-notes');
+    if (nameEl) nameEl.value = lead ? (lead.name || '') : '';
+    if (phoneEl) phoneEl.value = lead ? (lead.phone || '') : '';
+    if (labelEl) labelEl.value = lead ? (lead.label || 'prospect') : 'prospect';
+    if (nextActionEl) nextActionEl.value = lead ? (lead.next_action_date || '') : '';
+    if (notesEl) notesEl.value = lead ? (lead.notes || '') : '';
     var backdrop = qs('add-lead-modal-backdrop');
     if (backdrop) backdrop.classList.add('open');
   }
@@ -2004,20 +2060,32 @@
   }
 
   function confirmAddLead() {
+    var idEl = qs('add-lead-edit-id');
     var nameEl = qs('add-lead-name');
     var phoneEl = qs('add-lead-phone');
+    var labelEl = qs('add-lead-label');
+    var nextActionEl = qs('add-lead-next-action');
+    var notesEl = qs('add-lead-notes');
+    var editId = idEl ? idEl.value : '';
     var name = nameEl ? nameEl.value.trim() : '';
     var phone = phoneEl ? phoneEl.value.trim() : '';
+    var label = labelEl ? labelEl.value : 'prospect';
+    var nextActionDate = nextActionEl ? nextActionEl.value : '';
+    var notes = notesEl ? notesEl.value.trim() : '';
     if (!name) { alert('Enter a name.'); return; }
     fetch(API_BASE + '/api/agent/leads-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'add_lead', name: name, phone: phone }),
+      body: JSON.stringify({
+        action: editId ? 'update_lead' : 'add_lead',
+        id: editId || undefined,
+        name: name, phone: phone, label: label, nextActionDate: nextActionDate, notes: notes,
+      }),
     }).then(function (res) { return res.json(); }).then(function (data) {
       if (data.error) { alert(data.error); return; }
       closeAddLeadModal();
       loadLeadsSnapshot();
-    }).catch(function (err) { dbg('add lead failed: ' + err); });
+    }).catch(function (err) { dbg('save lead failed: ' + err); });
   }
 
   // Friction scales with what's actually at risk: an empty synced contact
@@ -5131,12 +5199,14 @@
       if (e.target && e.target.id === 'contact-picker-search') renderContactPickerList(e.target.value);
       if (e.target && e.target.id === 'customer-info-name') renderCustomerNameSuggestions(e.target.value);
       if (e.target && e.target.id === 'team-perf-search') renderTeamPerfTable();
+      if (e.target && e.target.id === 'leads-search') renderLeadsList();
     });
 
     document.addEventListener('change', function (e) {
       var t = e.target;
       if (t && t.classList.contains('contact-pick-check')) { _contactSelection[t.dataset.id] = t.checked; return; }
       if (t && t.id === 'team-perf-tier-filter') renderTeamPerfTable();
+      if (t && (t.id === 'leads-label-filter' || t.id === 'leads-sort')) renderLeadsList();
     });
 
     // Stamp col-hidden just before the browser renders the print preview,
@@ -5482,6 +5552,10 @@
       // "Delete" button on a lead row (Leads tab)
       var deleteLeadBtn = e.target && e.target.closest && e.target.closest('.lead-delete-btn');
       if (deleteLeadBtn) { deleteLead(deleteLeadBtn.dataset.id); return; }
+
+      // "Edit" button on a lead row (Leads tab)
+      var editLeadBtn = e.target && e.target.closest && e.target.closest('.lead-edit-btn');
+      if (editLeadBtn) { openAddLeadModal(editLeadBtn.dataset.id); return; }
 
       // Tapping a month in the yearly-goal mini bar chart (Me tab)
       var monthBarCol = e.target && e.target.closest && e.target.closest('.mgc-bar-col');

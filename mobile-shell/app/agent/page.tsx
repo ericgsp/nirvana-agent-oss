@@ -209,6 +209,18 @@ export default function AgentPage() {
         .lead-quotes { display: none; margin: 8px 0 0 4px; padding-left: 10px; border-left: 2px solid #e2e8f0; flex-direction: column; gap: 8px; }
         .lead-quotes.open { display: flex; }
 
+        .leads-filter-row { display: flex; gap: 6px; padding: 0 10px 10px; flex-wrap: wrap; }
+        .leads-filter-row input, .leads-filter-row select { flex: 1 1 100px; min-width: 0; padding: 7px 9px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 11.5px; background: #fff; color: #334155; }
+        .lead-label-badge { flex-shrink: 0; font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+        .lead-label-badge.lbl-prospect { background: #f1f5f9; color: #64748b; }
+        .lead-label-badge.lbl-hot { background: #fee2e2; color: #b91c1c; }
+        .lead-label-badge.lbl-cold { background: #dbeafe; color: #1d4ed8; }
+        .lead-label-badge.lbl-customer { background: #dcfce7; color: #15803d; }
+        .lead-next-action { margin-top: 4px; font-size: 11px; color: #92400e; }
+        .lead-next-action.overdue { color: #b91c1c; font-weight: 700; }
+        .lead-notes { margin-top: 6px; font-size: 11.5px; color: #64748b; background: #f8fafc; border-radius: 8px; padding: 6px 8px; }
+        .lead-edit-btn { padding: 4px 9px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-size: 10.5px; font-weight: 700; }
+
         #me-goal-card { margin: 10px 10px 0; }
         .me-set-goal-btn { display: block; width: 100%; margin-top: 10px; padding: 9px; border-radius: 10px; border: none; background: rgba(255,255,255,0.18); color: #fff; font-size: 12px; font-weight: 700; }
         .me-set-goal-btn-outline { background: transparent; border: 1px solid ${G_TEAL}; color: ${G_TEAL}; margin-top: 8px; }
@@ -301,7 +313,9 @@ export default function AgentPage() {
         #edit-customer-modal-backdrop.open, #add-lead-modal-backdrop.open, #contact-picker-modal-backdrop.open { display:flex; }
         #edit-customer-modal-box, #add-lead-modal-box, #contact-picker-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
         #edit-customer-modal-title, #add-lead-modal-title, #contact-picker-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
-        #edit-customer-name, #edit-customer-phone, #add-lead-name, #add-lead-phone, #contact-picker-search { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; }
+        #edit-customer-name, #edit-customer-phone, #add-lead-name, #add-lead-phone, #contact-picker-search,
+        #add-lead-label, #add-lead-next-action, #add-lead-notes { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; font-family:inherit; background:#fff; }
+        #add-lead-notes { resize:vertical; }
         #edit-customer-modal-actions, #add-lead-modal-actions, #contact-picker-modal-actions { display:flex; gap:8px; margin-top:14px; }
         #edit-customer-modal-actions button, #add-lead-modal-actions button, #contact-picker-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #edit-customer-modal-cancel, #add-lead-modal-cancel, #contact-picker-modal-cancel { background:#f1f5f9; color:#475569; }
@@ -975,6 +989,21 @@ export default function AgentPage() {
             <div className="leads-toolbar no-print">
               <button id="btn-add-lead" className="leads-tb-btn leads-tb-btn-primary">+ Add Lead</button>
               <button id="btn-sync-contacts" className="leads-tb-btn">📇 Sync Contacts</button>
+            </div>
+            <div className="leads-filter-row no-print">
+              <input id="leads-search" type="text" placeholder="Search name or phone…" />
+              <select id="leads-label-filter">
+                <option value="">All labels</option>
+                <option value="prospect">Prospect</option>
+                <option value="hot">Hot Lead</option>
+                <option value="cold">Cold Lead</option>
+                <option value="customer">Customer</option>
+              </select>
+              <select id="leads-sort">
+                <option value="recent">Newest first</option>
+                <option value="name">Name (A-Z)</option>
+                <option value="next_action">Follow-up date</option>
+              </select>
             </div>
             <div id="leads-list"></div>
           </div>
@@ -1747,14 +1776,27 @@ export default function AgentPage() {
         </div>
       </div>
 
-      {/* Add Lead modal — Leads tab */}
+      {/* Add/Edit Lead modal — Leads tab. Same form for both; add-lead-edit-id
+          (hidden) is empty for a new lead, set to a lead's id when editing. */}
       <div id="add-lead-modal-backdrop">
         <div id="add-lead-modal-box">
           <div id="add-lead-modal-title">Add Lead</div>
+          <input id="add-lead-edit-id" type="hidden" />
           <div className="f-lbl" style={{marginTop:"10px"}}>Name</div>
           <input id="add-lead-name" type="text" placeholder="e.g. Tan Ah Kow" />
           <div className="f-lbl" style={{marginTop:"10px"}}>Phone number</div>
           <input id="add-lead-phone" type="tel" placeholder="e.g. 012-3456789" />
+          <div className="f-lbl" style={{marginTop:"10px"}}>Label</div>
+          <select id="add-lead-label">
+            <option value="prospect">Prospect</option>
+            <option value="hot">Hot Lead</option>
+            <option value="cold">Cold Lead</option>
+            <option value="customer">Customer</option>
+          </select>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Next follow-up date</div>
+          <input id="add-lead-next-action" type="date" />
+          <div className="f-lbl" style={{marginTop:"10px"}}>Notes</div>
+          <textarea id="add-lead-notes" rows={3} placeholder="Religion, family members, preferences…"></textarea>
           <div id="add-lead-modal-actions">
             <button id="add-lead-modal-cancel">Cancel</button>
             <button id="add-lead-modal-confirm">Save</button>
@@ -1869,7 +1911,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818i" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818j" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
