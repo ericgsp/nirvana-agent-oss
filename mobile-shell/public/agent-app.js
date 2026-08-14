@@ -1983,7 +1983,7 @@
         '<div class="lead-phone-row">' + phoneHtml + '</div>' +
         '<div class="lead-actions-row">' +
           toggle +
-          '<button class="lead-delete-btn" data-id="' + esc(l.id) + '">🗑 Delete</button>' +
+          '<button class="lead-delete-btn" data-id="' + esc(l.id) + '" aria-label="Delete lead">🗑</button>' +
         '</div>' +
       '</div>' + quotesHtml;
     }).join('');

@@ -197,7 +197,7 @@ export default function AgentPage() {
         .lead-source-tag { font-size: 9.5px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 7px; border-radius: 999px; }
         .lead-phone-row { margin-top: 4px; font-size: 12px; }
         .lead-no-phone { color: #94a3b8; font-style: italic; font-size: 11.5px; }
-        .lead-delete-btn { padding: 4px 9px; border-radius: 999px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font-size: 10.5px; font-weight: 700; }
+        .lead-delete-btn { margin-left: auto; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; border: 1px solid #fecaca; background: #fef2f2; font-size: 12px; line-height: 1; }
         .lead-status-badge { flex-shrink: 0; font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
         .lead-status-badge.st-new { background: #f1f5f9; color: #64748b; }
         .lead-status-badge.st-followup { background: #fef3c7; color: #92400e; }
@@ -1869,7 +1869,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818h" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818i" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
