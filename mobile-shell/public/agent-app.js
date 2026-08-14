@@ -1176,19 +1176,28 @@
                   }).join('')
                 + '</select>';
             var closedItemsArr = Array.isArray(q.closed_items) ? q.closed_items : [];
+            var hasClosedItems = isClosed && closedItemsArr.length > 0;
+            var closedTotal = hasClosedItems
+              ? closedItemsArr.reduce(function (sum, it) { return sum + (it.amount || 0); }, 0)
+              : 0;
+            var displayAmount = hasClosedItems ? closedTotal : (q.net_total || 0);
             var line1Parts = [esc(q.site || '')];
-            if (isClosed && closedItemsArr.length) {
-              line1Parts.push(closedItemsArr.map(function (it) { return esc(it.label || ''); }).filter(Boolean).join(', '));
-            } else {
+            if (!hasClosedItems) {
               if (label) line1Parts.push(label);
               if (q.section) line1Parts.push(esc(q.section));
             }
-            var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(q.net_total || 0) + '</span>';
+            var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(displayAmount) + '</span>';
+            var closedItemsHtml = hasClosedItems
+              ? '<div class="mqr-closed-items">' + closedItemsArr.map(function (it) {
+                  return '<div class="mqr-closed-item-row"><span>' + esc(it.label || '') + '</span><span>RM ' + fmt(it.amount || 0) + '</span></div>';
+                }).join('') + '</div>'
+              : '';
             var line2 = esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '');
             return '<div class="me-quote-row">' +
               '<div class="mqr-cust">' + custName + '</div>' +
               (phoneHtml ? '<div class="mqr-phone-row">' + phoneHtml + '</div>' : '') +
               '<div class="mqr-main">' + line1 + '</div>' +
+              closedItemsHtml +
               '<div class="mqr-meta">' + line2 + '</div>' +
               '<div class="mqr-actions">' +
                 '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +

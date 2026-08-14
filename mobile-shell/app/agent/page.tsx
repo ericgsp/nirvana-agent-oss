@@ -185,6 +185,8 @@ export default function AgentPage() {
         .mqr-status-sel.st-closed { border-color: #16a34a; background: #16a34a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 9px center; color: #fff; }
         .mqr-status-sel.mqr-status-locked { display: inline-block; background-image: none; padding: 4px 11px; cursor: default; }
         .mqr-sold-tag { flex-shrink: 0; padding: 5px 10px; border-radius: 999px; background: #dcfce7; color: #15803d; font-size: 10.5px; font-weight: 700; }
+        .mqr-closed-items { margin-top: 4px; padding: 6px 8px; border-radius: 8px; background: #f0fdf4; border: 1px solid #dcfce7; }
+        .mqr-closed-item-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: #166534; padding: 1px 0; }
 
         #sold-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #sold-modal-backdrop.open { display:flex; }
@@ -1681,7 +1683,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260817b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
