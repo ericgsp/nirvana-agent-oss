@@ -88,23 +88,29 @@ export async function GET() {
     };
   });
 
-  // Who this agent reports to -- shown even when they have no downline of
-  // their own (e.g. a base-tier AGENT), so the tab isn't just an empty state.
-  let myLeader: { display_name: string | null; agent_code: string | null; tier: string } | null = null;
-  if (me?.leader_id) {
+  // Full upward chain -- immediate leader first, then their leader, and so
+  // on up to CBDD -- not just the one directly above. An SD should see their
+  // DSD, then BDD, then CBDD; a BDD's direct report to CBDD should show just
+  // CBDD. Capped at 5 hops (there are only 5 tiers) as a cycle safety net.
+  type LeaderInfo = { display_name: string | null; agent_code: string | null; tier: string };
+  const leaderChain: LeaderInfo[] = [];
+  let nextLeaderId = me?.leader_id ?? null;
+  for (let hop = 0; hop < 5 && nextLeaderId; hop++) {
     const { data: leaderRow } = await supabaseAdmin
       .from("agent_profiles")
-      .select("display_name, agent_code, tier")
-      .eq("user_id", me.leader_id)
+      .select("display_name, agent_code, tier, leader_id")
+      .eq("user_id", nextLeaderId)
       .maybeSingle();
-    if (leaderRow) myLeader = leaderRow;
+    if (!leaderRow) break;
+    leaderChain.push({ display_name: leaderRow.display_name, agent_code: leaderRow.agent_code, tier: leaderRow.tier });
+    nextLeaderId = leaderRow.leader_id;
   }
 
   return Response.json({
     access: true,
     scope: seesEverything ? "org" : "team",
     members,
-    myLeader,
+    leaderChain,
   });
 }
 

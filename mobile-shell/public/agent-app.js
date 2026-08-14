@@ -1672,16 +1672,18 @@
       }
       if (listEl) {
         var leaderHtml = '';
-        if (data.myLeader) {
-          var lColor = TIER_COLOR[data.myLeader.tier] || TIER_COLOR.AGENT;
-          var lName = esc(data.myLeader.display_name || data.myLeader.agent_code || 'Leader');
+        if (data.leaderChain && data.leaderChain.length) {
           leaderHtml = '<div class="team-leader-card">' +
             '<div class="team-leader-label">Reports to</div>' +
-            '<div class="team-leader-row">' +
-              '<span class="team-tier-badge" style="background:' + lColor.bg + ';color:' + lColor.fg + '">' + esc(data.myLeader.tier) + '</span>' +
-              '<span class="team-leader-name">' + lName + '</span>' +
-              (data.myLeader.agent_code ? '<span class="team-row-code">' + esc(data.myLeader.agent_code) + '</span>' : '') +
-            '</div>' +
+            data.leaderChain.map(function (l) {
+              var lColor = TIER_COLOR[l.tier] || TIER_COLOR.AGENT;
+              var lName = esc(l.display_name || l.agent_code || 'Leader');
+              return '<div class="team-leader-row">' +
+                '<span class="team-tier-badge" style="background:' + lColor.bg + ';color:' + lColor.fg + '">' + esc(l.tier) + '</span>' +
+                '<span class="team-leader-name">' + lName + '</span>' +
+                (l.agent_code ? '<span class="team-row-code">' + esc(l.agent_code) + '</span>' : '') +
+              '</div>';
+            }).join('') +
           '</div>';
         }
         if (!data.members || !data.members.length) {
