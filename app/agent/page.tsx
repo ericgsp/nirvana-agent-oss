@@ -98,7 +98,7 @@ export default async function AgentPage() {
         .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: #94a3b8; background: none; border: none; padding: 4px 0; cursor: pointer; touch-action: manipulation; }
         .tab-btn.active { color: ${G_TEAL}; }
         .tab-btn-icon { font-size: 18px; line-height: 1; }
-        .tab-btn-icon svg { display: block; width: 18px; height: 18px; fill: currentColor; }
+        .tab-btn-icon svg { display: block; width: 23px; height: 23px; fill: currentColor; }
         /* Browse is the primary tab (product browsing + quoting) -- raised
            circular badge, like a center FAB, so it reads as the main action. */
         .tab-btn[data-tab="browse"] { font-weight: 800; }
