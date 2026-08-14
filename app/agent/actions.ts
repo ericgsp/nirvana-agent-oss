@@ -434,7 +434,10 @@ export async function logQuoteView(
 // Manual v1 sales recording -- an agent marks their own generated quotation
 // "Sold" with the final amount. Always attributed to the logged-in caller,
 // never an arbitrary user_id from the client.
-export async function markSold(quotationRef: string, amount: number, soldAt?: string) {
+export async function markSold(
+  quotationRef: string, amount: number, soldAt?: string,
+  closedItems?: { label: string; amount: number }[]
+) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: "Not logged in" };
@@ -451,7 +454,11 @@ export async function markSold(quotationRef: string, amount: number, soldAt?: st
   // is actually keyed on, so status updates always target the last segment.
   const quoteId = quotationRef.split("|").pop();
   if (quoteId) {
-    await supabaseAdmin.from("recent_quotes").update({ status: "closed" }).eq("id", quoteId).eq("user_id", user.id);
+    await supabaseAdmin
+      .from("recent_quotes")
+      .update({ status: "closed", closed_items: closedItems && closedItems.length ? closedItems : null })
+      .eq("id", quoteId)
+      .eq("user_id", user.id);
   }
 
   return { ok: true as const };

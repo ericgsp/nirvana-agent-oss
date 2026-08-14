@@ -55,7 +55,7 @@ export async function GET() {
       .lte("sold_at", `${yearPrefix}-12-31`),
     supabaseAdmin
       .from("recent_quotes")
-      .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items, status")
+      .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items, status, closed_items")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(5),
@@ -507,7 +507,10 @@ export async function POST(req: NextRequest) {
   if (typeof quotationRef !== "string" || typeof amount !== "number" || amount <= 0) {
     return Response.json({ error: "quotationRef and a positive amount are required" }, { status: 400 });
   }
-  const result = await markSold(quotationRef, amount, typeof soldAt === "string" ? soldAt : undefined);
+  const result = await markSold(
+    quotationRef, amount, typeof soldAt === "string" ? soldAt : undefined,
+    Array.isArray(body?.closedItems) ? body.closedItems : undefined
+  );
   if (!result.ok) return Response.json({ error: result.error }, { status: 401 });
   return Response.json({ ok: true });
 }

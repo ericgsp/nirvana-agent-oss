@@ -1163,16 +1163,26 @@
               ? (waLink ? '<a class="mqr-wa-link" href="' + esc(waLink) + '" target="_blank" rel="noopener noreferrer">💬 ' + esc(rawPhone) + '</a>' : esc(rawPhone))
               : '';
             var statusOpts = ['followup', 'lost', 'closed'];
-            var statusLabels = { followup: 'Follow-up', lost: 'Lost', closed: 'Close' };
+            var statusLabels = { followup: 'Follow-up', lost: 'Lost Sales', closed: 'Close Sales' };
             var effectiveStatus = q.status || 'followup'; // unset quotes default to Follow-up, no blank placeholder
-            var statusSel = '<select class="mqr-status-sel st-' + effectiveStatus + '" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
-              + statusOpts.map(function (v) {
-                  return '<option value="' + v + '"' + (effectiveStatus === v ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
-                }).join('')
-              + '</select>';
+            var isClosed = effectiveStatus === 'closed';
+            // Once closed, the status is final -- no reselecting back to Follow-up/Lost,
+            // and no Delete, so a real sale record can't be accidentally lost or reopened.
+            var statusControl = isClosed
+              ? '<span class="mqr-status-sel st-closed mqr-status-locked">' + statusLabels.closed + '</span>'
+              : '<select class="mqr-status-sel st-' + effectiveStatus + '" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
+                + statusOpts.map(function (v) {
+                    return '<option value="' + v + '"' + (effectiveStatus === v ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
+                  }).join('')
+                + '</select>';
+            var closedItemsArr = Array.isArray(q.closed_items) ? q.closed_items : [];
             var line1Parts = [esc(q.site || '')];
-            if (label) line1Parts.push(label);
-            if (q.section) line1Parts.push(esc(q.section));
+            if (isClosed && closedItemsArr.length) {
+              line1Parts.push(closedItemsArr.map(function (it) { return esc(it.label || ''); }).filter(Boolean).join(', '));
+            } else {
+              if (label) line1Parts.push(label);
+              if (q.section) line1Parts.push(esc(q.section));
+            }
             var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(q.net_total || 0) + '</span>';
             var line2 = esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '');
             return '<div class="me-quote-row">' +
@@ -1182,8 +1192,8 @@
               '<div class="mqr-meta">' + line2 + '</div>' +
               '<div class="mqr-actions">' +
                 '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
-                statusSel +
-                '<button class="mqr-delete-btn" data-ref="' + ref + '">🗑 Delete</button>' +
+                statusControl +
+                (isClosed ? '' : '<button class="mqr-delete-btn" data-ref="' + ref + '">🗑 Delete</button>') +
               '</div>' +
             '</div>';
           }).join('');
@@ -1350,9 +1360,10 @@
     if (items.length && listEl) {
       _soldModalMode = 'checklist';
       listEl.innerHTML = items.map(function (it, i) {
+        var itLabel = it.label || ('Item ' + (i + 1));
         return '<label class="sold-item-row">'
-          + '<input type="checkbox" class="sold-item-check" data-amt="' + (it.amount || 0) + '" checked />'
-          + '<span class="sold-item-label">' + esc(it.label || ('Item ' + (i + 1))) + '</span>'
+          + '<input type="checkbox" class="sold-item-check" data-amt="' + (it.amount || 0) + '" data-label="' + esc(itLabel) + '" checked />'
+          + '<span class="sold-item-label">' + esc(itLabel) + '</span>'
           + '<span class="sold-item-amt">RM ' + fmt(it.amount || 0) + '</span>'
           + '</label>';
       }).join('');
@@ -1391,10 +1402,13 @@
   function confirmSold() {
     if (_soldModalSubmitting) return; // guards against a fast double-tap writing the sale twice
     var amount;
+    var closedItems = [];
     if (_soldModalMode === 'checklist') {
       amount = 0;
       document.querySelectorAll('.sold-item-check:checked').forEach(function (cb) {
-        amount += parseFloat(cb.dataset.amt) || 0;
+        var amt = parseFloat(cb.dataset.amt) || 0;
+        amount += amt;
+        closedItems.push({ label: cb.dataset.label || '', amount: amt });
       });
       if (!_soldModalRef || !amount || amount <= 0) { alert('Select at least one item.'); return; }
     } else {
@@ -1408,7 +1422,7 @@
     fetch(API_BASE + '/api/agent/me-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quotationRef: _soldModalRef, amount: amount })
+      body: JSON.stringify({ quotationRef: _soldModalRef, amount: amount, closedItems: closedItems })
     }).then(function (res) { return res.json(); }).then(function (data) {
       _soldModalSubmitting = false;
       if (confirmBtn) confirmBtn.disabled = false;
