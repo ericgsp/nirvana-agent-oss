@@ -17,7 +17,7 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    return Response.json({ profile: null, goal: null, recentQuotes: [], team: null });
+    return Response.json({ profile: null, goal: null, yearlyGoal: null, team: null });
   }
 
   const profile = await getMyProfile();
@@ -34,7 +34,6 @@ export async function GET() {
     { data: yearlyRow },
     { data: yearGoalRows },
     { data: yearSalesRows },
-    { data: recentQuotes },
   ] = await Promise.all([
     supabaseAdmin
       .from("yearly_sales_goals")
@@ -53,12 +52,6 @@ export async function GET() {
       .eq("user_id", user.id)
       .gte("sold_at", `${yearPrefix}-01-01`)
       .lte("sold_at", `${yearPrefix}-12-31`),
-    supabaseAdmin
-      .from("recent_quotes")
-      .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items, status, closed_items, closed_at, last_instalment_date")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(5),
   ]);
 
   const targetByMonth: Record<string, number> = {};
@@ -151,7 +144,6 @@ export async function GET() {
     profile: profile ? { tier: profile.tier, display_name: profile.display_name } : null,
     goal,
     yearlyGoal,
-    recentQuotes: recentQuotes ?? [],
     team,
   });
 }

@@ -241,7 +241,6 @@ export default function AgentPage() {
         .me-team-track { height: 6px; border-radius: 4px; background: #e2e8f0; margin-top: 10px; overflow: hidden; }
         .me-team-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
         .me-team-note { font-size: 10.5px; color: #94a3b8; margin-top: 6px; }
-        #me-quotes-list { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 8px; }
         .me-quote-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; }
         .mqr-cust { font-size: 12.5px; font-weight: 800; color: #0f172a; }
         .mqr-phone-row { margin-top: 3px; }
@@ -1129,16 +1128,13 @@ export default function AgentPage() {
             </div>
           </div>
 
-          {/* ── Tab: Me ── */}
+          {/* ── Tab: Me — personal performance only. Quote management (status,
+               Close Sales, Edit, Delete, View Quote) lives in Leads tab now,
+               nested under each lead -- kept in exactly one place. ── */}
           <div id="tab-me" className="tab-panel">
             <div id="me-goal-card"></div>
 
             <div id="me-team-card"></div>
-
-            <div className="s-label no-print" style={{marginTop:"6px"}}>
-              <span className="s-title">Quotation generated</span>
-            </div>
-            <div id="me-quotes-list"></div>
           </div>
 
         </div>
@@ -1864,7 +1860,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818e" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818f" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

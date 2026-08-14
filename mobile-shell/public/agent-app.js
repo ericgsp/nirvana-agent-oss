@@ -1148,14 +1148,6 @@
         }
       }
 
-      var listEl = document.getElementById('me-quotes-list');
-      if (listEl) {
-        if (!data.recentQuotes || !data.recentQuotes.length) {
-          listEl.innerHTML = '<div class="home-empty">No quotes generated yet — they&apos;ll show up here once you print or share one.</div>';
-        } else {
-          listEl.innerHTML = data.recentQuotes.map(renderQuoteRow).join('');
-        }
-      }
     }).catch(function (err) { dbg('me snapshot failed: ' + err); });
   }
 
