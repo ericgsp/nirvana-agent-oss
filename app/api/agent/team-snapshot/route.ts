@@ -21,7 +21,11 @@ export async function GET() {
 
   const me = await getMyProfile();
   const role = await getUserRole();
-  const seesEverything = me?.tier === "CBDD" || role === "admin";
+  // CBDD is the top MLM tier but is NOT special-cased to see the whole org --
+  // a CBDD only sees their own direct downline, same as every other tier.
+  // Only the "admin" role (a separate concept from MLM tier, for internal
+  // support/management) sees everything.
+  const seesEverything = role === "admin";
 
   if (!me && !seesEverything) {
     // No profile, not admin -- nothing to show, not an error.
@@ -122,7 +126,11 @@ export async function POST(req: NextRequest) {
 
   const me = await getMyProfile();
   const role = await getUserRole();
-  const seesEverything = me?.tier === "CBDD" || role === "admin";
+  // CBDD is the top MLM tier but is NOT special-cased to see the whole org --
+  // a CBDD only sees their own direct downline, same as every other tier.
+  // Only the "admin" role (a separate concept from MLM tier, for internal
+  // support/management) sees everything.
+  const seesEverything = role === "admin";
 
   if (!seesEverything) {
     const { data: targetRow } = await supabaseAdmin

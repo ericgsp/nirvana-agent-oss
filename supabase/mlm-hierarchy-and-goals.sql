@@ -4,9 +4,9 @@
 -- Visibility rule (enforced in app code via lib/supabase/get-hierarchy.ts,
 -- NOT via RLS — matches this project's existing convention of doing access
 -- control in server actions/route handlers with the service-role client):
---   - Each tier sees only their own direct downline (leader_id = me), never
---     the tier above or a peer's team.
---   - CBDD is special-cased to see everyone.
+--   - Every tier, including CBDD, sees only their own direct downline
+--     (leader_id = me), never the tier above or a peer's team.
+--   - Only the "admin" app role (separate from MLM tier) sees everyone.
 -- Run in Supabase SQL Editor
 -- ============================================================
 

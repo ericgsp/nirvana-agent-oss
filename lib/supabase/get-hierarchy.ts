@@ -29,16 +29,16 @@ export async function getMyProfile(): Promise<AgentProfile | null> {
   return (data as AgentProfile) ?? null;
 }
 
-// My direct downline only -- never the tier above, never a peer's team.
-// Two ways to see the entire org instead of just a direct downline:
-// tier === CBDD, or role === "admin" (admin access always implies full org
-// visibility here, independent of whatever tier that admin happens to hold).
+// My direct downline only -- never the tier above, never a peer's team, and
+// this applies to every MLM tier including CBDD (the top tier is not
+// special-cased to see the whole org). Only the "admin" app role -- a
+// separate concept from MLM tier -- sees everyone.
 export async function getMyDirectDownline(): Promise<AgentProfile[]> {
   const me = await getMyProfile();
   if (!me) return [];
 
   const role = await getUserRole();
-  const seesEverything = me.tier === "CBDD" || role === "admin";
+  const seesEverything = role === "admin";
 
   const query = supabaseAdmin
     .from("agent_profiles")
