@@ -1037,6 +1037,7 @@
   var _inventoryListLoaded = false;
   var _teamLoaded = false;
   var _meLoaded = false;
+  var _earningLoaded = false;
   var _soldModalRef = null;
   var _editCustomerRef = null;
   var _goalModalUserId = null;
@@ -1076,6 +1077,10 @@
     if (name === 'me' && !_meLoaded) {
       _meLoaded = true;
       loadMeSnapshot();
+    }
+    if (name === 'earning' && !_earningLoaded) {
+      _earningLoaded = true;
+      loadEarningSnapshot();
     }
   }
 
@@ -1265,8 +1270,19 @@
       var amt = 0;
       try { amt = calcMatrix(q.levelData, dpPct).netTotalPrice; } catch (e) {}
       total += amt;
-      items.push({ label: q.lotCode || '', amount: amt });
       var promo = q.levelData && q.levelData.promo;
+      // PV commission inputs, captured at quote time off the same levelData
+      // used to price the quote -- avoids re-matching a lot code back to a
+      // price row later, which is fragile across burial/niche/pedestal/etc.
+      items.push({
+        label: q.lotCode || '', amount: amt,
+        pv: (q.levelData && q.levelData.point_value) || 0,
+        trust: (q.levelData && q.levelData.trust_account_facility) || 0,
+        backwall: (q.levelData && q.levelData.backwall_cost) || 0,
+        category: (q.levelData && q.levelData.product_category) || '',
+        discPct: (promo && promo.discount_pct) || 0,
+        discRm: (promo && promo.discount_rm) || 0
+      });
       var promoEnd = promo && promo.promo_end_date;
       if (promoEnd && (!earliestValidUntil || promoEnd < earliestValidUntil)) earliestValidUntil = promoEnd;
     });
@@ -1371,7 +1387,10 @@
       listEl.innerHTML = items.map(function (it, i) {
         var itLabel = it.label || ('Item ' + (i + 1));
         return '<label class="sold-item-row">'
-          + '<input type="checkbox" class="sold-item-check" data-amt="' + (it.amount || 0) + '" data-label="' + esc(itLabel) + '" checked />'
+          + '<input type="checkbox" class="sold-item-check" data-amt="' + (it.amount || 0) + '" data-label="' + esc(itLabel)
+          + '" data-pv="' + (it.pv || 0) + '" data-trust="' + (it.trust || 0) + '" data-backwall="' + (it.backwall || 0)
+          + '" data-category="' + esc(it.category || '') + '" data-disc-pct="' + (it.discPct || 0) + '" data-disc-rm="' + (it.discRm || 0)
+          + '" checked />'
           + '<span class="sold-item-label">' + esc(itLabel) + '</span>'
           + '<span class="sold-item-amt">RM ' + fmt(it.amount || 0) + '</span>'
           + '</label>';
@@ -1417,7 +1436,15 @@
       document.querySelectorAll('.sold-item-check:checked').forEach(function (cb) {
         var amt = parseFloat(cb.dataset.amt) || 0;
         amount += amt;
-        closedItems.push({ label: cb.dataset.label || '', amount: amt });
+        closedItems.push({
+          label: cb.dataset.label || '', amount: amt,
+          pv: parseFloat(cb.dataset.pv) || 0,
+          trust: parseFloat(cb.dataset.trust) || 0,
+          backwall: parseFloat(cb.dataset.backwall) || 0,
+          category: cb.dataset.category || '',
+          discPct: parseFloat(cb.dataset.discPct) || 0,
+          discRm: parseFloat(cb.dataset.discRm) || 0
+        });
       });
       if (!_soldModalRef || !amount || amount <= 0) { alert('Select at least one item.'); return; }
     } else {
@@ -1643,6 +1670,54 @@
         }
       }
     }).catch(function (err) { dbg('team snapshot failed: ' + err); });
+  }
+
+  // Earning tab: commission from Close Sales, computed from PV captured at
+  // quote time (Land: PV - trust - backwall; Niche: PV - trust; both minus
+  // the same promo discount used on the quote) times the agent's tier rate.
+  // Only Burial Plot and Columbarium have a confirmed formula so far --
+  // other categories show "Pending" instead of guessing a commission.
+  function loadEarningSnapshot() {
+    var summaryEl = document.getElementById('earning-summary');
+    var listEl = document.getElementById('earning-list');
+    fetch(API_BASE + '/api/agent/earning-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      if (summaryEl) {
+        var color = TIER_COLOR[data.tier] || TIER_COLOR.AGENT;
+        summaryEl.innerHTML =
+          '<div class="earning-total-label">Total commission</div>' +
+          '<div class="earning-total-amt">RM ' + fmt(data.totalCommission || 0) + '</div>' +
+          '<div class="earning-tier-row">' +
+            '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(data.tier || 'AGENT') + '</span>' +
+            '<span class="earning-rate">' + (data.ratePct || 0) + '% commission rate</span>' +
+          '</div>' +
+          '<div class="earning-pv-row">Net PV: ' + fmt(data.totalPv || 0) + '</div>';
+      }
+      if (listEl) {
+        if (!data.closedSales || !data.closedSales.length) {
+          listEl.innerHTML = '<div class="home-empty">No closed sales yet — commission shows up here once a quote is marked Close Sales.</div>';
+        } else {
+          listEl.innerHTML = data.closedSales.map(function (sale) {
+            var dateStr = sale.created_at ? new Date(sale.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+            var custName = sale.customer_name ? esc(sale.customer_name) : 'No customer name';
+            var itemsHtml = (sale.items || []).map(function (it) {
+              var right = it.supported
+                ? 'RM ' + fmt(it.commission || 0)
+                : '<span class="earning-pending">Pending</span>';
+              return '<div class="earning-item-row">' +
+                '<span>' + esc(it.label || '') + '</span>' +
+                '<span>' + right + '</span>' +
+              '</div>';
+            }).join('');
+            return '<div class="earning-sale-row">' +
+              '<div class="mqr-cust">' + custName + '</div>' +
+              '<div class="mqr-main">' + esc(sale.site || '') + (sale.product ? ' · ' + esc(sale.product) : '') + '</div>' +
+              '<div class="earning-items">' + itemsHtml + '</div>' +
+              '<div class="mqr-meta">' + esc(dateStr) + '</div>' +
+            '</div>';
+          }).join('');
+        }
+      }
+    }).catch(function (err) { dbg('earning snapshot failed: ' + err); });
   }
 
   function loadHomeSnapshot() {
@@ -5310,6 +5385,8 @@
         loadMeSnapshot();
         break;
       case 'earning':
+        _earningLoaded = false;
+        loadEarningSnapshot();
         break;
       case 'home':
       default:

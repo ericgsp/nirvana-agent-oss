@@ -136,6 +136,18 @@ export default function AgentPage() {
         .team-goal-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
         .team-no-goal { font-size: 11px; color: #94a3b8; margin-top: 8px; font-style: italic; }
 
+        .earning-summary-card { margin: 10px 10px 0; padding: 16px; border-radius: 16px; background: linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); color: #fff; }
+        .earning-total-label { font-size: 11px; opacity: 0.8; }
+        .earning-total-amt { font-size: 26px; font-weight: 800; margin-top: 2px; }
+        .earning-tier-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .earning-rate { font-size: 11px; opacity: 0.85; }
+        .earning-pv-row { font-size: 11px; opacity: 0.75; margin-top: 4px; }
+        #earning-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .earning-sale-row { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; }
+        .earning-items { margin-top: 6px; padding-top: 6px; border-top: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 2px; }
+        .earning-item-row { display: flex; justify-content: space-between; font-size: 11.5px; color: #334155; }
+        .earning-pending { color: #94a3b8; font-style: italic; }
+
         #me-goal-card { margin: 10px 10px 0; }
         .me-set-goal-btn { display: block; width: 100%; margin-top: 10px; padding: 9px; border-radius: 10px; border: none; background: rgba(255,255,255,0.18); color: #fff; font-size: 12px; font-weight: 700; }
         .me-set-goal-btn-outline { background: transparent; border: 1px solid ${G_TEAL}; color: ${G_TEAL}; margin-top: 8px; }
@@ -868,13 +880,11 @@ export default function AgentPage() {
             <div id="home-recent-quotes"></div>
           </div>
 
-          {/* ── Tab: Earning ── */}
+          {/* ── Tab: Earning — commission from Close Sales, computed from PV
+               captured at quote time × the agent's tier rate ── */}
           <div id="tab-earning" className="tab-panel">
-            <div className="tab-placeholder">
-              <span className="tp-icon">$</span>
-              <span className="tp-title">Earning</span>
-              <span className="tp-sub">Coming soon.</span>
-            </div>
+            <div id="earning-summary" className="earning-summary-card"></div>
+            <div id="earning-list"></div>
           </div>
 
           {/* ── Tab: Browse (combined Inventory + Quote — list, layout, and quote
@@ -1685,7 +1695,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260817d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

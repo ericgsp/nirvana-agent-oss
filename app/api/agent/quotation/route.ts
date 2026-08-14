@@ -431,7 +431,7 @@ export async function GET(request: NextRequest) {
       // When section is a simple name (no slashes), push it to the DB query to avoid
       // fetching all sections for large zones (PostgREST default cap is 1000 rows).
       let q = supabaseAdmin.from("product_availability_with_price")
-        .select("price_block, price_section_group, price_level, price_lot_no, pre_need_price, as_need_price, total_pre_need_price, trust_account_facility, backwall_cost, lot_type, lot_section, lot_num, niche_section, niche_level, product_category, size_description")
+        .select("price_block, price_section_group, price_level, price_lot_no, pre_need_price, as_need_price, total_pre_need_price, trust_account_facility, backwall_cost, lot_type, lot_section, lot_num, niche_section, niche_level, product_category, size_description, point_value")
         .eq("site", site)
         .eq("zone", product)
         .eq("available", true)
@@ -493,7 +493,7 @@ export async function GET(request: NextRequest) {
       // sections that sort later alphabetically (e.g. S1, S8, S9 after D2~D15 in BK-A-LG1-HG).
       let retryQ = supabaseAdmin
         .from("product_availability_with_price")
-        .select("price_block, price_section_group, price_level, price_lot_no, pre_need_price, as_need_price, total_pre_need_price, trust_account_facility, backwall_cost, lot_type, lot_section, lot_num, niche_section, niche_level, product_category, size_description")
+        .select("price_block, price_section_group, price_level, price_lot_no, pre_need_price, as_need_price, total_pre_need_price, trust_account_facility, backwall_cost, lot_type, lot_section, lot_num, niche_section, niche_level, product_category, size_description, point_value")
         .eq("site", site)
         .eq("zone", baseZone)
         .eq("available", true)
@@ -571,7 +571,7 @@ export async function GET(request: NextRequest) {
     // baseProduct already strips section suffix (e.g. "EBL-A" → "EBL") — computed above.
     let directQuery = supabaseAdmin
       .from("product_price_list")
-      .select("pre_need_price, as_need_price, trust_account_facility, backwall_cost, product_category")
+      .select("pre_need_price, as_need_price, trust_account_facility, backwall_cost, product_category, point_value")
       .eq("site_code", site)
       .eq("product_name", baseProduct)
       .is("size_description", null)
@@ -584,7 +584,7 @@ export async function GET(request: NextRequest) {
     if (!directRows?.length && section) {
       const { data: noSectionRows } = await supabaseAdmin
         .from("product_price_list")
-        .select("pre_need_price, as_need_price, trust_account_facility, backwall_cost, product_category")
+        .select("pre_need_price, as_need_price, trust_account_facility, backwall_cost, product_category, point_value")
         .eq("site_code", site)
         .eq("product_name", baseProduct)
         .is("size_description", null)
@@ -649,6 +649,7 @@ export async function GET(request: NextRequest) {
         as_need_price:          dr.as_need_price  ?? null,
         trust_account_facility: dr.trust_account_facility ?? 0,
         backwall_cost:          dr.backwall_cost  ?? 0,
+        point_value:            dr.point_value ?? 0,
         product_category:       dr.product_category ?? "",
         promo:                  resolvedDirectPromo,
         available_count:        1,
@@ -721,6 +722,7 @@ export async function GET(request: NextRequest) {
         total_pre_need_price:   specificRow.total_pre_need_price   ?? null,
         trust_account_facility: specificRow.trust_account_facility ?? 0,
         backwall_cost:          specificRow.backwall_cost          ?? 0,
+        point_value:            specificRow.point_value            ?? 0,
         hole_excavation_fees:   ppExtraMap[groupKey]?.hole_excavation_fees ?? null,
         tomb_price:             ppExtraMap[groupKey]?.tomb_price           ?? null,
         product_category:       specificRow.product_category       ?? "",
@@ -789,6 +791,7 @@ export async function GET(request: NextRequest) {
       total_pre_need_price:   rep.total_pre_need_price   ?? null,
       trust_account_facility: rep.trust_account_facility ?? 0,
       backwall_cost:          rep.backwall_cost          ?? 0,
+      point_value:            rep.point_value            ?? 0,
       hole_excavation_fees:   ppExtraMap[groupKey]?.hole_excavation_fees ?? null,
       tomb_price:             ppExtraMap[groupKey]?.tomb_price           ?? null,
       product_category:       rep.product_category       ?? "",
