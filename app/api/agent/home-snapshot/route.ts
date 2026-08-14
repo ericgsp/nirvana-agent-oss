@@ -85,7 +85,8 @@ export async function POST(req: NextRequest) {
     typeof body?.customerName === "string" ? body.customerName : undefined,
     typeof body?.customerPhone === "string" ? body.customerPhone : undefined,
     typeof body?.validUntil === "string" ? body.validUntil : null,
-    Array.isArray(body?.items) ? body.items : undefined
+    Array.isArray(body?.items) ? body.items : undefined,
+    typeof body?.quoteSnapshotHtml === "string" ? body.quoteSnapshotHtml : undefined
   );
   return Response.json({ ok: true });
 }

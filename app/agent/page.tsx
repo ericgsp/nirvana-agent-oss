@@ -149,6 +149,15 @@ export default async function AgentPage() {
         .team-children.open { display: flex; }
         .team-toolbar { display: flex; padding: 10px; }
 
+        #quote-snapshot-backdrop { display: none; flex-direction: column; position: fixed; inset: 0; z-index: 1400; background: #fff; }
+        #quote-snapshot-backdrop.open { display: flex; }
+        #quote-snapshot-topbar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+        #quote-snapshot-topbar button { padding: 6px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 12.5px; font-weight: 700; color: #475569; }
+        #quote-snapshot-title { font-size: 14px; font-weight: 700; color: ${G_DARK}; }
+        #quote-snapshot-box { display: flex; flex-direction: column; height: 100%; }
+        #quote-snapshot-body { flex: 1; overflow: auto; padding: 14px; }
+        .mqr-view-btn { padding: 4px 9px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-size: 10.5px; font-weight: 700; }
+
         #team-perf-view { display: none; flex-direction: column; position: fixed; inset: 0; z-index: 1400; background: #fff; }
         #team-perf-view.open { display: flex; }
         #team-perf-topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
@@ -1082,6 +1091,18 @@ export default async function AgentPage() {
             <div id="team-list"></div>
           </div>
 
+          {/* ── Quote snapshot viewer — shows the exact rendered quote as it
+               was at Share time, lazy-fetched on "View Quote" ── */}
+          <div id="quote-snapshot-backdrop">
+            <div id="quote-snapshot-box">
+              <div id="quote-snapshot-topbar" className="no-print">
+                <button id="quote-snapshot-close">← Back</button>
+                <span id="quote-snapshot-title">Quote</span>
+              </div>
+              <div id="quote-snapshot-body"></div>
+            </div>
+          </div>
+
           {/* ── Team Performance table — sortable/filterable/printable view
                of every descendant's sales vs quota and active status ── */}
           <div id="team-perf-view">
@@ -1855,7 +1876,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818e" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

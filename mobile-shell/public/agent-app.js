@@ -1226,10 +1226,35 @@
       '<div class="mqr-meta">' + line2 + '</div>' +
       '<div class="mqr-actions">' +
         '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
+        '<button class="mqr-view-btn" data-quote-id="' + esc(q.id) + '">📄 View Quote</button>' +
         statusControl +
         (isClosed ? '' : '<button class="mqr-delete-btn" data-ref="' + ref + '">🗑 Delete</button>') +
       '</div>' +
     '</div>';
+  }
+
+  // Shows the exact quote table as it was rendered at Share time -- fetched
+  // lazily (not part of the list payload, since snapshots can be sizable).
+  // Older quotes generated before this feature has no saved copy.
+  function openQuoteSnapshotView(quoteId) {
+    var backdrop = qs('quote-snapshot-backdrop');
+    var body = qs('quote-snapshot-body');
+    if (!backdrop || !body) return;
+    body.innerHTML = '<div class="home-empty">Loading…</div>';
+    backdrop.classList.add('open');
+    fetch(API_BASE + '/api/agent/quote-snapshot?id=' + encodeURIComponent(quoteId)).then(function (res) { return res.json(); }).then(function (data) {
+      body.innerHTML = data.html
+        ? '<div class="qt-scroll">' + data.html + '</div>'
+        : '<div class="home-empty">No saved copy for this quote — it was generated before this feature was added.</div>';
+    }).catch(function (err) {
+      dbg('quote snapshot fetch failed: ' + err);
+      body.innerHTML = '<div class="home-empty">Could not load this quote.</div>';
+    });
+  }
+
+  function closeQuoteSnapshotView() {
+    var backdrop = qs('quote-snapshot-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
   }
 
   // ── Print flow ────────────────────────────────────────────────
@@ -1335,13 +1360,19 @@
       if (promoEnd && (!earliestValidUntil || promoEnd < earliestValidUntil)) earliestValidUntil = promoEnd;
     });
 
+    // Snapshot the exact rendered quote table -- viewing it later (Me/Leads
+    // tab) shows byte-for-byte what the customer actually saw, unaffected
+    // by any later pricing/promo/rendering changes.
+    var quoteBodyEl = document.getElementById('quote-body');
+    var quoteSnapshotHtml = quoteBodyEl ? quoteBodyEl.innerHTML : '';
+
     fetch(API_BASE + '/api/agent/home-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         site: site, product: product, section: lotQuotes.length + ' lot(s)',
         netTotal: total, customerName: customerName, customerPhone: customerPhone,
-        validUntil: earliestValidUntil, items: items,
+        validUntil: earliestValidUntil, items: items, quoteSnapshotHtml: quoteSnapshotHtml,
       }),
     }).then(function () { _homeSnapshotLoaded = false; }).catch(function (err) { dbg('log quote failed: ' + err); });
 
@@ -5444,6 +5475,10 @@
         return;
       }
 
+      // "View Quote" button on a quote row (Me tab and Leads tab)
+      var viewQuoteBtn = e.target && e.target.closest && e.target.closest('.mqr-view-btn');
+      if (viewQuoteBtn) { openQuoteSnapshotView(viewQuoteBtn.dataset.quoteId); return; }
+
       // "Delete" button on a lead row (Leads tab)
       var deleteLeadBtn = e.target && e.target.closest && e.target.closest('.lead-delete-btn');
       if (deleteLeadBtn) { deleteLead(deleteLeadBtn.dataset.id); return; }
@@ -5604,6 +5639,12 @@
           break;
         case 'btn-team-performance':
           openTeamPerfView();
+          break;
+        case 'quote-snapshot-close':
+          closeQuoteSnapshotView();
+          break;
+        case 'quote-snapshot-backdrop':
+          if (e.target.id === 'quote-snapshot-backdrop') closeQuoteSnapshotView();
           break;
         case 'team-perf-close':
           closeTeamPerfView();

@@ -449,7 +449,7 @@ async function resolveLeadId(
 export async function logQuoteView(
   site: string, product: string, section: string, netTotal: number,
   customerName?: string, customerPhone?: string, validUntil?: string | null,
-  items?: { label: string; amount: number }[]
+  items?: { label: string; amount: number }[], quoteSnapshotHtml?: string
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -465,6 +465,7 @@ export async function logQuoteView(
     valid_until: validUntil || null,
     items: items && items.length ? items : null,
     lead_id: leadId,
+    quote_snapshot_html: quoteSnapshotHtml || null,
   });
 }
 
