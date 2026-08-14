@@ -1242,13 +1242,44 @@
     var phoneEl = qs('customer-info-phone');
     if (nameEl) nameEl.value = '';
     if (phoneEl) phoneEl.value = '';
+    hideCustomerNameSuggestions();
     var backdrop = qs('customer-info-modal-backdrop');
     if (backdrop) backdrop.classList.add('open');
+    // Fetch fresh each time (cheap) so a lead added moments ago is searchable.
+    fetch(API_BASE + '/api/agent/leads-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      _leadsCache = data.leads || [];
+    }).catch(function (err) { dbg('leads fetch for autocomplete failed: ' + err); });
   }
 
   function closeCustomerInfoModal() {
     var backdrop = qs('customer-info-modal-backdrop');
     if (backdrop) backdrop.classList.remove('open');
+    hideCustomerNameSuggestions();
+  }
+
+  // Typing a customer name on the Share flow looks it up against the
+  // agent's own Leads list -- picking a match auto-fills the phone number
+  // instead of the agent having to type/remember it.
+  function renderCustomerNameSuggestions(filterText) {
+    var listEl = qs('customer-name-suggest-list');
+    if (!listEl) return;
+    var filt = (filterText || '').trim().toLowerCase();
+    if (!filt) { listEl.classList.remove('show'); listEl.innerHTML = ''; return; }
+    var matches = _leadsCache.filter(function (l) {
+      return (l.name || '').toLowerCase().indexOf(filt) >= 0;
+    }).slice(0, 8);
+    if (!matches.length) { listEl.classList.remove('show'); listEl.innerHTML = ''; return; }
+    listEl.innerHTML = matches.map(function (l) {
+      return '<div class="cns-item" data-name="' + esc(l.name || '') + '" data-phone="' + esc(l.phone || '') + '">' +
+        esc(l.name || '') + (l.phone ? '<span class="cns-item-phone">' + esc(l.phone) + '</span>' : '') +
+      '</div>';
+    }).join('');
+    listEl.classList.add('show');
+  }
+
+  function hideCustomerNameSuggestions() {
+    var listEl = qs('customer-name-suggest-list');
+    if (listEl) { listEl.classList.remove('show'); listEl.innerHTML = ''; }
   }
 
   // Customer name/phone are optional -- this always proceeds to log +
@@ -4833,6 +4864,7 @@
 
     document.addEventListener('input', function (e) {
       if (e.target && e.target.id === 'contact-picker-search') renderContactPickerList(e.target.value);
+      if (e.target && e.target.id === 'customer-info-name') renderCustomerNameSuggestions(e.target.value);
     });
 
     document.addEventListener('change', function (e) {
@@ -5119,6 +5151,21 @@
             loadMeSnapshot();
           }).catch(function (err) { dbg('delete quote failed: ' + err); });
         }
+        return;
+      }
+
+      // Tapping outside the name-suggestion dropdown closes it without picking
+      var cnsWrap = qs('customer-name-autocomplete-wrap');
+      if (cnsWrap && !cnsWrap.contains(e.target)) hideCustomerNameSuggestions();
+
+      // Picking a name-lookup suggestion (Share flow) — fills phone too
+      var cnsItem = e.target && e.target.closest && e.target.closest('.cns-item');
+      if (cnsItem) {
+        var cnsNameEl = qs('customer-info-name');
+        var cnsPhoneEl = qs('customer-info-phone');
+        if (cnsNameEl) cnsNameEl.value = cnsItem.dataset.name || '';
+        if (cnsPhoneEl) cnsPhoneEl.value = cnsItem.dataset.phone || '';
+        hideCustomerNameSuggestions();
         return;
       }
 

@@ -227,6 +227,12 @@ export default function AgentPage() {
         #customer-info-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
         #customer-info-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
         #customer-info-name, #customer-info-phone { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; }
+        #customer-name-autocomplete-wrap { position: relative; }
+        #customer-name-suggest-list { display:none; position:absolute; left:0; right:0; top:100%; margin-top:4px; background:#fff; border:1px solid #e2e8f0; border-radius:10px; max-height:160px; overflow-y:auto; box-shadow:0 4px 14px rgba(0,0,0,0.14); z-index:10; }
+        #customer-name-suggest-list.show { display:block; }
+        .cns-item { padding:9px 12px; font-size:12.5px; color:#334155; border-bottom:1px solid #f1f5f9; cursor:pointer; }
+        .cns-item:last-child { border-bottom:none; }
+        .cns-item-phone { color:#94a3b8; font-size:11px; margin-left:6px; }
         #customer-info-modal-actions { display:flex; gap:8px; margin-top:14px; }
         #customer-info-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #customer-info-modal-cancel { background:#f1f5f9; color:#475569; }
@@ -1585,7 +1591,10 @@ export default function AgentPage() {
           <div id="customer-info-modal-title">Who is this quote for?</div>
           <div id="customer-info-modal-sub">Optional — helps you follow up later</div>
           <div className="f-lbl" style={{marginTop:"10px"}}>Customer name</div>
-          <input id="customer-info-name" type="text" placeholder="e.g. Tan Ah Kow" />
+          <div id="customer-name-autocomplete-wrap">
+            <input id="customer-info-name" type="text" placeholder="e.g. Tan Ah Kow" autoComplete="off" />
+            <div id="customer-name-suggest-list"></div>
+          </div>
           <div className="f-lbl" style={{marginTop:"10px"}}>Phone number</div>
           <input id="customer-info-phone" type="tel" placeholder="e.g. 012-3456789" />
           <div id="customer-info-modal-actions">
@@ -1732,7 +1741,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817f" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260817g" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
