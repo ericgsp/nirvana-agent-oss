@@ -1774,7 +1774,11 @@
       });
       _contactSelection = {};
       openContactPickerModal();
-    }).catch(function (err) { dbg('contact sync failed: ' + err); alert('Could not read contacts.'); });
+    }).catch(function (err) {
+      var msg = (err && (err.message || err.errorMessage)) || String(err);
+      dbg('contact sync failed: ' + msg);
+      alert('Could not read contacts: ' + msg);
+    });
   }
 
   function openContactPickerModal() {
