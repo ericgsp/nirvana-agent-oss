@@ -474,7 +474,7 @@ export async function logQuoteView(
 // never an arbitrary user_id from the client.
 export async function markSold(
   quotationRef: string, amount: number, soldAt?: string,
-  closedItems?: { label: string; amount: number }[]
+  closedItems?: { label: string; amount: number; instalMonths?: number }[]
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -492,9 +492,24 @@ export async function markSold(
   // is actually keyed on, so status updates always target the last segment.
   const quoteId = quotationRef.split("|").pop();
   if (quoteId) {
+    const closedAt = new Date();
+    // Last instalment date = closed date + the longest instalment period
+    // among the items actually closed (a mixed-item quote pays off on
+    // whichever item takes longest).
+    const maxInstalMonths = (closedItems ?? []).reduce(
+      (max, it) => Math.max(max, it.instalMonths || 0), 0
+    );
+    const lastInstalmentDate = new Date(closedAt);
+    lastInstalmentDate.setMonth(lastInstalmentDate.getMonth() + maxInstalMonths);
+
     await supabaseAdmin
       .from("recent_quotes")
-      .update({ status: "closed", closed_items: closedItems && closedItems.length ? closedItems : null })
+      .update({
+        status: "closed",
+        closed_items: closedItems && closedItems.length ? closedItems : null,
+        closed_at: closedAt.toISOString(),
+        last_instalment_date: maxInstalMonths > 0 ? lastInstalmentDate.toISOString().slice(0, 10) : null,
+      })
       .eq("id", quoteId)
       .eq("user_id", user.id);
   }

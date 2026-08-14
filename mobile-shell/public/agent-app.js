@@ -1169,8 +1169,6 @@
     var rawName  = q.customer_name || '';
     var rawPhone = q.customer_phone || '';
     var custName  = rawName ? esc(rawName) : 'No customer name';
-    var dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-    var validStr = q.valid_until ? 'Valid until ' + new Date(q.valid_until).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '';
     var itemsArr = Array.isArray(q.items) ? q.items : [];
     var itemsAttr = esc(JSON.stringify(itemsArr));
     var waLink = toWaLink(rawPhone);
@@ -1207,6 +1205,18 @@
           return '<div class="mqr-closed-item-row"><span>' + esc(it.label || '') + '</span><span>RM ' + fmt(it.amount || 0) + '</span></div>';
         }).join('') + '</div>'
       : '';
+    // Once closed, the date line swaps meaning: the raw created_at/valid_until
+    // columns stay untouched (needed elsewhere for audit/sorting) but the
+    // agent-facing display shows when the sale actually closed and when the
+    // last instalment is due, instead of when the quote was first generated.
+    var dateStr, validStr;
+    if (isClosed) {
+      dateStr = q.closed_at ? 'Closed ' + new Date(q.closed_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      validStr = q.last_instalment_date ? 'Last instalment ' + new Date(q.last_instalment_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    } else {
+      dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      validStr = q.valid_until ? 'Valid until ' + new Date(q.valid_until).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '';
+    }
     var line2 = esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '');
     return '<div class="me-quote-row">' +
       '<div class="mqr-cust">' + custName + '</div>' +
@@ -1318,7 +1328,8 @@
         backwall: (q.levelData && q.levelData.backwall_cost) || 0,
         category: (q.levelData && q.levelData.product_category) || '',
         discPct: (promo && promo.discount_pct) || 0,
-        discRm: (promo && promo.discount_rm) || 0
+        discRm: (promo && promo.discount_rm) || 0,
+        instalMonths: (promo && promo.max_instalment_months) || 0
       });
       var promoEnd = promo && promo.promo_end_date;
       if (promoEnd && (!earliestValidUntil || promoEnd < earliestValidUntil)) earliestValidUntil = promoEnd;
@@ -1431,7 +1442,8 @@
           + '<input type="checkbox" class="sold-item-check" data-amt="' + (it.amount || 0) + '" data-label="' + esc(itLabel)
           + '" data-pv="' + (it.pv || 0) + '" data-trust="' + (it.trust || 0) + '" data-backwall="' + (it.backwall || 0)
           + '" data-category="' + esc(it.category || '') + '" data-disc-pct="' + (it.discPct || 0) + '" data-disc-rm="' + (it.discRm || 0)
-          + '" checked />'
+          + '" data-instal-months="' + (it.instalMonths || 0) + '"'
+          + ' checked />'
           + '<span class="sold-item-label">' + esc(itLabel) + '</span>'
           + '<span class="sold-item-amt">RM ' + fmt(it.amount || 0) + '</span>'
           + '</label>';
@@ -1484,7 +1496,8 @@
           backwall: parseFloat(cb.dataset.backwall) || 0,
           category: cb.dataset.category || '',
           discPct: parseFloat(cb.dataset.discPct) || 0,
-          discRm: parseFloat(cb.dataset.discRm) || 0
+          discRm: parseFloat(cb.dataset.discRm) || 0,
+          instalMonths: parseFloat(cb.dataset.instalMonths) || 0
         });
       });
       if (!_soldModalRef || !amount || amount <= 0) { alert('Select at least one item.'); return; }

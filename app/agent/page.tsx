@@ -1855,7 +1855,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

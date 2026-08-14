@@ -17,7 +17,7 @@ export async function GET() {
       .order("created_at", { ascending: false }),
     supabaseAdmin
       .from("recent_quotes")
-      .select("id, site, product, section, net_total, customer_name, customer_phone, valid_until, items, status, closed_items, lead_id, created_at")
+      .select("id, site, product, section, net_total, customer_name, customer_phone, valid_until, items, status, closed_items, closed_at, last_instalment_date, lead_id, created_at")
       .eq("user_id", user.id)
       .not("lead_id", "is", null)
       .order("created_at", { ascending: false }),

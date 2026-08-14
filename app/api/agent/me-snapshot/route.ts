@@ -55,7 +55,7 @@ export async function GET() {
       .lte("sold_at", `${yearPrefix}-12-31`),
     supabaseAdmin
       .from("recent_quotes")
-      .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items, status, closed_items")
+      .select("id, site, product, section, net_total, created_at, customer_name, customer_phone, valid_until, items, status, closed_items, closed_at, last_instalment_date")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(5),
