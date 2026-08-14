@@ -9,13 +9,32 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return Response.json({ leads: [] });
 
-  const { data: leads } = await supabaseAdmin
-    .from("leads")
-    .select("id, name, phone, source, notes, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  const [{ data: leads }, { data: quotes }] = await Promise.all([
+    supabaseAdmin
+      .from("leads")
+      .select("id, name, phone, source, notes, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabaseAdmin
+      .from("recent_quotes")
+      .select("id, site, product, section, net_total, customer_name, customer_phone, valid_until, items, status, closed_items, lead_id, created_at")
+      .eq("user_id", user.id)
+      .not("lead_id", "is", null)
+      .order("created_at", { ascending: false }),
+  ]);
 
-  return Response.json({ leads: leads ?? [] });
+  const quotesByLead: Record<string, typeof quotes> = {};
+  (quotes ?? []).forEach((q) => {
+    const lid = q.lead_id as string;
+    (quotesByLead[lid] ??= []).push(q);
+  });
+
+  const leadsWithQuotes = (leads ?? []).map((l) => ({
+    ...l,
+    quotes: quotesByLead[l.id] ?? [],
+  }));
+
+  return Response.json({ leads: leadsWithQuotes });
 }
 
 export async function POST(req: NextRequest) {

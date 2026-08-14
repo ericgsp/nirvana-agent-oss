@@ -188,7 +188,17 @@ export default function AgentPage() {
         .lead-source-tag { font-size: 9.5px; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 7px; border-radius: 999px; }
         .lead-phone-row { margin-top: 4px; font-size: 12px; }
         .lead-no-phone { color: #94a3b8; font-style: italic; font-size: 11.5px; }
-        .lead-delete-btn { margin-top: 8px; padding: 4px 9px; border-radius: 999px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font-size: 10.5px; font-weight: 700; }
+        .lead-delete-btn { padding: 4px 9px; border-radius: 999px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font-size: 10.5px; font-weight: 700; }
+        .lead-status-badge { flex-shrink: 0; font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+        .lead-status-badge.st-new { background: #f1f5f9; color: #64748b; }
+        .lead-status-badge.st-followup { background: #fef3c7; color: #92400e; }
+        .lead-status-badge.st-closed { background: #dcfce7; color: #15803d; }
+        .lead-status-badge.st-lost { background: #fee2e2; color: #b91c1c; }
+        .lead-actions-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+        .lead-expand-toggle { padding: 3px 9px; border-radius: 999px; border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b; font-size: 10.5px; font-weight: 700; transition: transform 0.15s; }
+        .lead-expand-toggle.expanded { transform: rotate(90deg); }
+        .lead-quotes { display: none; margin: 8px 0 0 4px; padding-left: 10px; border-left: 2px solid #e2e8f0; flex-direction: column; gap: 8px; }
+        .lead-quotes.open { display: flex; }
 
         #me-goal-card { margin: 10px 10px 0; }
         .me-set-goal-btn { display: block; width: 100%; margin-top: 10px; padding: 9px; border-radius: 10px; border: none; background: rgba(255,255,255,0.18); color: #fff; font-size: 12px; font-weight: 700; }
@@ -1833,7 +1843,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

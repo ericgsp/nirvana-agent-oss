@@ -1153,67 +1153,73 @@
         if (!data.recentQuotes || !data.recentQuotes.length) {
           listEl.innerHTML = '<div class="home-empty">No quotes generated yet — they&apos;ll show up here once you print or share one.</div>';
         } else {
-          listEl.innerHTML = data.recentQuotes.map(function (q) {
-            var label = esc(q.product || q.site || 'Quotation');
-            var ref = esc((q.site || '') + '|' + (q.product || '') + '|' + (q.section || '') + '|' + q.id);
-            var rawName  = q.customer_name || '';
-            var rawPhone = q.customer_phone || '';
-            var custName  = rawName ? esc(rawName) : 'No customer name';
-            var dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-            var validStr = q.valid_until ? 'Valid until ' + new Date(q.valid_until).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '';
-            var itemsArr = Array.isArray(q.items) ? q.items : [];
-            var itemsAttr = esc(JSON.stringify(itemsArr));
-            var waLink = toWaLink(rawPhone);
-            var phoneHtml = rawPhone
-              ? (waLink ? '<a class="mqr-wa-link" href="' + esc(waLink) + '" target="_blank" rel="noopener noreferrer">💬 ' + esc(rawPhone) + '</a>' : esc(rawPhone))
-              : '';
-            var statusOpts = ['followup', 'lost', 'closed'];
-            var statusLabels = { followup: 'Follow-up', lost: 'Lost Sales', closed: 'Close Sales' };
-            var effectiveStatus = q.status || 'followup'; // unset quotes default to Follow-up, no blank placeholder
-            var isClosed = effectiveStatus === 'closed';
-            // Once closed, the status is final -- no reselecting back to Follow-up/Lost,
-            // and no Delete, so a real sale record can't be accidentally lost or reopened.
-            var statusControl = isClosed
-              ? '<span class="mqr-status-sel st-closed mqr-status-locked">' + statusLabels.closed + '</span>'
-              : '<select class="mqr-status-sel st-' + effectiveStatus + '" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
-                + statusOpts.map(function (v) {
-                    return '<option value="' + v + '"' + (effectiveStatus === v ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
-                  }).join('')
-                + '</select>';
-            var closedItemsArr = Array.isArray(q.closed_items) ? q.closed_items : [];
-            var hasClosedItems = isClosed && closedItemsArr.length > 0;
-            var closedTotal = hasClosedItems
-              ? closedItemsArr.reduce(function (sum, it) { return sum + (it.amount || 0); }, 0)
-              : 0;
-            var displayAmount = hasClosedItems ? closedTotal : (q.net_total || 0);
-            var line1Parts = [esc(q.site || '')];
-            if (!hasClosedItems) {
-              if (label) line1Parts.push(label);
-              if (q.section) line1Parts.push(esc(q.section));
-            }
-            var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(displayAmount) + '</span>';
-            var closedItemsHtml = hasClosedItems
-              ? '<div class="mqr-closed-items">' + closedItemsArr.map(function (it) {
-                  return '<div class="mqr-closed-item-row"><span>' + esc(it.label || '') + '</span><span>RM ' + fmt(it.amount || 0) + '</span></div>';
-                }).join('') + '</div>'
-              : '';
-            var line2 = esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '');
-            return '<div class="me-quote-row">' +
-              '<div class="mqr-cust">' + custName + '</div>' +
-              (phoneHtml ? '<div class="mqr-phone-row">' + phoneHtml + '</div>' : '') +
-              '<div class="mqr-main">' + line1 + '</div>' +
-              closedItemsHtml +
-              '<div class="mqr-meta">' + line2 + '</div>' +
-              '<div class="mqr-actions">' +
-                '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
-                statusControl +
-                (isClosed ? '' : '<button class="mqr-delete-btn" data-ref="' + ref + '">🗑 Delete</button>') +
-              '</div>' +
-            '</div>';
-          }).join('');
+          listEl.innerHTML = data.recentQuotes.map(renderQuoteRow).join('');
         }
       }
     }).catch(function (err) { dbg('me snapshot failed: ' + err); });
+  }
+
+  // Renders one quote row -- status control, Edit, Delete, closed-item
+  // breakdown -- shared between the Me tab's flat quote list and the Leads
+  // tab's per-lead expanded quote history, so there's exactly one place
+  // this markup and its behavior are defined.
+  function renderQuoteRow(q) {
+    var label = esc(q.product || q.site || 'Quotation');
+    var ref = esc((q.site || '') + '|' + (q.product || '') + '|' + (q.section || '') + '|' + q.id);
+    var rawName  = q.customer_name || '';
+    var rawPhone = q.customer_phone || '';
+    var custName  = rawName ? esc(rawName) : 'No customer name';
+    var dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    var validStr = q.valid_until ? 'Valid until ' + new Date(q.valid_until).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' }) : '';
+    var itemsArr = Array.isArray(q.items) ? q.items : [];
+    var itemsAttr = esc(JSON.stringify(itemsArr));
+    var waLink = toWaLink(rawPhone);
+    var phoneHtml = rawPhone
+      ? (waLink ? '<a class="mqr-wa-link" href="' + esc(waLink) + '" target="_blank" rel="noopener noreferrer">💬 ' + esc(rawPhone) + '</a>' : esc(rawPhone))
+      : '';
+    var statusOpts = ['followup', 'lost', 'closed'];
+    var statusLabels = { followup: 'Follow-up', lost: 'Lost Sales', closed: 'Close Sales' };
+    var effectiveStatus = q.status || 'followup'; // unset quotes default to Follow-up, no blank placeholder
+    var isClosed = effectiveStatus === 'closed';
+    // Once closed, the status is final -- no reselecting back to Follow-up/Lost,
+    // and no Delete, so a real sale record can't be accidentally lost or reopened.
+    var statusControl = isClosed
+      ? '<span class="mqr-status-sel st-closed mqr-status-locked">' + statusLabels.closed + '</span>'
+      : '<select class="mqr-status-sel st-' + effectiveStatus + '" data-ref="' + ref + '" data-label="' + label + '" data-items="' + itemsAttr + '" data-net-total="' + (q.net_total || 0) + '">'
+        + statusOpts.map(function (v) {
+            return '<option value="' + v + '"' + (effectiveStatus === v ? ' selected' : '') + '>' + statusLabels[v] + '</option>';
+          }).join('')
+        + '</select>';
+    var closedItemsArr = Array.isArray(q.closed_items) ? q.closed_items : [];
+    var hasClosedItems = isClosed && closedItemsArr.length > 0;
+    var closedTotal = hasClosedItems
+      ? closedItemsArr.reduce(function (sum, it) { return sum + (it.amount || 0); }, 0)
+      : 0;
+    var displayAmount = hasClosedItems ? closedTotal : (q.net_total || 0);
+    var line1Parts = [esc(q.site || '')];
+    if (!hasClosedItems) {
+      if (label) line1Parts.push(label);
+      if (q.section) line1Parts.push(esc(q.section));
+    }
+    var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(displayAmount) + '</span>';
+    var closedItemsHtml = hasClosedItems
+      ? '<div class="mqr-closed-items">' + closedItemsArr.map(function (it) {
+          return '<div class="mqr-closed-item-row"><span>' + esc(it.label || '') + '</span><span>RM ' + fmt(it.amount || 0) + '</span></div>';
+        }).join('') + '</div>'
+      : '';
+    var line2 = esc(dateStr) + (validStr ? ' · ' + esc(validStr) : '');
+    return '<div class="me-quote-row">' +
+      '<div class="mqr-cust">' + custName + '</div>' +
+      (phoneHtml ? '<div class="mqr-phone-row">' + phoneHtml + '</div>' : '') +
+      '<div class="mqr-main">' + line1 + '</div>' +
+      closedItemsHtml +
+      '<div class="mqr-meta">' + line2 + '</div>' +
+      '<div class="mqr-actions">' +
+        '<button class="mqr-edit-btn" data-ref="' + ref + '" data-name="' + esc(rawName) + '" data-phone="' + esc(rawPhone) + '">✎ Edit</button>' +
+        statusControl +
+        (isClosed ? '' : '<button class="mqr-delete-btn" data-ref="' + ref + '">🗑 Delete</button>') +
+      '</div>' +
+    '</div>';
   }
 
   // ── Print flow ────────────────────────────────────────────────
@@ -1361,6 +1367,8 @@
       if (data.error) { alert(data.error); return; }
       _meLoaded = false;
       loadMeSnapshot();
+      _leadsLoaded = false;
+      loadLeadsSnapshot();
     }).catch(function (err) { dbg('update status failed: ' + err); });
   }
 
@@ -1395,6 +1403,8 @@
       closeEditCustomerModal();
       _meLoaded = false;
       loadMeSnapshot();
+      _leadsLoaded = false;
+      loadLeadsSnapshot();
     }).catch(function (err) { dbg('update customer failed: ' + err); });
   }
 
@@ -1499,6 +1509,8 @@
       closeSoldModal();
       _meLoaded = false;
       loadMeSnapshot();
+      _leadsLoaded = false;
+      loadLeadsSnapshot();
     }).catch(function (err) {
       _soldModalSubmitting = false;
       if (confirmBtn) confirmBtn.disabled = false;
@@ -1887,6 +1899,17 @@
     }).catch(function (err) { dbg('leads snapshot failed: ' + err); });
   }
 
+  // A lead's status is never stored on the lead itself -- it's derived from
+  // its linked quotes every time it's rendered, so there's exactly one
+  // source of truth (the quote's own status) and no risk of the two
+  // drifting out of sync.
+  function deriveLeadStatus(quotes) {
+    if (!quotes || !quotes.length) return { label: 'New lead', cls: 'st-new' };
+    if (quotes.some(function (q) { return q.status === 'closed'; })) return { label: 'Closed', cls: 'st-closed' };
+    if (quotes.every(function (q) { return q.status === 'lost'; })) return { label: 'Lost', cls: 'st-lost' };
+    return { label: 'Following up', cls: 'st-followup' };
+  }
+
   function renderLeadsList() {
     var listEl = document.getElementById('leads-list');
     if (!listEl) return;
@@ -1900,13 +1923,25 @@
         ? (waLink ? '<a class="mqr-wa-link" href="' + esc(waLink) + '" target="_blank" rel="noopener noreferrer">💬 ' + esc(l.phone) + '</a>' : esc(l.phone))
         : '<span class="lead-no-phone">No phone</span>';
       var sourceTag = l.source === 'contact_sync' ? '<span class="lead-source-tag">Synced</span>' : '';
+      var quotes = l.quotes || [];
+      var status = deriveLeadStatus(quotes);
+      var statusBadge = '<span class="lead-status-badge ' + status.cls + '">' + status.label + '</span>';
+      var toggle = quotes.length
+        ? '<button class="lead-expand-toggle" aria-label="Show quotes">▸ ' + quotes.length + ' quote' + (quotes.length > 1 ? 's' : '') + '</button>'
+        : '';
+      var quotesHtml = quotes.length
+        ? '<div class="lead-quotes">' + quotes.map(renderQuoteRow).join('') + '</div>'
+        : '';
       return '<div class="lead-row">' +
         '<div class="lead-row-top">' +
-          '<span class="lead-name">' + esc(l.name || '') + '</span>' + sourceTag +
+          '<span class="lead-name">' + esc(l.name || '') + '</span>' + sourceTag + statusBadge +
         '</div>' +
         '<div class="lead-phone-row">' + phoneHtml + '</div>' +
-        '<button class="lead-delete-btn" data-id="' + esc(l.id) + '">🗑 Delete</button>' +
-      '</div>';
+        '<div class="lead-actions-row">' +
+          toggle +
+          '<button class="lead-delete-btn" data-id="' + esc(l.id) + '">🗑 Delete</button>' +
+        '</div>' +
+      '</div>' + quotesHtml;
     }).join('');
   }
 
@@ -5322,6 +5357,8 @@
             if (data.error) { alert(data.error); return; }
             _meLoaded = false;
             loadMeSnapshot();
+            _leadsLoaded = false;
+            loadLeadsSnapshot();
           }).catch(function (err) { dbg('delete quote failed: ' + err); });
         }
         return;
@@ -5353,6 +5390,18 @@
           _teamPerfSortDir = 'asc';
         }
         renderTeamPerfTable();
+        return;
+      }
+
+      // Expand/collapse a lead's quote history (Leads tab)
+      var leadExpandBtn = e.target && e.target.closest && e.target.closest('.lead-expand-toggle');
+      if (leadExpandBtn) {
+        var leadRow = leadExpandBtn.closest('.lead-row');
+        var leadQuotesEl = leadRow && leadRow.nextElementSibling;
+        if (leadQuotesEl && leadQuotesEl.classList.contains('lead-quotes')) {
+          var leadNowOpen = leadQuotesEl.classList.toggle('open');
+          leadExpandBtn.classList.toggle('expanded', leadNowOpen);
+        }
         return;
       }
 
