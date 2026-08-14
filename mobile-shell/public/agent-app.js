@@ -2016,6 +2016,11 @@
       var quotesHtml = quotes.length
         ? '<div class="lead-quotes">' + quotes.map(renderQuoteRow).join('') + '</div>'
         : '';
+      // Cross-sell suggestions only make sense once a lead has actually
+      // bought something -- nothing to cross-sell against otherwise.
+      var suggestBtn = status.cls === 'st-closed'
+        ? '<button class="lead-suggest-toggle" data-id="' + esc(l.id) + '">🎯 Suggest Products</button>'
+        : '';
       return '<div class="lead-row">' +
         '<div class="lead-row-top">' +
           '<span class="lead-name">' + esc(l.name || '') + '</span>' + sourceTag + labelBadge + statusBadge +
@@ -2023,12 +2028,52 @@
         '<div class="lead-phone-row">' + phoneHtml + '</div>' +
         nextActionHtml + notesHtml +
         '<div class="lead-actions-row">' +
-          toggle +
+          toggle + suggestBtn +
           '<button class="lead-edit-btn" data-id="' + esc(l.id) + '">✎ Edit</button>' +
           '<button class="lead-delete-btn" data-id="' + esc(l.id) + '" aria-label="Delete lead">🗑</button>' +
         '</div>' +
+        '<div class="lead-suggestions" id="lead-suggest-' + esc(l.id) + '"></div>' +
       '</div>' + quotesHtml;
     }).join('');
+  }
+
+  var _leadSuggestCache = {};
+
+  function toggleLeadSuggestions(leadId) {
+    var panel = document.getElementById('lead-suggest-' + leadId);
+    if (!panel) return;
+    var opening = !panel.classList.contains('open');
+    panel.classList.toggle('open', opening);
+    if (!opening || _leadSuggestCache[leadId]) return;
+    panel.innerHTML = '<div class="home-empty">Loading…</div>';
+    fetch(API_BASE + '/api/agent/lead-product-suggestions?leadId=' + encodeURIComponent(leadId))
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        _leadSuggestCache[leadId] = true;
+        var suggestions = data.suggestions || [];
+        if (!suggestions.length) {
+          panel.innerHTML = '<div class="home-empty">' +
+            (data.reason === 'no_category_data'
+              ? 'No product data captured for this lead\'s closed sale yet -- only sales closed after this feature shipped can be matched.'
+              : 'No other products currently offered at this site.') +
+            '</div>';
+          return;
+        }
+        var bySite = {};
+        suggestions.forEach(function (s) { (bySite[s.site] = bySite[s.site] || []).push(s); });
+        panel.innerHTML = Object.keys(bySite).map(function (site) {
+          var byCat = {};
+          bySite[site].forEach(function (s) { (byCat[s.category] = byCat[s.category] || []).push(s.product_name); });
+          return '<div class="lead-suggest-site">' + esc(site) + '</div>' +
+            Object.keys(byCat).map(function (cat) {
+              return '<div class="lead-suggest-cat"><span class="lead-suggest-cat-name">' + esc(cat) + '</span>' +
+                '<span class="lead-suggest-products">' + esc(byCat[cat].join(', ')) + '</span></div>';
+            }).join('');
+        }).join('');
+      }).catch(function (err) {
+        dbg('lead suggestions fetch failed: ' + err);
+        panel.innerHTML = '<div class="home-empty">Could not load suggestions.</div>';
+      });
   }
 
   // Same modal serves Add and Edit -- passing a leadId pre-fills every field
@@ -5556,6 +5601,10 @@
       // "Edit" button on a lead row (Leads tab)
       var editLeadBtn = e.target && e.target.closest && e.target.closest('.lead-edit-btn');
       if (editLeadBtn) { openAddLeadModal(editLeadBtn.dataset.id); return; }
+
+      // "Suggest Products" toggle on a lead row (Leads tab)
+      var suggestLeadBtn = e.target && e.target.closest && e.target.closest('.lead-suggest-toggle');
+      if (suggestLeadBtn) { toggleLeadSuggestions(suggestLeadBtn.dataset.id); return; }
 
       // Tapping a month in the yearly-goal mini bar chart (Me tab)
       var monthBarCol = e.target && e.target.closest && e.target.closest('.mgc-bar-col');
