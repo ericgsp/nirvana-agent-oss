@@ -98,6 +98,7 @@ export default async function AgentPage() {
         .tab-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; color: #94a3b8; background: none; border: none; padding: 4px 0; cursor: pointer; touch-action: manipulation; }
         .tab-btn.active { color: ${G_TEAL}; }
         .tab-btn-icon { font-size: 18px; line-height: 1; }
+        .tab-btn-icon svg { display: block; width: 18px; height: 18px; fill: currentColor; }
         /* Browse is the primary tab (product browsing + quoting) -- raised
            circular badge, like a center FAB, so it reads as the main action. */
         .tab-btn[data-tab="browse"] { font-weight: 800; }
@@ -1027,8 +1028,8 @@ export default async function AgentPage() {
 
         {/* ── Bottom tab bar ── */}
         <div id="tab-bar" className="no-print">
-          <button className="tab-btn active" data-tab="home"><span className="tab-btn-icon">⌂</span>Home</button>
-          <button className="tab-btn" data-tab="leads"><span className="tab-btn-icon">👤</span>Leads</button>
+          <button className="tab-btn active" data-tab="home"><span className="tab-btn-icon"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" /></svg></span>Home</button>
+          <button className="tab-btn" data-tab="leads"><span className="tab-btn-icon"><svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg></span>Leads</button>
           <button className="tab-btn" data-tab="browse"><span className="tab-btn-icon">▦</span>Browse</button>
           <button className="tab-btn" data-tab="team"><span className="tab-btn-icon">⋔</span>Team</button>
           <button className="tab-btn" data-tab="me"><span className="tab-btn-icon">♟</span>Me</button>
