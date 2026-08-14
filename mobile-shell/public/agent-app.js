@@ -1703,33 +1703,48 @@
         if (!data.members || !data.members.length) {
           listEl.innerHTML = leaderHtml + selfHtml + '<div class="home-empty">No team members found yet.</div>';
         } else {
-          listEl.innerHTML = leaderHtml + selfHtml + '<div class="team-section-label">Your team</div>' + data.members.map(function (m) {
-            var color = TIER_COLOR[m.tier] || TIER_COLOR.AGENT;
-            var name = esc(m.display_name || m.agent_code || 'Agent');
-            var badge = '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(m.tier) + '</span>';
-            var setGoalBtn = '<button class="team-set-goal-btn" data-user-id="' + esc(m.user_id) + '" data-label="' + name + '">' + (m.goal ? 'Edit Goal' : 'Set Goal') + '</button>';
-            var goalHtml;
-            if (m.goal) {
-              var pct = m.goal.target_amount > 0 ? Math.min(100, Math.round(m.goal.actual_amount / m.goal.target_amount * 100)) : 0;
-              goalHtml =
-                '<div class="team-goal-cap">Sales vs goal · ' + esc(m.goal.period) + '</div>' +
-                '<div class="team-goal-figs"><span>RM ' + fmt(m.goal.actual_amount) + '</span><span>of RM ' + fmt(m.goal.target_amount) + '</span></div>' +
-                '<div class="team-goal-track"><div style="width:' + pct + '%"></div></div>' +
-                '<button class="team-remove-goal-btn" data-user-id="' + esc(m.user_id) + '">Remove goal</button>';
-            } else {
-              goalHtml = '<div class="team-no-goal">No goal set</div>';
-            }
-            return '<div class="team-row">' +
-              '<div class="team-row-top">' + badge +
-                '<span class="team-row-name">' + name + '</span>' +
-                (m.agent_code ? '<span class="team-row-code">' + esc(m.agent_code) + '</span>' : '') +
-                setGoalBtn +
-              '</div>' + goalHtml +
-            '</div>';
-          }).join('');
+          listEl.innerHTML = leaderHtml + selfHtml + '<div class="team-section-label">Your team</div>' +
+            data.members.map(function (m) { return renderTeamMemberNode(m); }).join('');
         }
       }
     }).catch(function (err) { dbg('team snapshot failed: ' + err); });
+  }
+
+  // A member with their own downline gets an expand/collapse toggle -- their
+  // children render into a nested, initially-collapsed container so an SD's
+  // whole subtree isn't dumped on screen at once; someone with no downline
+  // (base-tier AGENT) has no toggle at all, since there's nothing to expand.
+  function renderTeamMemberNode(m) {
+    var color = TIER_COLOR[m.tier] || TIER_COLOR.AGENT;
+    var name = esc(m.display_name || m.agent_code || 'Agent');
+    var badge = '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(m.tier) + '</span>';
+    var setGoalBtn = '<button class="team-set-goal-btn" data-user-id="' + esc(m.user_id) + '" data-label="' + name + '">' + (m.goal ? 'Edit Goal' : 'Set Goal') + '</button>';
+    var goalHtml;
+    if (m.goal) {
+      var pct = m.goal.target_amount > 0 ? Math.min(100, Math.round(m.goal.actual_amount / m.goal.target_amount * 100)) : 0;
+      goalHtml =
+        '<div class="team-goal-cap">Sales vs goal · ' + esc(m.goal.period) + '</div>' +
+        '<div class="team-goal-figs"><span>RM ' + fmt(m.goal.actual_amount) + '</span><span>of RM ' + fmt(m.goal.target_amount) + '</span></div>' +
+        '<div class="team-goal-track"><div style="width:' + pct + '%"></div></div>' +
+        '<button class="team-remove-goal-btn" data-user-id="' + esc(m.user_id) + '">Remove goal</button>';
+    } else {
+      goalHtml = '<div class="team-no-goal">No goal set</div>';
+    }
+    var hasChildren = m.children && m.children.length > 0;
+    var toggle = hasChildren
+      ? '<button class="team-expand-toggle" aria-label="Expand team">▸ ' + m.children.length + '</button>'
+      : '';
+    var childrenHtml = hasChildren
+      ? '<div class="team-children">' + m.children.map(function (c) { return renderTeamMemberNode(c); }).join('') + '</div>'
+      : '';
+    return '<div class="team-row">' +
+      '<div class="team-row-top">' + badge +
+        '<span class="team-row-name">' + name + '</span>' +
+        (m.agent_code ? '<span class="team-row-code">' + esc(m.agent_code) + '</span>' : '') +
+        toggle +
+        setGoalBtn +
+      '</div>' + goalHtml +
+    '</div>' + childrenHtml;
   }
 
   // Leads tab: a per-agent contact list, either typed in manually or
@@ -5195,6 +5210,18 @@
         if (cnsNameEl) cnsNameEl.value = cnsItem.dataset.name || '';
         if (cnsPhoneEl) cnsPhoneEl.value = cnsItem.dataset.phone || '';
         hideCustomerNameSuggestions();
+        return;
+      }
+
+      // Expand/collapse a team member's own downline (Team tab)
+      var teamExpandBtn = e.target && e.target.closest && e.target.closest('.team-expand-toggle');
+      if (teamExpandBtn) {
+        var teamRow = teamExpandBtn.closest('.team-row');
+        var childrenEl = teamRow && teamRow.nextElementSibling;
+        if (childrenEl && childrenEl.classList.contains('team-children')) {
+          var nowOpen = childrenEl.classList.toggle('open');
+          teamExpandBtn.classList.toggle('expanded', nowOpen);
+        }
         return;
       }
 

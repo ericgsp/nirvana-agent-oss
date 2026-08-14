@@ -64,19 +64,43 @@ export async function GET() {
     return Response.json({ access: false, scope: null, members: [] });
   }
 
-  let downline: AgentProfile[];
+  // Fetch the whole tree once, then split into "top-level rows the client
+  // renders directly" (my direct reports, or all top-of-org roots for admin)
+  // and "every descendant" (for the goals/sales batch lookups below) -- the
+  // client builds the collapsible tree from each row's own `children` array,
+  // so nesting happens here rather than being flattened like before.
+  const { data: allProfilesData } = await supabaseAdmin
+    .from("agent_profiles")
+    .select("user_id, tier, leader_id, agent_code, display_name");
+  const allProfiles = (allProfilesData as AgentProfile[]) ?? [];
+
+  const childrenByLeader: Record<string, AgentProfile[]> = {};
+  allProfiles.forEach((p) => {
+    if (!p.leader_id) return;
+    (childrenByLeader[p.leader_id] ??= []).push(p);
+  });
+
+  let topLevel: AgentProfile[];
+  let flatDescendants: AgentProfile[];
   if (seesEverything) {
-    const { data } = await supabaseAdmin
-      .from("agent_profiles")
-      .select("user_id, tier, leader_id, agent_code, display_name")
-      .neq("user_id", user.id);
-    downline = (data as AgentProfile[]) ?? [];
+    topLevel = allProfiles.filter((p) => !p.leader_id);
+    flatDescendants = allProfiles.filter((p) => p.user_id !== user.id);
   } else {
-    downline = await getRecursiveDownline(user.id);
+    topLevel = childrenByLeader[user.id] ?? [];
+    flatDescendants = [];
+    const visited = new Set<string>([user.id]);
+    const queue = [...topLevel];
+    while (queue.length) {
+      const current = queue.shift()!;
+      if (visited.has(current.user_id)) continue; // cycle safety net
+      visited.add(current.user_id);
+      flatDescendants.push(current);
+      queue.push(...(childrenByLeader[current.user_id] ?? []));
+    }
   }
 
   const period = currentPeriod();
-  const memberIds = downline.map((m) => m.user_id);
+  const memberIds = flatDescendants.map((m) => m.user_id);
 
   let goalsByUser: Record<string, number> = {};
   let salesByUser: Record<string, number> = {};
@@ -108,18 +132,28 @@ export async function GET() {
     }
   }
 
-  const members = downline.map((m) => {
-    const target = goalsByUser[m.user_id];
+  type MemberNode = {
+    user_id: string;
+    tier: string;
+    display_name: string | null;
+    agent_code: string | null;
+    goal: { period: string; target_amount: number; actual_amount: number } | null;
+    children: MemberNode[];
+  };
+  function toNode(p: AgentProfile): MemberNode {
+    const target = goalsByUser[p.user_id];
     return {
-      user_id: m.user_id,
-      tier: m.tier,
-      display_name: m.display_name,
-      agent_code: m.agent_code,
+      user_id: p.user_id,
+      tier: p.tier,
+      display_name: p.display_name,
+      agent_code: p.agent_code,
       goal: target !== undefined
-        ? { period, target_amount: target, actual_amount: salesByUser[m.user_id] || 0 }
+        ? { period, target_amount: target, actual_amount: salesByUser[p.user_id] || 0 }
         : null,
+      children: (childrenByLeader[p.user_id] ?? []).map(toNode),
     };
-  });
+  }
+  const members = topLevel.map(toNode);
 
   // Full upward chain -- immediate leader first, then their leader, and so
   // on up to CBDD -- not just the one directly above. An SD should see their
