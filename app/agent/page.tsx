@@ -200,6 +200,7 @@ export default async function AgentPage() {
         #sold-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; max-height:80vh; overflow-y:auto; }
         #sold-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
         #sold-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        #sold-modal-warning { margin-top:10px; padding:8px 10px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:11px; line-height:1.4; }
         #sold-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
         #sold-modal-items { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
         .sold-item-row { display:flex; align-items:center; gap:9px; padding:9px 10px; border:1.5px solid #e2e8f0; border-radius:10px; }
@@ -1546,6 +1547,7 @@ export default async function AgentPage() {
         <div id="sold-modal-box">
           <div id="sold-modal-title">Mark as Sold</div>
           <div id="sold-modal-sub"></div>
+          <div id="sold-modal-warning">⚠ Once marked <strong>Close Sales</strong>, it cannot be edited, changed, or deleted. Only confirm once the sale is actually final.</div>
           <div id="sold-modal-items-wrap" style={{display:"none"}}>
             <div id="sold-modal-items"></div>
             <div id="sold-modal-total-row">
@@ -1690,7 +1692,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817b" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260817c" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

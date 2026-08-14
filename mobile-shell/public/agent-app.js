@@ -1425,6 +1425,8 @@
       amount = amt ? parseFloat(amt.value) : NaN;
       if (!_soldModalRef || !amount || amount <= 0) { alert('Enter a valid final amount.'); return; }
     }
+    var confirmMsg = 'Are you sure this sale is confirmed?\n\nOnce marked Close Sales, it cannot be edited, changed, or deleted.';
+    if (!window.confirm(confirmMsg)) return;
     _soldModalSubmitting = true;
     var confirmBtn = qs('sold-modal-confirm');
     if (confirmBtn) confirmBtn.disabled = true;
