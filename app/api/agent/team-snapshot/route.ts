@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
-import { getMyProfile, type AgentProfile } from "@/lib/supabase/get-hierarchy";
+import { getMyProfile, getRecursiveDownline, type AgentProfile } from "@/lib/supabase/get-hierarchy";
 import { getUserRole } from "@/lib/supabase/get-role";
 
 export const runtime = "nodejs";
@@ -9,40 +9,6 @@ export const runtime = "nodejs";
 function currentPeriod() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-// Every tier sees its ENTIRE downline, not just direct reports -- a CBDD
-// sees every BDD/DSD/SD/AGENT under it, a BDD sees every DSD/SD/AGENT under
-// it, and so on down to SD seeing its AGENTs. This walks the whole
-// agent_profiles tree from `userId` downward (BFS), so "my team" always
-// means my full subtree, however many levels deep. Two people never share a
-// subtree unless one's upline chain actually passes through the other, so
-// this also naturally keeps separate CBDD groups from ever seeing each other.
-async function getRecursiveDownline(userId: string): Promise<AgentProfile[]> {
-  const { data } = await supabaseAdmin
-    .from("agent_profiles")
-    .select("user_id, tier, leader_id, agent_code, display_name");
-  const all = (data as AgentProfile[]) ?? [];
-
-  const childrenByLeader: Record<string, AgentProfile[]> = {};
-  all.forEach((p) => {
-    if (!p.leader_id) return;
-    (childrenByLeader[p.leader_id] ??= []).push(p);
-  });
-
-  const result: AgentProfile[] = [];
-  const visited = new Set<string>([userId]);
-  const queue = [userId];
-  while (queue.length) {
-    const current = queue.shift()!;
-    for (const child of childrenByLeader[current] ?? []) {
-      if (visited.has(child.user_id)) continue; // cycle safety net
-      visited.add(child.user_id);
-      result.push(child);
-      queue.push(child.user_id);
-    }
-  }
-  return result;
 }
 
 export async function GET() {

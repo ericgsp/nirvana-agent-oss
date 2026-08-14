@@ -29,24 +29,40 @@ export async function getMyProfile(): Promise<AgentProfile | null> {
   return (data as AgentProfile) ?? null;
 }
 
-// My direct downline only -- never the tier above, never a peer's team, and
-// this applies to every MLM tier including CBDD (the top tier is not
-// special-cased to see the whole org). Only the "admin" app role -- a
-// separate concept from MLM tier -- sees everyone.
-export async function getMyDirectDownline(): Promise<AgentProfile[]> {
-  const me = await getMyProfile();
-  if (!me) return [];
-
+// The single, shared implementation of "who can this user see" -- every MLM
+// tier (including CBDD, the top tier) sees its ENTIRE recursive downline,
+// never the tier above, never a peer's team. Only the "admin" app role (a
+// separate concept from MLM tier) sees everyone. This used to be
+// reimplemented separately in team-snapshot and me-snapshot, which drifted
+// out of sync (the me-snapshot copy kept the old "CBDD sees everything,
+// direct reports only" bug after team-snapshot was fixed) -- now there's
+// exactly one place this logic lives.
+export async function getRecursiveDownline(userId: string): Promise<AgentProfile[]> {
   const role = await getUserRole();
   const seesEverything = role === "admin";
 
-  const query = supabaseAdmin
+  const { data } = await supabaseAdmin
     .from("agent_profiles")
     .select("user_id, tier, leader_id, agent_code, display_name");
+  const all = (data as AgentProfile[]) ?? [];
 
-  const { data } = seesEverything
-    ? await query.neq("user_id", me.user_id)
-    : await query.eq("leader_id", me.user_id);
+  if (seesEverything) return all.filter((p) => p.user_id !== userId);
 
-  return (data as AgentProfile[]) ?? [];
+  const childrenByLeader: Record<string, AgentProfile[]> = {};
+  all.forEach((p) => {
+    if (!p.leader_id) return;
+    (childrenByLeader[p.leader_id] ??= []).push(p);
+  });
+
+  const result: AgentProfile[] = [];
+  const visited = new Set<string>([userId]);
+  const queue = [...(childrenByLeader[userId] ?? [])];
+  while (queue.length) {
+    const current = queue.shift()!;
+    if (visited.has(current.user_id)) continue; // cycle safety net
+    visited.add(current.user_id);
+    result.push(current);
+    queue.push(...(childrenByLeader[current.user_id] ?? []));
+  }
+  return result;
 }

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
-import { getMyProfile, type AgentProfile } from "@/lib/supabase/get-hierarchy";
+import { getMyProfile, getRecursiveDownline } from "@/lib/supabase/get-hierarchy";
 import { getUserRole } from "@/lib/supabase/get-role";
 import { markSold, updateQuoteStatus, updateQuoteCustomer, deleteQuote } from "@/app/agent/actions";
 
@@ -98,18 +98,14 @@ export async function GET() {
   // Leader-only team-progress: aggregate attainment across the downline,
   // counting only members who actually have a goal set for this period --
   // same "no goal = no pressure" rule, just summed instead of per-self.
-  const role = await getUserRole();
-  const seesEverything = profile?.tier === "CBDD" || role === "admin";
+  // Uses the same shared getRecursiveDownline() as the Team tab -- this used
+  // to be its own separate (buggy) implementation that let CBDD see the
+  // whole org via direct reports only; now there's one source of truth.
   let team: { memberCount: number; goalCount: number; targetTotal: number; actualTotal: number } | null = null;
+  const role = await getUserRole();
 
-  if (profile || seesEverything) {
-    const query = supabaseAdmin
-      .from("agent_profiles")
-      .select("user_id, tier, leader_id, agent_code, display_name");
-    const { data: downlineData } = seesEverything
-      ? await query.neq("user_id", user.id)
-      : await query.eq("leader_id", user.id);
-    const downline = (downlineData as AgentProfile[]) ?? [];
+  if (profile || role === "admin") {
+    const downline = await getRecursiveDownline(user.id);
 
     if (downline.length > 0) {
       const memberIds = downline.map((m) => m.user_id);
@@ -122,17 +118,17 @@ export async function GET() {
       const goalUserIds = (goalRows ?? []).map((g) => g.user_id);
       const targetTotal = (goalRows ?? []).reduce((sum, g) => sum + Number(g.target_amount), 0);
 
-      let actualTotal = 0;
-      if (goalUserIds.length > 0) {
-        const { data: salesRows } = await supabaseAdmin
-          .from("sales_log")
-          .select("user_id, amount, sold_at")
-          .in("user_id", goalUserIds)
-          .gte("sold_at", `${period}-01`);
-        actualTotal = (salesRows ?? [])
-          .filter((r) => r.sold_at.slice(0, 7) === period)
-          .reduce((sum, r) => sum + Number(r.amount), 0);
-      }
+      // Sales are checked for every descendant, not just those with a goal
+      // set, so a downline member's sale isn't silently dropped from the
+      // total just because no quota was assigned to them.
+      const { data: salesRows } = await supabaseAdmin
+        .from("sales_log")
+        .select("user_id, amount, sold_at")
+        .in("user_id", memberIds)
+        .gte("sold_at", `${period}-01`);
+      const actualTotal = (salesRows ?? [])
+        .filter((r) => r.sold_at.slice(0, 7) === period)
+        .reduce((sum, r) => sum + Number(r.amount), 0);
 
       team = { memberCount: downline.length, goalCount: goalUserIds.length, targetTotal, actualTotal };
     } else {
