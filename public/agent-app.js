@@ -1656,10 +1656,13 @@
     }).catch(function (err) { dbg('set goal failed: ' + err); });
   }
 
+  var _teamPerfCache = [];
+
   function loadTeamSnapshot() {
     var banner = document.getElementById('team-scope-banner');
     var listEl = document.getElementById('team-list');
     fetch(API_BASE + '/api/agent/team-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      _teamPerfCache = data.performance || [];
       if (!data.access) {
         if (banner) banner.innerHTML = '';
         if (listEl) listEl.innerHTML = '<div class="home-empty">Team view isn&apos;t set up for your account yet. Ask an admin to assign your tier and leader in /users.</div>';
@@ -1745,6 +1748,92 @@
         setGoalBtn +
       '</div>' + goalHtml +
     '</div>' + childrenHtml;
+  }
+
+  // Team Performance table -- flat, sortable, filterable, printable view of
+  // every descendant's sales vs quota and active status. Built from
+  // _teamPerfCache (already fetched alongside the tree by loadTeamSnapshot,
+  // no extra request needed).
+  var _teamPerfSortCol = 'display_name';
+  var _teamPerfSortDir = 'asc';
+
+  function openTeamPerfView() {
+    var view = qs('team-perf-view');
+    if (view) view.classList.add('open');
+    renderTeamPerfTable();
+  }
+
+  function closeTeamPerfView() {
+    var view = qs('team-perf-view');
+    if (view) view.classList.remove('open');
+  }
+
+  function renderTeamPerfTable() {
+    var tbody = qs('team-perf-tbody');
+    if (!tbody) return;
+    var searchEl = qs('team-perf-search');
+    var tierEl = qs('team-perf-tier-filter');
+    var q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+    var tierFilter = tierEl ? tierEl.value : '';
+
+    var rows = _teamPerfCache.filter(function (r) {
+      if (tierFilter && r.tier !== tierFilter) return false;
+      if (!q) return true;
+      var name = (r.display_name || '').toLowerCase();
+      var code = (r.agent_code || '').toLowerCase();
+      return name.indexOf(q) >= 0 || code.indexOf(q) >= 0;
+    });
+
+    rows = rows.map(function (r) {
+      var pct = r.target_amount ? Math.round((r.actual_amount / r.target_amount) * 100) : null;
+      return { r: r, pct: pct };
+    });
+
+    var col = _teamPerfSortCol;
+    var dir = _teamPerfSortDir === 'asc' ? 1 : -1;
+    rows.sort(function (a, b) {
+      var av, bv;
+      if (col === 'pct') { av = a.pct == null ? -1 : a.pct; bv = b.pct == null ? -1 : b.pct; }
+      else if (col === 'active') { av = a.r.active ? 1 : 0; bv = b.r.active ? 1 : 0; }
+      else if (col === 'actual_amount' || col === 'target_amount') { av = a.r[col] || 0; bv = b.r[col] || 0; }
+      else { av = (a.r[col] || '').toString().toLowerCase(); bv = (b.r[col] || '').toString().toLowerCase(); }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:24px;">No matching team members.</td></tr>';
+    } else {
+      tbody.innerHTML = rows.map(function (x) {
+        var r = x.r;
+        var name = esc(r.display_name || r.agent_code || 'Agent');
+        var statusHtml = r.active
+          ? '<span class="team-perf-status-active">Active</span>'
+          : '<span class="team-perf-status-inactive">Inactive</span>';
+        var pctText = x.pct == null ? '—' : x.pct + '%';
+        return '<tr>' +
+          '<td>' + name + '</td>' +
+          '<td>' + esc(r.tier || '') + '</td>' +
+          '<td>' + esc(r.agent_code || '—') + '</td>' +
+          '<td>' + statusHtml + '</td>' +
+          '<td>' + fmt(r.actual_amount || 0) + '</td>' +
+          '<td>' + (r.target_amount != null ? fmt(r.target_amount) : '—') + '</td>' +
+          '<td>' + pctText + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    document.querySelectorAll('#team-perf-table thead th').forEach(function (th) {
+      th.classList.remove('sorted-asc', 'sorted-desc');
+      if (th.dataset.sort === _teamPerfSortCol) th.classList.add(_teamPerfSortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    });
+  }
+
+  function printTeamPerf() {
+    document.body.classList.add('printing-team-perf');
+    window.print();
+    setTimeout(function () { document.body.classList.remove('printing-team-perf'); }, 500);
   }
 
   // Leads tab: a per-agent contact list, either typed in manually or
@@ -4909,12 +4998,13 @@
     document.addEventListener('input', function (e) {
       if (e.target && e.target.id === 'contact-picker-search') renderContactPickerList(e.target.value);
       if (e.target && e.target.id === 'customer-info-name') renderCustomerNameSuggestions(e.target.value);
+      if (e.target && e.target.id === 'team-perf-search') renderTeamPerfTable();
     });
 
     document.addEventListener('change', function (e) {
       var t = e.target;
-      if (!t || !t.classList.contains('contact-pick-check')) return;
-      _contactSelection[t.dataset.id] = t.checked;
+      if (t && t.classList.contains('contact-pick-check')) { _contactSelection[t.dataset.id] = t.checked; return; }
+      if (t && t.id === 'team-perf-tier-filter') renderTeamPerfTable();
     });
 
     // Stamp col-hidden just before the browser renders the print preview,
@@ -5213,6 +5303,20 @@
         return;
       }
 
+      // Sortable column header (Team Performance table)
+      var perfHeaderTh = e.target && e.target.closest && e.target.closest('#team-perf-table thead th[data-sort]');
+      if (perfHeaderTh) {
+        var sortCol = perfHeaderTh.dataset.sort;
+        if (_teamPerfSortCol === sortCol) {
+          _teamPerfSortDir = _teamPerfSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          _teamPerfSortCol = sortCol;
+          _teamPerfSortDir = 'asc';
+        }
+        renderTeamPerfTable();
+        return;
+      }
+
       // Expand/collapse a team member's own downline (Team tab)
       var teamExpandBtn = e.target && e.target.closest && e.target.closest('.team-expand-toggle');
       if (teamExpandBtn) {
@@ -5382,6 +5486,15 @@
           break;
         case 'contact-picker-modal-confirm':
           confirmContactImport();
+          break;
+        case 'btn-team-performance':
+          openTeamPerfView();
+          break;
+        case 'team-perf-close':
+          closeTeamPerfView();
+          break;
+        case 'team-perf-print':
+          printTeamPerf();
           break;
         case 'goal-modal-cancel':
           closeGoalModal();

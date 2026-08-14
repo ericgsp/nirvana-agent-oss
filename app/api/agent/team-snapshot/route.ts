@@ -116,20 +116,20 @@ export async function GET() {
       goalsByUser[g.user_id] = Number(g.target_amount);
     });
 
-    const goalUserIds = Object.keys(goalsByUser);
-    if (goalUserIds.length > 0) {
-      const { data: salesRows } = await supabaseAdmin
-        .from("sales_log")
-        .select("user_id, amount, sold_at")
-        .in("user_id", goalUserIds)
-        .gte("sold_at", `${period}-01`);
+    // Sales are fetched for EVERY descendant, not just those with a goal set
+    // -- the performance table below needs to show actual sales/activity for
+    // anyone in the team, whether or not a quota has been assigned to them.
+    const { data: salesRows } = await supabaseAdmin
+      .from("sales_log")
+      .select("user_id, amount, sold_at")
+      .in("user_id", memberIds)
+      .gte("sold_at", `${period}-01`);
 
-      (salesRows ?? [])
-        .filter((r) => r.sold_at.slice(0, 7) === period)
-        .forEach((r) => {
-          salesByUser[r.user_id] = (salesByUser[r.user_id] || 0) + Number(r.amount);
-        });
-    }
+    (salesRows ?? [])
+      .filter((r) => r.sold_at.slice(0, 7) === period)
+      .forEach((r) => {
+        salesByUser[r.user_id] = (salesByUser[r.user_id] || 0) + Number(r.amount);
+      });
   }
 
   type MemberNode = {
@@ -155,6 +155,20 @@ export async function GET() {
   }
   const members = topLevel.map(toNode);
 
+  // Flat performance table -- every descendant in one list (not nested),
+  // for the sortable/filterable/printable Team Performance view. "Active"
+  // = at least one logged sale this period; a quota is only present if a
+  // leader has actually set one for that person.
+  const performance = flatDescendants.map((p) => ({
+    user_id: p.user_id,
+    tier: p.tier,
+    display_name: p.display_name,
+    agent_code: p.agent_code,
+    target_amount: goalsByUser[p.user_id] ?? null,
+    actual_amount: salesByUser[p.user_id] || 0,
+    active: (salesByUser[p.user_id] || 0) > 0,
+  }));
+
   // Full upward chain -- immediate leader first, then their leader, and so
   // on up to CBDD -- not just the one directly above. An SD should see their
   // DSD, then BDD, then CBDD; a BDD's direct report to CBDD should show just
@@ -179,6 +193,7 @@ export async function GET() {
     members,
     leaderChain,
     self: me ? { display_name: me.display_name, agent_code: me.agent_code, tier: me.tier } : null,
+    performance,
   });
 }
 

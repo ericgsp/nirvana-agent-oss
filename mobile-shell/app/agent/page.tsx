@@ -140,6 +140,25 @@ export default function AgentPage() {
         .team-expand-toggle.expanded { transform: rotate(90deg); }
         .team-children { display: none; margin: 6px 0 0 16px; padding-left: 10px; border-left: 2px solid #e2e8f0; flex-direction: column; gap: 8px; }
         .team-children.open { display: flex; }
+        .team-toolbar { display: flex; padding: 10px; }
+
+        #team-perf-view { display: none; flex-direction: column; position: fixed; inset: 0; z-index: 1400; background: #fff; }
+        #team-perf-view.open { display: flex; }
+        #team-perf-topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+        #team-perf-topbar button { padding: 6px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 12.5px; font-weight: 700; color: #475569; }
+        #team-perf-title { font-size: 14px; font-weight: 700; color: ${G_DARK}; }
+        #team-perf-controls { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
+        #team-perf-search { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; box-sizing: border-box; }
+        #team-perf-tier-filter { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; }
+        #team-perf-table-wrap { flex: 1; overflow: auto; padding: 0 14px 14px; }
+        #team-perf-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        #team-perf-table th, #team-perf-table td { padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; white-space: nowrap; }
+        #team-perf-table thead th { background: #f8fafc; position: sticky; top: 0; cursor: pointer; font-weight: 700; color: #475569; user-select: none; }
+        #team-perf-table thead th:hover { background: #f1f5f9; }
+        #team-perf-table thead th.sorted-asc::after { content: ' ▲'; }
+        #team-perf-table thead th.sorted-desc::after { content: ' ▼'; }
+        .team-perf-status-active { color: #16a34a; font-weight: 700; }
+        .team-perf-status-inactive { color: #94a3b8; }
         .team-row-top { display: flex; align-items: center; gap: 8px; }
         .team-tier-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
         .team-row-name { font-size: 13px; font-weight: 700; color: ${G_DARK}; flex: 1; }
@@ -825,6 +844,16 @@ export default function AgentPage() {
           .qt tbody tr td:nth-child(2) { border-left: none !important; border-right: 2px solid #1a3a6b !important; }
           .wm-wrap { display: block !important; }
           #print-footer { display: flex !important; justify-content: space-between !important; margin-top: 6px !important; padding-top: 4px !important; border-top: 1px solid #cbd5e1 !important; font-size: 9px !important; color: #64748b !important; width: 100% !important; }
+
+          /* Team Performance print -- overrides the quote-print rules above
+             (higher specificity via the body class) so only the performance
+             table shows, not the quote/browse chrome those rules force on. */
+          body.printing-team-perf #tab-browse, body.printing-team-perf #inventory-layout-view,
+          body.printing-team-perf .tab-panel, body.printing-team-perf #team-perf-topbar,
+          body.printing-team-perf #team-perf-controls { display: none !important; }
+          body.printing-team-perf #team-perf-view { display: flex !important; position: static !important; }
+          body.printing-team-perf #team-perf-table-wrap { overflow: visible !important; padding: 0 !important; }
+          body.printing-team-perf #team-perf-table th, body.printing-team-perf #team-perf-table td { color: #000 !important; }
         }
       ` }} suppressHydrationWarning />
 
@@ -1016,7 +1045,47 @@ export default function AgentPage() {
           {/* ── Tab: Team ── */}
           <div id="tab-team" className="tab-panel">
             <div id="team-scope-banner" className="no-print"></div>
+            <div className="team-toolbar no-print">
+              <button id="btn-team-performance" className="leads-tb-btn leads-tb-btn-primary">📊 Team Performance</button>
+            </div>
             <div id="team-list"></div>
+          </div>
+
+          {/* ── Team Performance table — sortable/filterable/printable view
+               of every descendant's sales vs quota and active status ── */}
+          <div id="team-perf-view">
+            <div id="team-perf-topbar" className="no-print">
+              <button id="team-perf-close">← Back</button>
+              <span id="team-perf-title">Team Performance</span>
+              <button id="team-perf-print">🖨 Print</button>
+            </div>
+            <div id="team-perf-controls" className="no-print">
+              <input id="team-perf-search" type="text" placeholder="Search name or agent code…" />
+              <select id="team-perf-tier-filter">
+                <option value="">All tiers</option>
+                <option value="CBDD">CBDD</option>
+                <option value="BDD">BDD</option>
+                <option value="DSD">DSD</option>
+                <option value="SD">SD</option>
+                <option value="AGENT">AGENT</option>
+              </select>
+            </div>
+            <div id="team-perf-table-wrap">
+              <table id="team-perf-table">
+                <thead>
+                  <tr>
+                    <th data-sort="display_name">Name</th>
+                    <th data-sort="tier">Tier</th>
+                    <th data-sort="agent_code">Agent Code</th>
+                    <th data-sort="active">Status</th>
+                    <th data-sort="actual_amount">Sales (RM)</th>
+                    <th data-sort="target_amount">Quota (RM)</th>
+                    <th data-sort="pct">% of Quota</th>
+                  </tr>
+                </thead>
+                <tbody id="team-perf-tbody"></tbody>
+              </table>
+            </div>
           </div>
 
           {/* ── Tab: Me ── */}
@@ -1754,7 +1823,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260817k" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260817l" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
