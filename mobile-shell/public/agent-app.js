@@ -1923,6 +1923,14 @@
     setTimeout(function () { document.body.classList.remove('printing-team-perf'); }, 500);
   }
 
+  // Reprint a past quote straight from its saved snapshot -- no need to dig
+  // through the phone's own files for the original PDF.
+  function printQuoteSnapshot() {
+    document.body.classList.add('printing-quote-snapshot');
+    window.print();
+    setTimeout(function () { document.body.classList.remove('printing-quote-snapshot'); }, 500);
+  }
+
   // Leads tab: a per-agent contact list, either typed in manually or
   // synced from the phone's own contacts via the Contacts native plugin.
   var _leadsCache = [];
@@ -5638,6 +5646,9 @@
         case 'quote-snapshot-backdrop':
           if (e.target.id === 'quote-snapshot-backdrop') closeQuoteSnapshotView();
           break;
+        case 'quote-snapshot-print':
+          printQuoteSnapshot();
+          break;
         case 'team-perf-close':
           closeTeamPerfView();
           break;
@@ -5976,6 +5987,12 @@
 
     scrollBody.addEventListener('touchstart', function (e) {
       if (dbgEl) dbgEl.textContent = 'ts sT:' + scrollBody.scrollTop;
+      // Full-screen overlays (quote viewer, Team Performance) have their own
+      // independent scroll region -- #scroll-body's own scrollTop being 0
+      // doesn't mean there's nothing to scroll up inside them, so pull-to-
+      // refresh must not intercept drag-down gestures started in there.
+      var t = e.target;
+      if (t && t.closest && t.closest('#quote-snapshot-backdrop, #team-perf-view')) { startY = null; return; }
       if (scrollBody.scrollTop > 0) { startY = null; return; }
       startY = e.touches[0].clientY;
       pulling = false; triggered = false;

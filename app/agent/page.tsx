@@ -151,7 +151,7 @@ export default async function AgentPage() {
 
         #quote-snapshot-backdrop { display: none; flex-direction: column; position: fixed; inset: 0; z-index: 1400; background: #fff; }
         #quote-snapshot-backdrop.open { display: flex; }
-        #quote-snapshot-topbar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+        #quote-snapshot-topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
         #quote-snapshot-topbar button { padding: 6px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 12.5px; font-weight: 700; color: #475569; }
         #quote-snapshot-title { font-size: 14px; font-weight: 700; color: ${G_DARK}; }
         #quote-snapshot-box { display: flex; flex-direction: column; height: 100%; }
@@ -893,6 +893,15 @@ export default async function AgentPage() {
           body.printing-team-perf #team-perf-view { display: flex !important; position: static !important; }
           body.printing-team-perf #team-perf-table-wrap { overflow: visible !important; padding: 0 !important; }
           body.printing-team-perf #team-perf-table th, body.printing-team-perf #team-perf-table td { color: #000 !important; }
+
+          /* Quote snapshot print -- lets an agent reprint a past quote
+             straight from Leads/Me tab without hunting for the original
+             saved PDF on their phone. */
+          body.printing-quote-snapshot #tab-browse, body.printing-quote-snapshot #inventory-layout-view,
+          body.printing-quote-snapshot .tab-panel, body.printing-quote-snapshot #quote-snapshot-topbar,
+          body.printing-quote-snapshot #team-perf-view { display: none !important; }
+          body.printing-quote-snapshot #quote-snapshot-backdrop { display: flex !important; position: static !important; }
+          body.printing-quote-snapshot #quote-snapshot-body { overflow: visible !important; padding: 0 !important; }
         }
       ` }} suppressHydrationWarning />
 
@@ -1097,6 +1106,7 @@ export default async function AgentPage() {
               <div id="quote-snapshot-topbar" className="no-print">
                 <button id="quote-snapshot-close">← Back</button>
                 <span id="quote-snapshot-title">Quote</span>
+                <button id="quote-snapshot-print">🖨 Print</button>
               </div>
               <div id="quote-snapshot-body"></div>
             </div>
@@ -1872,7 +1882,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818f" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818g" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
