@@ -4,13 +4,38 @@ import { supabaseAdmin } from "@/lib/supabase/server-admin";
 
 export const runtime = "nodejs";
 
-// Cross-sell suggestions: for a lead who has closed at least one sale, find
-// product categories still offered at the SAME site they bought from that
-// they haven't bought yet -- e.g. bought a Columbarium niche -> suggest
-// Burial Plot / Pedestal / NLP at that same site. Only sites/categories with
-// known category data (captured on closed_items from this point forward)
-// can be matched -- older closed sales without that data are skipped rather
-// than guessed at.
+// Fixed pre-need planning package rules, not a generic "different category"
+// matcher -- these three products are the core of a complete pre-plan, and
+// buying any one of them means the other two (plus the always-on add-ons)
+// are still worth raising with the family. Real product_category values,
+// confirmed directly against the DB (the "Niche" category, not "Columbarium"
+// as an old SQL comment incorrectly suggested).
+const CROSS_SELL_MAP: Record<string, string[]> = {
+  "Burial Plot": ["NLP", "TOMB", "Pedestal", "EBL", "EC"],
+  "Niche": ["NLP", "Pedestal", "EBL", "EC"],
+  "NLP": ["Burial Plot", "Niche", "EBL", "EC"],
+};
+
+// TOMB isn't its own product_category -- it's an add-on cost field on a
+// Burial Plot row, so there's no separate "did they buy a tomb" signal to
+// check. EC (Enlightenment Ceremony) isn't in product_price_list at all --
+// it's a yearly form-and-payment thing, not a quoted product. Both are
+// still shown (the family still needs them) but can't be auto-ticked.
+const UNTRACKABLE: Record<string, string> = {
+  TOMB: "Not tracked separately from the Burial Plot sale — check with the family.",
+  EC: "Not a quoted product — find this year's form in the Forms menu.",
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  "Burial Plot": "Burial Plot",
+  "Niche": "Niche",
+  "NLP": "NLP",
+  "Pedestal": "Pedestal",
+  "EBL": "Yearly Blessing Light (EBL)",
+  "TOMB": "Tomb",
+  "EC": "Yearly Enlightenment Ceremony (EC)",
+};
+
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -21,47 +46,35 @@ export async function GET(req: NextRequest) {
 
   const { data: closedQuotes } = await supabaseAdmin
     .from("recent_quotes")
-    .select("site, closed_items")
+    .select("closed_items")
     .eq("lead_id", leadId)
     .eq("user_id", user.id)
     .eq("status", "closed");
 
-  // Bought categories, grouped by site -- a lead may have bought at more
-  // than one site, and cross-sell should stay scoped per site.
-  const boughtBySite: Record<string, Set<string>> = {};
+  const boughtCategories = new Set<string>();
   (closedQuotes ?? []).forEach((q) => {
-    const site = q.site as string;
     const items = Array.isArray(q.closed_items) ? q.closed_items : [];
     items.forEach((it: { category?: string }) => {
-      if (!it.category) return;
-      (boughtBySite[site] ??= new Set()).add(it.category);
+      if (it.category) boughtCategories.add(it.category);
     });
   });
 
-  const sites = Object.keys(boughtBySite);
-  if (!sites.length) {
-    return Response.json({ suggestions: [], reason: "no_category_data" });
+  if (!boughtCategories.size) {
+    return Response.json({ checklist: [], reason: "no_category_data" });
   }
 
-  const { data: allProducts } = await supabaseAdmin
-    .from("product_price_list")
-    .select("site_code, product_category, product_name")
-    .in("site_code", sites)
-    .eq("active", true);
-
-  // Distinct (site, category, product_name) not already bought at that site.
-  const seen = new Set<string>();
-  const suggestions: { site: string; category: string; product_name: string }[] = [];
-  (allProducts ?? []).forEach((p) => {
-    const site = p.site_code as string;
-    const category = p.product_category as string;
-    const name = p.product_name as string;
-    if (boughtBySite[site]?.has(category)) return;
-    const key = site + "|" + category + "|" + name;
-    if (seen.has(key)) return;
-    seen.add(key);
-    suggestions.push({ site, category, product_name: name });
+  const suggested = new Set<string>();
+  boughtCategories.forEach((cat) => {
+    (CROSS_SELL_MAP[cat] ?? []).forEach((s) => suggested.add(s));
   });
 
-  return Response.json({ suggestions: suggestions.slice(0, 20) });
+  const checklist = Array.from(suggested).map((cat) => ({
+    category: cat,
+    label: CATEGORY_LABELS[cat] ?? cat,
+    trackable: !UNTRACKABLE[cat],
+    note: UNTRACKABLE[cat] ?? null,
+    alreadySold: boughtCategories.has(cat),
+  }));
+
+  return Response.json({ checklist });
 }

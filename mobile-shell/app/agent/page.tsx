@@ -223,12 +223,12 @@ export default function AgentPage() {
         .lead-suggest-toggle { padding: 4px 9px; border-radius: 999px; border: 1px solid #fde68a; background: #fffbeb; color: #92400e; font-size: 10.5px; font-weight: 700; }
         .lead-suggestions { display: none; margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: #fffbeb; border: 1px solid #fde68a; }
         .lead-suggestions.open { display: block; }
-        .lead-suggest-site { font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
-        .lead-suggest-site:first-child { margin-top: 0; }
-        .lead-suggest-cat { margin-top: 3px; font-size: 11.5px; color: #78350f; }
-        .lead-suggest-cat-name { font-weight: 700; }
-        .lead-suggest-products { color: #92400e; }
-        .lead-suggest-cat-name::after { content: ': '; }
+        .lead-suggest-title { font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+        .lead-suggest-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+        .lead-suggest-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: #92400e; flex-shrink: 0; }
+        .lead-suggest-label { font-size: 12px; font-weight: 600; color: #78350f; }
+        .lead-suggest-row.untrackable .lead-suggest-label { color: #92400e; }
+        .lead-suggest-note { flex-basis: 100%; font-size: 10.5px; color: #b45309; font-style: italic; margin-left: 21px; }
 
         #me-goal-card { margin: 10px 10px 0; }
         .me-set-goal-btn { display: block; width: 100%; margin-top: 10px; padding: 9px; border-radius: 10px; border: none; background: rgba(255,255,255,0.18); color: #fff; font-size: 12px; font-weight: 700; }
@@ -1920,7 +1920,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818k" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260818l" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

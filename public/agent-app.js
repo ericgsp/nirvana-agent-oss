@@ -2039,6 +2039,10 @@
 
   var _leadSuggestCache = {};
 
+  // Complete pre-plan checklist: NLP/Burial Plot/Niche/Pedestal/EBL are auto-
+  // ticked from what's actually been closed for this lead; Tomb and EC have
+  // no data source to check against (see route comment) and always show
+  // unticked with a note instead of guessing.
   function toggleLeadSuggestions(leadId) {
     var panel = document.getElementById('lead-suggest-' + leadId);
     if (!panel) return;
@@ -2050,26 +2054,19 @@
       .then(function (res) { return res.json(); })
       .then(function (data) {
         _leadSuggestCache[leadId] = true;
-        var suggestions = data.suggestions || [];
-        if (!suggestions.length) {
-          panel.innerHTML = '<div class="home-empty">' +
-            (data.reason === 'no_category_data'
-              ? 'No product data captured for this lead\'s closed sale yet -- only sales closed after this feature shipped can be matched.'
-              : 'No other products currently offered at this site.') +
-            '</div>';
+        var checklist = data.checklist || [];
+        if (!checklist.length) {
+          panel.innerHTML = '<div class="home-empty">No product data captured for this lead\'s closed sale yet — only sales closed after this feature shipped can be matched.</div>';
           return;
         }
-        var bySite = {};
-        suggestions.forEach(function (s) { (bySite[s.site] = bySite[s.site] || []).push(s); });
-        panel.innerHTML = Object.keys(bySite).map(function (site) {
-          var byCat = {};
-          bySite[site].forEach(function (s) { (byCat[s.category] = byCat[s.category] || []).push(s.product_name); });
-          return '<div class="lead-suggest-site">' + esc(site) + '</div>' +
-            Object.keys(byCat).map(function (cat) {
-              return '<div class="lead-suggest-cat"><span class="lead-suggest-cat-name">' + esc(cat) + '</span>' +
-                '<span class="lead-suggest-products">' + esc(byCat[cat].join(', ')) + '</span></div>';
-            }).join('');
-        }).join('');
+        panel.innerHTML = '<div class="lead-suggest-title">Complete pre-plan checklist</div>' +
+          checklist.map(function (c) {
+            return '<label class="lead-suggest-row' + (c.trackable ? '' : ' untrackable') + '">' +
+              '<input type="checkbox" disabled' + (c.alreadySold ? ' checked' : '') + ' />' +
+              '<span class="lead-suggest-label">' + esc(c.label) + '</span>' +
+              (c.note ? '<span class="lead-suggest-note">' + esc(c.note) + '</span>' : '') +
+            '</label>';
+          }).join('');
       }).catch(function (err) {
         dbg('lead suggestions fetch failed: ' + err);
         panel.innerHTML = '<div class="home-empty">Could not load suggestions.</div>';
