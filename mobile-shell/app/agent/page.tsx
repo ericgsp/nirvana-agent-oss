@@ -168,6 +168,16 @@ export default function AgentPage() {
         #team-perf-table thead th.sorted-desc::after { content: ' ▼'; }
         .team-perf-status-active { color: #16a34a; font-weight: 700; }
         .team-perf-status-inactive { color: #94a3b8; }
+        .team-perf-pct-cell { display: flex; align-items: center; gap: 8px; }
+        .team-perf-pct-track { width: 60px; height: 6px; border-radius: 999px; background: #e2e8f0; overflow: hidden; flex-shrink: 0; }
+        .team-perf-pct-fill { height: 100%; border-radius: 999px; }
+        .team-perf-pct-fill.pct-low { background: #dc2626; }
+        .team-perf-pct-fill.pct-mid { background: #d97706; }
+        .team-perf-pct-fill.pct-high { background: #16a34a; }
+        .team-perf-pct-text { font-weight: 700; font-variant-numeric: tabular-nums; }
+        .team-perf-pct-text.pct-low { color: #dc2626; }
+        .team-perf-pct-text.pct-mid { color: #d97706; }
+        .team-perf-pct-text.pct-high { color: #16a34a; }
         #me-self-perf-matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 10px 10px; }
         #team-perf-sales-tile { padding: 10px 14px 0; flex-shrink: 0; }
         .tpm-tile { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; }
@@ -1944,7 +1954,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260819e" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260819f" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

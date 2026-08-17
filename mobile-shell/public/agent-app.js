@@ -1965,7 +1965,17 @@
         var statusHtml = r.active
           ? '<span class="team-perf-status-active">Active</span>'
           : '<span class="team-perf-status-inactive">Inactive</span>';
-        var pctText = x.pct == null ? '—' : x.pct + '%';
+        var pctCell;
+        if (x.pct == null) {
+          pctCell = '—';
+        } else {
+          var pctBand = x.pct >= 100 ? 'pct-high' : x.pct >= 50 ? 'pct-mid' : 'pct-low';
+          var fillWidth = Math.max(0, Math.min(100, x.pct));
+          pctCell = '<div class="team-perf-pct-cell">' +
+            '<div class="team-perf-pct-track"><div class="team-perf-pct-fill ' + pctBand + '" style="width:' + fillWidth + '%"></div></div>' +
+            '<span class="team-perf-pct-text ' + pctBand + '">' + x.pct + '%</span>' +
+          '</div>';
+        }
         return '<tr>' +
           '<td>' + name + '</td>' +
           '<td>' + esc(r.tier || '') + '</td>' +
@@ -1973,7 +1983,7 @@
           '<td>' + statusHtml + '</td>' +
           '<td>' + fmt(r.actual_amount || 0) + '</td>' +
           '<td>' + (r.target_amount != null ? fmt(r.target_amount) : '—') + '</td>' +
-          '<td>' + pctText + '</td>' +
+          '<td>' + pctCell + '</td>' +
         '</tr>';
       }).join('');
     }
