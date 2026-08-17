@@ -34,6 +34,8 @@ export async function GET() {
     { data: yearlyRow },
     { data: yearGoalRows },
     { data: yearSalesRows },
+    { data: prevYearlyRow },
+    { data: prevYearSalesRows },
   ] = await Promise.all([
     supabaseAdmin
       .from("yearly_sales_goals")
@@ -52,7 +54,28 @@ export async function GET() {
       .eq("user_id", user.id)
       .gte("sold_at", `${yearPrefix}-01-01`)
       .lte("sold_at", `${yearPrefix}-12-31`),
+    // Previous year, for the "this year vs last year" comparison on the
+    // self performance card -- everything else on that card reuses goal/
+    // yearlyGoal/team below rather than fetching its own duplicate copy.
+    supabaseAdmin
+      .from("yearly_sales_goals")
+      .select("annual_target")
+      .eq("user_id", user.id)
+      .eq("year", currentYear - 1)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("sales_log")
+      .select("amount")
+      .eq("user_id", user.id)
+      .gte("sold_at", `${currentYear - 1}-01-01`)
+      .lte("sold_at", `${currentYear - 1}-12-31`),
   ]);
+
+  const prevYearGoal = {
+    year: currentYear - 1,
+    target: prevYearlyRow ? Number(prevYearlyRow.annual_target) : null,
+    actual: (prevYearSalesRows ?? []).reduce((sum, r) => sum + Number(r.amount), 0),
+  };
 
   const targetByMonth: Record<string, number> = {};
   const lockedByMonth: Record<string, boolean> = {};
@@ -141,6 +164,7 @@ export async function GET() {
     goal,
     yearlyGoal,
     team,
+    prevYearGoal,
   });
 }
 

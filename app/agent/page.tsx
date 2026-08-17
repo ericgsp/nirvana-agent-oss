@@ -160,9 +160,9 @@ export default async function AgentPage() {
 
         #team-perf-view { display: none; flex-direction: column; position: fixed; inset: 0; z-index: 1400; background: #fff; }
         #team-perf-view.open { display: flex; }
-        #team-perf-topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
-        #team-perf-topbar button { padding: 6px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 12.5px; font-weight: 700; color: #475569; }
-        #team-perf-title { font-size: 14px; font-weight: 700; color: ${G_DARK}; }
+        #team-perf-topbar { background: ${G_DARK}; color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 30; box-shadow: 0 2px 8px rgba(0,0,0,0.25); flex-shrink: 0; }
+        #team-perf-close { color: #fff; text-decoration: none; font-size: 20px; line-height: 1; background: none; border: none; padding: 0; }
+        #team-perf-title { font-size: 16px; font-weight: 700; flex: 1; color: #fff; }
         #team-perf-controls { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
         #team-perf-search { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; box-sizing: border-box; }
         #team-perf-tier-filter { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; }
@@ -175,7 +175,7 @@ export default async function AgentPage() {
         #team-perf-table thead th.sorted-desc::after { content: ' ▼'; }
         .team-perf-status-active { color: #16a34a; font-weight: 700; }
         .team-perf-status-inactive { color: #94a3b8; }
-        #team-perf-self-matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
+        #me-self-perf-matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 10px 10px; }
         .tpm-tile { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; }
         .tpm-tile-label { font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
         .tpm-tile-value { font-size: 16px; font-weight: 800; color: ${G_DARK}; margin-top: 3px; }
@@ -1154,11 +1154,10 @@ export default async function AgentPage() {
                of every descendant's sales vs quota and active status ── */}
           <div id="team-perf-view">
             <div id="team-perf-topbar" className="no-print">
-              <button id="team-perf-close">← Back</button>
+              <button id="team-perf-close">←</button>
               <span id="team-perf-title">Team Performance</span>
-              <button id="team-perf-print">🖨 Print</button>
+              <button id="team-perf-print" className="btn-pdf">🖨 Print</button>
             </div>
-            <div id="team-perf-self-matrix"></div>
             <div id="team-perf-controls" className="no-print">
               <input id="team-perf-search" type="text" placeholder="Search name or agent code…" />
               <select id="team-perf-tier-filter">
@@ -1195,6 +1194,8 @@ export default async function AgentPage() {
             <div id="me-goal-card"></div>
 
             <div id="me-team-card"></div>
+
+            <div id="me-self-perf-matrix"></div>
           </div>
 
         </div>
@@ -1933,7 +1934,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260818o" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260819a" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
