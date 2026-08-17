@@ -1032,7 +1032,7 @@
 
   // ── Bottom tab bar ────────────────────────────────────────────
   var TAB_IDS = ['home', 'leads', 'browse', 'team', 'me'];
-  var TAB_TITLES = { home: 'Summary', leads: 'Leads', browse: 'Quotation Browsing', team: 'My Team', me: 'Me (Goal)' };
+  var TAB_TITLES = { home: 'Home', leads: 'Leads', browse: 'Quotation Browsing', team: 'My Team', me: 'Me (Goal)' };
   var _homeSnapshotLoaded = false;
   var _inventoryListLoaded = false;
   var _teamLoaded = false;
@@ -2394,39 +2394,52 @@
 
   function loadHomeSnapshot() {
     fetch(API_BASE + '/api/agent/home-snapshot').then(function (res) { return res.json(); }).then(function (data) {
-      var goalCard = document.getElementById('home-goal-card');
-      if (goalCard) {
+      var quotaBox = document.getElementById('home-quota-box');
+      if (quotaBox) {
         if (data.goal) {
           var pct = data.goal.target_amount > 0 ? Math.min(100, Math.round(data.goal.actual_amount / data.goal.target_amount * 100)) : 0;
-          goalCard.innerHTML =
-            '<div class="home-goal">' +
-              '<div class="home-goal-cap">Quota · ' + esc(data.goal.period) + '</div>' +
-              '<div class="home-goal-figs"><div class="home-goal-actual">RM ' + fmt(data.goal.actual_amount) + '</div>' +
-                '<div class="home-goal-of">of RM ' + fmt(data.goal.target_amount) + '</div></div>' +
-              '<div class="home-goal-track"><div style="width:' + pct + '%"></div></div>' +
-            '</div>';
+          quotaBox.innerHTML =
+            '<div class="home-box-cap">This Month Quota</div>' +
+            '<div class="home-box-actual">RM ' + fmt(data.goal.actual_amount) + '</div>' +
+            '<div class="home-box-of">of RM ' + fmt(data.goal.target_amount) + '</div>' +
+            '<div class="home-box-track"><div style="width:' + pct + '%"></div></div>';
         } else {
-          goalCard.innerHTML =
-            '<div class="home-stat-row">' +
-              '<div class="home-stat-card"><div class="home-stat-num">' + (data.quotesThisWeek || 0) + '</div><div class="home-stat-cap">Quotes this week</div></div>' +
-            '</div>';
+          quotaBox.innerHTML = '<div class="home-box-cap">This Month Quota</div><div class="home-box-of" style="margin-top:6px;">No quota set</div>';
         }
       }
 
-      var listEl = document.getElementById('home-recent-quotes');
-      if (listEl) {
-        if (!data.recentQuotes || !data.recentQuotes.length) {
-          listEl.innerHTML = '<div class="home-empty">No quotes generated yet — they&apos;ll show up here once you print or share one.</div>';
+      var ytdBox = document.getElementById('home-ytd-quota-box');
+      if (ytdBox) {
+        var ytd = data.ytdQuota || {};
+        if (ytd.target) {
+          var ytdPct = ytd.target > 0 ? Math.min(100, Math.round((ytd.actual || 0) / ytd.target * 100)) : 0;
+          ytdBox.innerHTML =
+            '<div class="home-box-cap">YTD Quota · ' + (ytd.year || '') + '</div>' +
+            '<div class="home-box-actual">RM ' + fmt(ytd.actual || 0) + '</div>' +
+            '<div class="home-box-of">of RM ' + fmt(ytd.target) + '</div>' +
+            '<div class="home-box-track"><div style="width:' + ytdPct + '%"></div></div>';
         } else {
-          listEl.innerHTML = data.recentQuotes.map(function (q) {
-            var when = new Date(q.created_at).toLocaleDateString('en-MY', { day: '2-digit', month: 'short' });
-            return '<div class="home-quote-row">' +
-              '<div><div class="hqr-main">' + esc(q.product || q.site || 'Quotation') + '</div>' +
-              '<div class="hqr-sub">' + esc(q.site || '') + (q.section ? ' · ' + esc(q.section) : '') + '</div></div>' +
-              '<div class="hqr-total">' + when + '</div>' +
-            '</div>';
-          }).join('');
+          ytdBox.innerHTML =
+            '<div class="home-box-cap">YTD Quota · ' + (ytd.year || '') + '</div>' +
+            '<div class="home-box-actual">RM ' + fmt(ytd.actual || 0) + '</div>' +
+            '<div class="home-box-of">No yearly quota set</div>';
         }
+      }
+
+      var recentBox = document.getElementById('home-recent-quotes-box');
+      if (recentBox) {
+        recentBox.innerHTML =
+          '<div class="home-box-num">' + (data.totalQuotesCount || 0) + '</div>' +
+          '<div class="home-box-cap">Recent Quotes</div>';
+      }
+
+      var followBox = document.getElementById('home-followup-box');
+      if (followBox) {
+        var followCount = data.followUpCount || 0;
+        followBox.className = 'home-box home-box-plain' + (followCount > 0 ? ' home-box-followup has-items' : '');
+        followBox.innerHTML =
+          '<div class="home-box-num">' + followCount + '</div>' +
+          '<div class="home-box-cap">Follow Up This Month</div>';
       }
     }).catch(function (err) { dbg('home snapshot failed: ' + err); });
   }
@@ -5994,6 +6007,13 @@
           _loadAnnouncementEdm();
           _applyAnnouncementReadState();
           break;
+        case 'home-followup-box': {
+          var _sortSel = document.getElementById('leads-sort');
+          if (_sortSel) _sortSel.value = 'next_action';
+          switchTab('leads');
+          if (_leadsLoaded) renderLeadsList();
+          break;
+        }
         case 'btn-whats-new-toggle': {
           var _wnBody = document.getElementById('whats-new-body');
           var _wnArrow = document.getElementById('whats-new-arrow');

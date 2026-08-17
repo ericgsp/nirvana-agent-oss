@@ -105,31 +105,29 @@ export default async function AgentPage() {
         .tab-btn[data-tab="browse"] .tab-btn-icon { width: 38px; height: 38px; font-size: 20px; display: flex; align-items: center; justify-content: center; margin-top: -16px; border-radius: 50%; background: linear-gradient(135deg, ${G_DARK}, ${G_TEAL}); color: #fff; box-shadow: 0 4px 10px rgba(7,94,84,0.4); }
         .tab-btn[data-tab="browse"].active .tab-btn-icon { box-shadow: 0 4px 14px rgba(7,94,84,0.55); }
 
-        /* ── Home tab ── */
-        #home-whats-new-teaser { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 10px 13px; background: #FEFCE8; border: 1px solid #FDE047; border-radius: 12px; width: calc(100% - 20px); box-sizing: border-box; cursor: pointer; touch-action: manipulation; text-align: left; }
-        .hwn-icon { font-size: 15px; }
-        .hwn-body { flex: 1; min-width: 0; }
-        .hwn-title { font-size: 12px; font-weight: 800; color: #854D0E; }
-        .hwn-sub { font-size: 10.5px; color: #8A6A2E; margin-top: 1px; }
-        .hwn-arrow { font-size: 18px; color: #B4922E; }
-        #home-goal-card { margin: 10px 10px 0; }
-        .home-goal { padding: 16px; border-radius: 16px; color: #fff; background: linear-gradient(150deg, ${G_DARK} 0%, ${G_TEAL} 130%); }
-        .home-goal-cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; font-weight: 700; }
-        .home-goal-figs { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
-        .home-goal-actual { font-size: 22px; font-weight: 700; }
-        .home-goal-of { font-size: 12px; opacity: 0.8; }
-        .home-goal-track { height: 7px; border-radius: 4px; background: rgba(255,255,255,0.22); margin-top: 12px; overflow: hidden; }
-        .home-goal-track > div { height: 100%; background: #fff; border-radius: 4px; }
-        .home-stat-row { display: flex; gap: 10px; }
-        .home-stat-card { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; text-align: center; }
-        .home-stat-num { font-size: 20px; font-weight: 700; color: ${G_DARK}; }
-        .home-stat-cap { font-size: 10px; color: #94a3b8; margin-top: 2px; }
-        #home-recent-quotes { padding: 0 10px 10px; }
-        .home-quote-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; margin-top: 8px; }
-        .hqr-main { font-size: 12.5px; font-weight: 700; color: #0f172a; }
-        .hqr-sub { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
-        .hqr-total { font-size: 12.5px; font-weight: 700; color: ${G_TEAL}; }
-        .home-empty { text-align: center; color: #94a3b8; font-size: 12px; padding: 18px 10px; }
+        /* ── Home tab: two-column summary grid ── */
+        .home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 10px 0; }
+        .home-box { border-radius: 16px; padding: 14px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; min-height: 108px; border: none; touch-action: manipulation; -webkit-appearance: none; font: inherit; }
+        .home-box-icon { font-size: 19px; }
+        .home-box-title { font-size: 11.5px; font-weight: 800; margin-top: 5px; }
+        .home-box-sub { font-size: 9.5px; margin-top: 2px; }
+        .home-box-cap { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; opacity: 0.75; }
+        .home-box-actual { font-size: 17px; font-weight: 700; margin-top: 4px; }
+        .home-box-of { font-size: 10px; opacity: 0.85; }
+        .home-box-track { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.22); margin-top: 9px; overflow: hidden; }
+        .home-box-track > div { height: 100%; background: #fff; border-radius: 4px; }
+        .home-box-num { font-size: 24px; font-weight: 700; color: ${G_DARK}; }
+        .home-box-plain { background: #fff; border: 1px solid #e2e8f0; align-items: center; text-align: center; }
+        .home-box-challenge { background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%); box-shadow: 0 2px 6px rgba(180,83,9,0.35); cursor: pointer; align-items: center; text-align: center; }
+        .home-box-challenge .home-box-title { color: #fff; }
+        .home-box-challenge .home-box-sub { color: rgba(255,255,255,0.85); }
+        .home-box-whatsnew { background: #FEFCE8; border: 1px solid #FDE047; cursor: pointer; align-items: center; text-align: center; }
+        .home-box-whatsnew .home-box-title { color: #854D0E; }
+        .home-box-whatsnew .home-box-sub { color: #8A6A2E; }
+        .home-box-quota, .home-box-ytd { background: linear-gradient(150deg, ${G_DARK} 0%, ${G_TEAL} 130%); color: #fff; align-items: flex-start; text-align: left; }
+        .home-box-followup.has-items { border-color: #fca5a5; background: #fef2f2; cursor: pointer; }
+        .home-box-followup.has-items .home-box-num { color: #dc2626; }
+        .home-box-followup { cursor: pointer; }
 
         #team-scope-banner { margin: 10px 10px 0; padding: 10px 14px; border-radius: 12px; background: #f1f5f9; color: #475569; font-size: 11.5px; font-weight: 600; }
         #team-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -428,12 +426,7 @@ export default async function AgentPage() {
         .avail-banner-title { font-size: 12px; font-weight: 800; color: #fff; }
         .avail-banner-sub   { font-size: 10px; color: rgba(255,255,255,0.75); margin-top: 2px; }
         .avail-banner-arrow { font-size: 22px; color: rgba(255,255,255,0.6); font-weight: 300; line-height: 1; }
-        #btn-challenge { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 10px 0; padding: 9px 13px; background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(180,83,9,0.35); cursor: pointer; touch-action: manipulation; border: none; box-sizing: border-box; width: calc(100% - 20px); -webkit-appearance: none; }
-        #btn-challenge:active { opacity: 0.88; }
-        .btn-challenge-left { text-align: center; }
-        .btn-challenge-title { font-size: 12px; font-weight: 800; color: #fff; }
-        .btn-challenge-sub   { font-size: 10px; color: rgba(255,255,255,0.85); margin-top: 2px; }
-        .btn-challenge-arrow { font-size: 22px; color: rgba(255,255,255,0.6); font-weight: 300; line-height: 1; }
+        #btn-challenge:active, #home-whats-new-teaser:active, .home-box-followup:active { opacity: 0.88; }
         .s-card  { margin: 10px 10px 0; background: #fff; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
         .s-label { display: flex; align-items: center; gap: 9px; padding: 10px 14px; border-bottom: 1px solid #f0f2f5; }
         .s-dot   { width: 22px; height: 22px; border-radius: 50%; background: ${G_DARK}; color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -1010,29 +1003,25 @@ export default async function AgentPage() {
 
           {/* ── Tab: Home ── */}
           <div id="tab-home" className="tab-panel">
-            <button id="btn-challenge" className="no-print">
-              <div className="btn-challenge-left">
-                <div className="btn-challenge-title">🏆 NV Challenge Go! Go! Go! 🔥</div>
-                <div className="btn-challenge-sub">🎯 View this month&apos;s challenge &amp; targets</div>
-              </div>
-              <div className="btn-challenge-arrow">›</div>
-            </button>
+            <div className="home-grid">
+              <button id="btn-challenge" className="home-box home-box-challenge no-print">
+                <span className="home-box-icon">🏆</span>
+                <div className="home-box-title">NV Challenge<br />Go! Go! Go! 🔥</div>
+                <div className="home-box-sub">🎯 This month&apos;s targets</div>
+              </button>
 
-            <button id="home-whats-new-teaser">
-              <span className="hwn-icon">💡</span>
-              <div className="hwn-body">
-                <div className="hwn-title">What&apos;s New</div>
-                <div className="hwn-sub">Tap to see this month&apos;s updates</div>
-              </div>
-              <span className="hwn-arrow">›</span>
-            </button>
+              <button id="home-whats-new-teaser" className="home-box home-box-whatsnew">
+                <span className="home-box-icon">💡</span>
+                <div className="home-box-title">What&apos;s New</div>
+                <div className="home-box-sub">This month&apos;s updates</div>
+              </button>
 
-            <div id="home-goal-card"></div>
+              <div id="home-quota-box" className="home-box home-box-quota"></div>
+              <div id="home-ytd-quota-box" className="home-box home-box-ytd"></div>
 
-            <div className="s-label no-print" style={{marginTop:"6px"}}>
-              <span className="s-title">Recent Quotes</span>
+              <div id="home-recent-quotes-box" className="home-box home-box-plain"></div>
+              <button id="home-followup-box" className="home-box home-box-plain"></button>
             </div>
-            <div id="home-recent-quotes"></div>
           </div>
 
           {/* ── Tab: Leads — a per-agent contact list, either typed in
@@ -1966,7 +1955,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260819f" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260820a" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

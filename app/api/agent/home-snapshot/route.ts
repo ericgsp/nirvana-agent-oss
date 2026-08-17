@@ -20,6 +20,13 @@ function startOfWeek() {
   return d.toISOString();
 }
 
+function endOfMonth() {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString().slice(0, 10);
+}
+
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -27,12 +34,16 @@ export async function GET() {
   if (!user) {
     // /agent is usable without login -- no user means no personal data,
     // not an error. Neutral state.
-    return Response.json({ profile: null, goal: null, quotesThisWeek: 0, recentQuotes: [] });
+    return Response.json({
+      profile: null, goal: null, quotesThisWeek: 0, recentQuotes: [],
+      ytdQuota: null, totalQuotesCount: 0, followUpCount: 0,
+    });
   }
 
   const profile = await getMyProfile();
 
   const period = currentPeriod();
+  const year = new Date().getFullYear();
   const { data: goalRow } = await supabaseAdmin
     .from("sales_goals")
     .select("target_amount, period")
@@ -55,11 +66,39 @@ export async function GET() {
       .reduce((sum, r) => sum + Number(r.quota_amount || 0), 0);
   }
 
+  const { data: yearlyRow } = await supabaseAdmin
+    .from("yearly_sales_goals")
+    .select("annual_target")
+    .eq("user_id", user.id)
+    .eq("year", year)
+    .maybeSingle();
+
+  const { data: ytdRows } = await supabaseAdmin
+    .from("sales_log")
+    .select("quota_amount")
+    .eq("user_id", user.id)
+    .gte("sold_at", `${year}-01-01`);
+  const ytdQuota = (ytdRows ?? []).reduce((sum, r) => sum + Number(r.quota_amount || 0), 0);
+
   const { count: quotesThisWeek } = await supabaseAdmin
     .from("recent_quotes")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .gte("created_at", startOfWeek());
+
+  const { count: totalQuotesCount } = await supabaseAdmin
+    .from("recent_quotes")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
+  // Leads needing a follow-up this month: overdue ones still count -- they
+  // still need to be followed up, just later than planned.
+  const { count: followUpCount } = await supabaseAdmin
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .not("next_action_date", "is", null)
+    .lte("next_action_date", endOfMonth());
 
   const { data: recentQuotes } = await supabaseAdmin
     .from("recent_quotes")
@@ -71,7 +110,10 @@ export async function GET() {
   return Response.json({
     profile: profile ? { tier: profile.tier, display_name: profile.display_name } : null,
     goal: goalRow ? { target_amount: goalRow.target_amount, period: goalRow.period, actual_amount: actualAmount } : null,
+    ytdQuota: { actual: ytdQuota, target: yearlyRow ? Number(yearlyRow.annual_target) : null, year },
     quotesThisWeek: quotesThisWeek ?? 0,
+    totalQuotesCount: totalQuotesCount ?? 0,
+    followUpCount: followUpCount ?? 0,
     recentQuotes: recentQuotes ?? [],
   });
 }
