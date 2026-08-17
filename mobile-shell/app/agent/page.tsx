@@ -695,6 +695,25 @@ export default function AgentPage() {
         #announcement-drawer-topbar h2 { font-size:15px; font-weight:800; color:#0f172a; flex:1; }
         #announcement-drawer-close { font-size:22px; line-height:1; color:#94a3b8; background:none; border:none; cursor:pointer; padding:4px; }
         #announcement-scroll { flex:1; overflow-y:auto; padding-bottom:32px; }
+        /* ── Activity feed (bell) ── */
+        #btn-activity-feed { position:relative; background:none; border:none; color:#fff; cursor:pointer; padding:4px; flex-shrink:0; touch-action:manipulation; }
+        #activity-badge { position:absolute; top:-1px; right:-1px; min-width:15px; height:15px; padding:0 3px; border-radius:999px; background:#dc2626; color:#fff; font-size:9px; font-weight:800; line-height:15px; text-align:center; display:none; pointer-events:none; }
+        #activity-badge.show { display:block; }
+        #activity-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
+        #activity-backdrop.open { display:block; }
+        #activity-drawer { position:fixed; left:0; right:0; bottom:0; background:#f0f2f5; border-radius:20px 20px 0 0; z-index:1101; max-height:80vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
+        #activity-drawer.open { transform:translateY(0); }
+        #activity-drawer-handle { width:36px; height:4px; background:#cbd5e1; border-radius:2px; margin:12px auto 0; flex-shrink:0; }
+        #activity-drawer-topbar { display:flex; align-items:center; padding:10px 14px 12px; flex-shrink:0; border-bottom:1px solid #e2e8f0; }
+        #activity-drawer-topbar h2 { font-size:15px; font-weight:800; color:#0f172a; flex:1; }
+        #activity-drawer-close { font-size:22px; line-height:1; color:#94a3b8; background:none; border:none; cursor:pointer; padding:4px; }
+        #activity-list { flex:1; overflow-y:auto; padding:10px 14px 24px; }
+        .activity-row { display:flex; gap:10px; padding:11px 12px; background:#fff; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:8px; }
+        .activity-row-icon { font-size:18px; flex-shrink:0; }
+        .activity-row-text { font-size:12.5px; color:#0f172a; line-height:1.5; }
+        .activity-row-text b { font-weight:800; }
+        .activity-row-time { font-size:10px; color:#94a3b8; margin-top:2px; }
+        .activity-empty { text-align:center; color:#94a3b8; font-size:12px; padding:30px 10px; }
         .edm-poster-wrap { position:relative; margin-bottom:10px; }
         .edm-poster-img { width:100%; border-radius:10px; display:block; box-shadow:0 1px 4px rgba(0,0,0,0.12); cursor:pointer; }
         .menu-badge { margin-left:8px; background:#dc2626; color:#fff; font-size:9px; font-weight:800; padding:2px 6px; border-radius:10px; letter-spacing:0.05em; vertical-align:middle; }
@@ -898,7 +917,7 @@ export default function AgentPage() {
           #topbar, .s-label, #zone-filter, #layout-area, .no-print,
           #dp-strip, .avail-banner, #btn-challenge, .s-card:not(#quote-section), .tab-placeholder,
           #tab-home, #tab-leads, #tab-team, #tab-me, #inventory-list-view, #assets-panel,
-          #memo-backdrop, #memo-drawer, #forms-backdrop, #forms-drawer, #sites-backdrop, #sites-drawer, #training-backdrop, #training-drawer, #challenge-backdrop, #challenge-drawer, #announcement-backdrop, #announcement-drawer, #poster-modal-backdrop { display: none !important; }
+          #memo-backdrop, #memo-drawer, #forms-backdrop, #forms-drawer, #sites-backdrop, #sites-drawer, #training-backdrop, #training-drawer, #challenge-backdrop, #challenge-drawer, #announcement-backdrop, #announcement-drawer, #poster-modal-backdrop, #activity-backdrop, #activity-drawer { display: none !important; }
           #tab-browse, #inventory-layout-view { display: block !important; }
           #phone { max-width: 100% !important; width: 100% !important; margin: 0 !important; background: #fff !important; }
           #scroll-body { overflow: visible !important; padding: 0 !important; }
@@ -989,6 +1008,9 @@ export default function AgentPage() {
           </div>
           <h1 id="topbar-title">Home</h1>
           <span id="topbar-days-left" style={{display:"none"}}></span>
+          <button id="btn-activity-feed" className="no-print" aria-label="Activity">
+            🔔<span id="activity-badge"></span>
+          </button>
           <button id="btn-pdf" className="btn-pdf" style={{ display: "none" }}>🖨 Print</button>
           <button id="btn-share-pdf" className="btn-pdf" style={{ display: "none" }}>💬 Share</button>
           <button id="btn-leads-export" className="btn-pdf" style={{ display: "none" }}>📊 Export</button>
@@ -1456,6 +1478,16 @@ export default function AgentPage() {
       </div>
 
       {/* Announcement drawer */}
+      <div id="activity-backdrop"></div>
+      <div id="activity-drawer">
+        <div id="activity-drawer-handle"></div>
+        <div id="activity-drawer-topbar">
+          <h2>Activity</h2>
+          <button id="activity-drawer-close">×</button>
+        </div>
+        <div id="activity-list"></div>
+      </div>
+
       <div id="announcement-backdrop"></div>
       <div id="announcement-drawer">
         <div id="announcement-drawer-handle"></div>
@@ -1956,7 +1988,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260821b" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260821c" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

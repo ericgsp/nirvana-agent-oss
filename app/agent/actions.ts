@@ -2,6 +2,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
 import { createClient } from "@/lib/supabase/server";
+import { getMyProfile } from "@/lib/supabase/get-hierarchy";
 
 // ── Promo matching ────────────────────────────────────────────────────────────
 
@@ -531,6 +532,21 @@ export async function markSold(
       .eq("id", quoteId)
       .eq("user_id", user.id);
   }
+
+  // Company-wide activity feed event -- "xyz closed a case" for everyone
+  // using the app. Best-effort: a failure here must never block the close
+  // itself, so it's not awaited into the main error path.
+  const [site, product, section] = quotationRef.split("|");
+  const profile = await getMyProfile();
+  await supabaseAdmin.from("activity_events").insert({
+    event_type: "case_closed",
+    user_id: user.id,
+    display_name: profile?.display_name || "An agent",
+    site: site || null,
+    product: product || null,
+    section: section || null,
+    amount,
+  });
 
   return { ok: true as const };
 }

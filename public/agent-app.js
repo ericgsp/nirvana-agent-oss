@@ -2483,6 +2483,73 @@
     if (!drawerState._typesFetched) fetchDrawerTypes();
   }
 
+  function timeAgo(iso) {
+    var diffMs = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + 'm ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    var days = Math.floor(hrs / 24);
+    if (days < 7) return days + 'd ago';
+    return new Date(iso).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' });
+  }
+
+  function renderActivityEvent(e) {
+    var parts = [];
+    if (e.product) parts.push(esc(e.product));
+    if (e.site) parts.push(esc(e.site));
+    if (e.section) parts.push('Zone ' + esc(e.section));
+    var detail = parts.join(' · ');
+    var amountText = e.amount != null ? 'RM ' + fmt(e.amount) : '';
+    return '<div class="activity-row">' +
+      '<span class="activity-row-icon">🎉</span>' +
+      '<div>' +
+        '<div class="activity-row-text"><b>' + esc(e.display_name) + '</b> closed a case' + (detail ? ' — ' + detail : '') + (amountText ? ' — <b>' + amountText + '</b>' : '') + '</div>' +
+        '<div class="activity-row-time">' + timeAgo(e.created_at) + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function loadActivityBadge() {
+    fetch(API_BASE + '/api/agent/activity-feed').then(function (res) { return res.json(); }).then(function (data) {
+      var badge = document.getElementById('activity-badge');
+      if (!badge) return;
+      var count = data.unreadCount || 0;
+      if (count > 0) {
+        badge.textContent = count > 9 ? '9+' : String(count);
+        badge.className = 'show';
+      } else {
+        badge.className = '';
+      }
+    }).catch(function (err) { dbg('activity badge failed: ' + err); });
+  }
+
+  function openActivityDrawer() {
+    document.getElementById('activity-backdrop').classList.add('open');
+    document.getElementById('activity-drawer').classList.add('open');
+    var listEl = document.getElementById('activity-list');
+    if (listEl) listEl.innerHTML = '<div class="activity-empty">Loading…</div>';
+    fetch(API_BASE + '/api/agent/activity-feed').then(function (res) { return res.json(); }).then(function (data) {
+      if (!listEl) return;
+      if (!data.events || !data.events.length) {
+        listEl.innerHTML = '<div class="activity-empty">No activity yet.</div>';
+      } else {
+        listEl.innerHTML = data.events.map(renderActivityEvent).join('');
+      }
+      fetch(API_BASE + '/api/agent/activity-feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        .then(function () {
+          var badge = document.getElementById('activity-badge');
+          if (badge) badge.className = '';
+        }).catch(function (err) { dbg('mark activity read failed: ' + err); });
+    }).catch(function (err) { dbg('activity feed failed: ' + err); });
+  }
+
+  function closeActivityDrawer() {
+    document.getElementById('activity-backdrop').classList.remove('open');
+    document.getElementById('activity-drawer').classList.remove('open');
+  }
+
   function closeAvailDrawer() {}
 
   // Opens the memo drawer directly to the requested tab -- Price List and
@@ -5416,6 +5483,7 @@
   // ── Init ───────────────────────────────────────────────────────
   function init() {
     switchTab('home');
+    loadActivityBadge();
 
     // Column visibility toggle — checkbox per column in the quotation table
     document.addEventListener('change', function (e) {
@@ -6089,6 +6157,13 @@
         case 'challenge-backdrop':
           document.getElementById('challenge-backdrop').classList.remove('open');
           document.getElementById('challenge-drawer').classList.remove('open');
+          break;
+        case 'btn-activity-feed':
+          openActivityDrawer();
+          break;
+        case 'activity-drawer-close':
+        case 'activity-backdrop':
+          closeActivityDrawer();
           break;
         case 'btn-pdf':
           doPrintFlow();
