@@ -2455,20 +2455,13 @@
         }
       }
 
-      var recentBox = document.getElementById('home-recent-quotes-box');
-      if (recentBox) {
-        recentBox.innerHTML =
-          '<div class="home-box-num">' + (data.totalQuotesCount || 0) + '</div>' +
-          '<div class="home-box-cap">Recent Quotes</div>';
-      }
-
       var followBox = document.getElementById('home-followup-box');
       if (followBox) {
         var followCount = data.followUpCount || 0;
         followBox.className = 'home-box home-box-plain' + (followCount > 0 ? ' home-box-followup has-items' : '');
         followBox.innerHTML =
           '<div class="home-box-num">' + followCount + '</div>' +
-          '<div class="home-box-cap">Follow Up This Month</div>';
+          '<div class="home-box-cap">Pending Follow Up</div>';
       }
 
       var rankBox = document.getElementById('home-rank-box');
@@ -2487,7 +2480,7 @@
       if (pendingBox) {
         pendingBox.innerHTML =
           '<div class="home-box-num">' + (data.pendingClosesCount || 0) + '</div>' +
-          '<div class="home-box-cap">Pending Closes</div>';
+          '<div class="home-box-cap">Pending Close Case</div>';
       }
 
       var newLeadsBox = document.getElementById('home-newleads-box');

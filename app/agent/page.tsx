@@ -1033,12 +1033,10 @@ export default async function AgentPage() {
               <div id="home-quota-box" className="home-box home-box-quota"></div>
               <div id="home-ytd-quota-box" className="home-box home-box-ytd"></div>
 
-              <div id="home-recent-quotes-box" className="home-box home-box-plain"></div>
               <button id="home-followup-box" className="home-box home-box-plain"></button>
-
-              <div id="home-rank-box" className="home-box home-box-plain"></div>
               <button id="home-pending-box" className="home-box home-box-plain home-box-pending"></button>
 
+              <div id="home-rank-box" className="home-box home-box-plain"></div>
               <button id="home-newleads-box" className="home-box home-box-plain"></button>
             </div>
           </div>
@@ -1974,7 +1972,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260820e" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260820f" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

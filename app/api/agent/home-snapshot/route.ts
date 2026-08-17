@@ -11,15 +11,6 @@ function currentPeriod() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function startOfWeek() {
-  const now = new Date();
-  const day = now.getDay(); // 0 = Sunday
-  const d = new Date(now);
-  d.setDate(now.getDate() - day);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
 function endOfMonth() {
   const now = new Date();
   const d = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -41,8 +32,8 @@ export async function GET() {
     // /agent is usable without login -- no user means no personal data,
     // not an error. Neutral state.
     return Response.json({
-      profile: null, goal: null, quotesThisWeek: 0, recentQuotes: [],
-      ytdQuota: null, totalQuotesCount: 0, followUpCount: 0,
+      profile: null, goal: null,
+      ytdQuota: null, followUpCount: 0,
       teamRank: null, pendingClosesCount: 0, newLeadsThisWeek: 0,
       nvChallenge: null, daysLeft: null, cycleTotalDays: null,
     });
@@ -101,17 +92,6 @@ export async function GET() {
     .gte("sold_at", `${year}-01-01`);
   const ytdQuota = (ytdRows ?? []).reduce((sum, r) => sum + Number(r.quota_amount || 0), 0);
 
-  const { count: quotesThisWeek } = await supabaseAdmin
-    .from("recent_quotes")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .gte("created_at", startOfWeek());
-
-  const { count: totalQuotesCount } = await supabaseAdmin
-    .from("recent_quotes")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id);
-
   // Leads needing a follow-up this month: overdue ones still count -- they
   // still need to be followed up, just later than planned.
   const { count: followUpCount } = await supabaseAdmin
@@ -120,13 +100,6 @@ export async function GET() {
     .eq("user_id", user.id)
     .not("next_action_date", "is", null)
     .lte("next_action_date", endOfMonth());
-
-  const { data: recentQuotes } = await supabaseAdmin
-    .from("recent_quotes")
-    .select("site, product, section, net_total, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(5);
 
   // Pending closes: quotes not yet marked closed or lost -- still in play.
   // Status is null until first actioned, so "not closed/lost" must include
@@ -207,14 +180,11 @@ export async function GET() {
     ytdQuota: { actual: ytdQuota, target: yearlyRow ? Number(yearlyRow.annual_target) : null, year },
     daysLeft,
     cycleTotalDays,
-    quotesThisWeek: quotesThisWeek ?? 0,
-    totalQuotesCount: totalQuotesCount ?? 0,
     followUpCount: followUpCount ?? 0,
     pendingClosesCount: pendingClosesCount ?? 0,
     newLeadsThisWeek: newLeadsThisWeek ?? 0,
     teamRank,
     nvChallenge,
-    recentQuotes: recentQuotes ?? [],
   });
 }
 
