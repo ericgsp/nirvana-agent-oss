@@ -34,7 +34,7 @@ export async function GET() {
     return Response.json({
       profile: null, goal: null,
       ytdQuota: null, needsActionCount: 0,
-      teamRank: null, newLeadsThisWeek: 0,
+      newLeadsThisWeek: 0,
       nvChallenge: null, daysLeft: null, cycleTotalDays: null,
     });
   }
@@ -122,32 +122,6 @@ export async function GET() {
     .eq("user_id", user.id)
     .gte("created_at", weekAgo.toISOString());
 
-  // This month's rank among agents sharing the same leader -- the
-  // "immediate team" a person actually competes with day to day.
-  let teamRank: { rank: number; of: number } | null = null;
-  if (profile?.leader_id) {
-    const { data: siblings } = await supabaseAdmin
-      .from("agent_profiles")
-      .select("user_id")
-      .eq("leader_id", profile.leader_id);
-    const siblingIds = (siblings ?? []).map((s) => s.user_id);
-    if (siblingIds.length > 1) {
-      const { data: siblingSales } = await supabaseAdmin
-        .from("sales_log")
-        .select("user_id, quota_amount, sold_at")
-        .in("user_id", siblingIds)
-        .gte("sold_at", `${period}-01`);
-      const totals: Record<string, number> = {};
-      siblingIds.forEach((id) => { totals[id] = 0; });
-      (siblingSales ?? [])
-        .filter((r) => r.sold_at.slice(0, 7) === period)
-        .forEach((r) => { totals[r.user_id] = (totals[r.user_id] || 0) + Number(r.quota_amount || 0); });
-      const ranked = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-      const idx = ranked.findIndex(([id]) => id === user.id);
-      if (idx >= 0) teamRank = { rank: idx + 1, of: ranked.length };
-    }
-  }
-
   // NV Challenge: accumulated quota across the challenge's own date range
   // (2-3 months), not the calendar-month quota -- a separate figure with
   // its own target, set by an admin via /nv-challenge.
@@ -186,7 +160,6 @@ export async function GET() {
     cycleTotalDays,
     needsActionCount,
     newLeadsThisWeek: newLeadsThisWeek ?? 0,
-    teamRank,
     nvChallenge,
   });
 }

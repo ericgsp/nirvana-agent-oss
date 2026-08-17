@@ -2464,18 +2464,6 @@
           '<div class="home-box-cap">Needs Action</div>';
       }
 
-      var rankBox = document.getElementById('home-rank-box');
-      if (rankBox) {
-        if (data.teamRank) {
-          rankBox.innerHTML =
-            '<div class="home-box-rank-fig">#' + data.teamRank.rank + '</div>' +
-            '<div class="home-box-rank-of">of ' + data.teamRank.of + ' in your team</div>' +
-            '<div class="home-box-cap" style="margin-top:4px;">This Month&apos;s Rank</div>';
-        } else {
-          rankBox.innerHTML = '<div class="home-box-cap">This Month&apos;s Rank</div><div class="home-box-rank-of" style="margin-top:6px;">Not enough team data</div>';
-        }
-      }
-
       var newLeadsBox = document.getElementById('home-newleads-box');
       if (newLeadsBox) {
         newLeadsBox.innerHTML =
