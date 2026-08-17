@@ -83,18 +83,21 @@ export async function GET() {
     });
 
     // Sales are fetched for EVERY descendant, not just those with a goal set
-    // -- the performance table below needs to show actual sales/activity for
+    // -- the performance table below needs to show actual activity for
     // anyone in the team, whether or not a quota has been assigned to them.
+    // Quota-based (quota_amount), matching what target_amount now measures --
+    // target and actual must be in the same units for the comparison to
+    // mean anything.
     const { data: salesRows } = await supabaseAdmin
       .from("sales_log")
-      .select("user_id, amount, sold_at")
+      .select("user_id, quota_amount, sold_at")
       .in("user_id", memberIds)
       .gte("sold_at", `${period}-01`);
 
     (salesRows ?? [])
       .filter((r) => r.sold_at.slice(0, 7) === period)
       .forEach((r) => {
-        salesByUser[r.user_id] = (salesByUser[r.user_id] || 0) + Number(r.amount);
+        salesByUser[r.user_id] = (salesByUser[r.user_id] || 0) + Number(r.quota_amount || 0);
       });
   }
 

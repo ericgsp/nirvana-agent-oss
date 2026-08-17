@@ -40,16 +40,19 @@ export async function GET() {
     .eq("period", period)
     .maybeSingle();
 
+  // Quota-based, matching sales_goals.target_amount's now-repurposed meaning
+  // (see me-snapshot for the full rationale) -- target and actual must be
+  // in the same units for this comparison to mean anything.
   let actualAmount = 0;
   if (goalRow) {
     const { data: salesRows } = await supabaseAdmin
       .from("sales_log")
-      .select("amount, sold_at")
+      .select("quota_amount, sold_at")
       .eq("user_id", user.id)
       .gte("sold_at", `${period}-01`);
     actualAmount = (salesRows ?? [])
       .filter((r) => r.sold_at.slice(0, 7) === period)
-      .reduce((sum, r) => sum + Number(r.amount), 0);
+      .reduce((sum, r) => sum + Number(r.quota_amount || 0), 0);
   }
 
   const { count: quotesThisWeek } = await supabaseAdmin

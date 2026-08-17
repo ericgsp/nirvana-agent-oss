@@ -1088,9 +1088,15 @@
 
   var MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  function renderYearlyGoalCard(yg) {
+  // The yearly goal card now tracks Quota, not the raw sales figure --
+  // labeled explicitly so it's never mistaken for a sales target. YTD Sales
+  // is shown above it as a separate, unmodified reference figure (the raw
+  // quotation total), never part of the goal comparison itself.
+  function renderYearlyGoalCard(yg, ytdSalesActual) {
+    var ytdHtml = '<div class="mgc-ytd">Year to date sales: <strong>RM ' + fmt(ytdSalesActual || 0) + '</strong></div>';
+
     if (!yg || !yg.yearlyTarget) {
-      return '<button class="me-set-goal-btn me-set-goal-btn-outline" id="btn-set-yearly-goal">Set your yearly goal</button>';
+      return ytdHtml + '<button class="me-set-goal-btn me-set-goal-btn-outline" id="btn-set-yearly-goal">Set your yearly quota</button>';
     }
     var now = new Date();
     var curPeriod = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -1109,17 +1115,17 @@
       '</div>';
     }).join('');
 
-    return '<div class="mgc">' +
-      '<div class="mgc-cap">Yearly goal · ' + yg.year + '</div>' +
+    return ytdHtml + '<div class="mgc">' +
+      '<div class="mgc-cap">Yearly quota · ' + yg.year + '</div>' +
       '<div class="mgc-figs"><div class="mgc-actual">RM ' + fmt(yg.yearlyActual) + '</div><div class="mgc-of">of RM ' + fmt(yg.yearlyTarget) + '</div></div>' +
       '<div class="home-goal-track"><div style="width:' + yPct + '%"></div></div>' +
-      '<div class="mgc-month-cap">This month (' + esc(curPeriod) + ')</div>' +
+      '<div class="mgc-month-cap">This month\'s quota (' + esc(curPeriod) + ')</div>' +
       '<div class="mgc-figs"><div class="mgc-actual mgc-actual-sm">RM ' + fmt(thisMonth ? thisMonth.actual : 0) + '</div><div class="mgc-of">of RM ' + fmt(thisMonth ? thisMonth.target : 0) + '</div></div>' +
       '<div class="home-goal-track"><div style="width:' + mPct + '%"></div></div>' +
       '<div class="mgc-bars">' + bars + '</div>' +
       '<div class="mgc-bars-hint">Tap a month to adjust for busy/slow seasons</div>' +
       '<div class="me-goal-btn-row">' +
-        '<button class="me-set-goal-btn" id="btn-set-yearly-goal">Edit yearly goal</button>' +
+        '<button class="me-set-goal-btn" id="btn-set-yearly-goal">Edit yearly quota</button>' +
         '<button class="me-set-goal-btn me-goal-btn-danger" id="btn-remove-yearly-goal">Remove</button>' +
       '</div>' +
     '</div>';
@@ -1128,7 +1134,7 @@
   function loadMeSnapshot() {
     fetch(API_BASE + '/api/agent/me-snapshot').then(function (res) { return res.json(); }).then(function (data) {
       var goalCard = document.getElementById('me-goal-card');
-      if (goalCard) goalCard.innerHTML = renderYearlyGoalCard(data.yearlyGoal);
+      if (goalCard) goalCard.innerHTML = renderYearlyGoalCard(data.yearlyGoal, data.ytdSalesActual);
       maybeShowCarryForwardPrompt(data.yearlyGoal);
 
       var teamCard = document.getElementById('me-team-card');
@@ -1160,38 +1166,25 @@
   // prevYearGoal for the one figure nothing else already covers. Moved here
   // from the Team Performance view, since personal performance belongs in
   // Me tab and team performance belongs in Team tab, not mixed together.
-  var _lastQuotaGoalTarget = null;
-
+  // "Your Sales" and "Your Quota" tiles both dropped from here: Your Sales
+  // was redundant with the yearly goal card above (which now tracks Quota
+  // directly, not a separate figure), and the standalone Quota goal/modal
+  // system was removed in favor of repurposing sales_goals/yearly_sales_goals
+  // to mean Quota outright -- one goal system, not two running in parallel.
+  // "Team Sales"/"Team Quota" moved back to Team Performance, where team
+  // data belongs. Only the year-over-year comparison stays here.
   function renderMeSelfPerfMatrix(data) {
     var el = qs('me-self-perf-matrix');
     if (!el) return;
 
-    var now = new Date();
-    var curPeriod = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
     var yearlyGoal = data.yearlyGoal || {};
     var prevYear = data.prevYearGoal || {};
-    var quotaGoal = data.quotaGoal || {};
+    var now = new Date();
     var currentYear = now.getFullYear();
 
     if (!data.yearlyGoal) { el.innerHTML = ''; return; }
 
-    var quotaPct = quotaGoal.target ? Math.min(100, Math.round(quotaGoal.actual / quotaGoal.target * 100)) : 0;
-    _lastQuotaGoalTarget = quotaGoal.target;
-
-    // "Your Sales" (this month's actual) dropped -- redundant with the
-    // yearly goal tracker card just above, which already shows it.
-    // "Team Sales" moved back to Team Performance, where team data belongs.
-    // "Your Quota" now tracks the separate Quota goal/actual, not sales.
     el.innerHTML =
-      '<div class="tpm-tile tpm-tile-wide">' +
-        '<div class="tpm-tile-label">Your Quota · ' + esc(curPeriod) + '</div>' +
-        (quotaGoal.target != null
-          ? '<div class="tpm-compare-row"><span>RM ' + fmt(quotaGoal.actual) + '</span><span>of RM ' + fmt(quotaGoal.target) + '</span></div>' +
-            '<div class="tpm-track"><div style="width:' + quotaPct + '%"></div></div>' +
-            '<button class="tpm-quota-edit-btn" id="btn-edit-quota-goal">Edit</button>'
-          : '<div class="tpm-tile-sub">No quota set for this month</div>' +
-            '<button class="tpm-quota-edit-btn" id="btn-set-quota-goal">Set Quota</button>') +
-      '</div>' +
       '<div class="tpm-tile tpm-tile-wide">' +
         '<div class="tpm-tile-label">' + currentYear + ' vs ' + (currentYear - 1) + ' Quota</div>' +
         '<div class="tpm-compare-row"><span>' + currentYear + ' target</span><span>' + (yearlyGoal.yearlyTarget ? 'RM ' + fmt(yearlyGoal.yearlyTarget) : '—') + '</span></div>' +
@@ -1199,33 +1192,6 @@
         '<div class="tpm-compare-row"><span>' + (currentYear - 1) + ' target</span><span>' + (prevYear.target != null ? 'RM ' + fmt(prevYear.target) : '—') + '</span></div>' +
         '<div class="tpm-compare-row"><span>' + (currentYear - 1) + ' actual</span><span>RM ' + fmt(prevYear.actual || 0) + '</span></div>' +
       '</div>';
-  }
-
-  function openQuotaGoalModal(currentTarget) {
-    var amt = qs('quota-goal-modal-amount');
-    if (amt) amt.value = currentTarget ? currentTarget : '';
-    var backdrop = qs('quota-goal-modal-backdrop');
-    if (backdrop) backdrop.classList.add('open');
-  }
-
-  function closeQuotaGoalModal() {
-    var backdrop = qs('quota-goal-modal-backdrop');
-    if (backdrop) backdrop.classList.remove('open');
-  }
-
-  function confirmQuotaGoal() {
-    var amt = qs('quota-goal-modal-amount');
-    var target = amt ? parseFloat(amt.value) : NaN;
-    if (isNaN(target) || target <= 0) { alert('Enter a valid target amount.'); return; }
-    fetch(API_BASE + '/api/agent/me-snapshot', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set_quota_goal', target_amount: target }),
-    }).then(function (res) { return res.json(); }).then(function (data) {
-      if (data.error) { alert(data.error); return; }
-      closeQuotaGoalModal();
-      loadMeSnapshot();
-    }).catch(function (err) { dbg('set quota goal failed: ' + err); });
   }
 
   // Renders one quote row -- status control, Edit, Delete, closed-item
@@ -1848,17 +1814,17 @@
     var color = TIER_COLOR[m.tier] || TIER_COLOR.AGENT;
     var name = esc(m.display_name || m.agent_code || 'Agent');
     var badge = '<span class="team-tier-badge" style="background:' + color.bg + ';color:' + color.fg + '">' + esc(m.tier) + '</span>';
-    var setGoalBtn = '<button class="team-set-goal-btn" data-user-id="' + esc(m.user_id) + '" data-label="' + name + '">' + (m.goal ? 'Edit Goal' : 'Set Goal') + '</button>';
+    var setGoalBtn = '<button class="team-set-goal-btn" data-user-id="' + esc(m.user_id) + '" data-label="' + name + '">' + (m.goal ? 'Edit Quota' : 'Set Quota') + '</button>';
     var goalHtml;
     if (m.goal) {
       var pct = m.goal.target_amount > 0 ? Math.min(100, Math.round(m.goal.actual_amount / m.goal.target_amount * 100)) : 0;
       goalHtml =
-        '<div class="team-goal-cap">Sales vs goal · ' + esc(m.goal.period) + '</div>' +
+        '<div class="team-goal-cap">Quota · ' + esc(m.goal.period) + '</div>' +
         '<div class="team-goal-figs"><span>RM ' + fmt(m.goal.actual_amount) + '</span><span>of RM ' + fmt(m.goal.target_amount) + '</span></div>' +
         '<div class="team-goal-track"><div style="width:' + pct + '%"></div></div>' +
-        '<button class="team-remove-goal-btn" data-user-id="' + esc(m.user_id) + '">Remove goal</button>';
+        '<button class="team-remove-goal-btn" data-user-id="' + esc(m.user_id) + '">Remove quota</button>';
     } else {
-      goalHtml = '<div class="team-no-goal">No goal set</div>';
+      goalHtml = '<div class="team-no-goal">No quota set</div>';
     }
     var hasChildren = m.children && m.children.length > 0;
     var toggle = hasChildren
@@ -1901,7 +1867,7 @@
     var curPeriod = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
     var teamMonthActual = _teamPerfCache.reduce(function (sum, p) { return sum + (p.actual_amount || 0); }, 0);
     el.innerHTML = '<div class="tpm-tile">' +
-      '<div class="tpm-tile-label">Team Sales · ' + esc(curPeriod) + '</div>' +
+      '<div class="tpm-tile-label">Team Quota · ' + esc(curPeriod) + '</div>' +
       '<div class="tpm-tile-value">RM ' + fmt(teamMonthActual) + '</div>' +
     '</div>';
   }
@@ -2379,7 +2345,7 @@
           var pct = data.goal.target_amount > 0 ? Math.min(100, Math.round(data.goal.actual_amount / data.goal.target_amount * 100)) : 0;
           goalCard.innerHTML =
             '<div class="home-goal">' +
-              '<div class="home-goal-cap">Sales vs goal · ' + esc(data.goal.period) + '</div>' +
+              '<div class="home-goal-cap">Quota · ' + esc(data.goal.period) + '</div>' +
               '<div class="home-goal-figs"><div class="home-goal-actual">RM ' + fmt(data.goal.actual_amount) + '</div>' +
                 '<div class="home-goal-of">of RM ' + fmt(data.goal.target_amount) + '</div></div>' +
               '<div class="home-goal-track"><div style="width:' + pct + '%"></div></div>' +
@@ -5913,19 +5879,6 @@
           break;
         case 'goal-modal-confirm':
           confirmGoal();
-          break;
-        case 'btn-set-quota-goal':
-        case 'btn-edit-quota-goal':
-          openQuotaGoalModal(_lastQuotaGoalTarget);
-          break;
-        case 'quota-goal-modal-cancel':
-          closeQuotaGoalModal();
-          break;
-        case 'quota-goal-modal-backdrop':
-          if (e.target.id === 'quota-goal-modal-backdrop') closeQuotaGoalModal();
-          break;
-        case 'quota-goal-modal-confirm':
-          confirmQuotaGoal();
           break;
         case 'btn-set-yearly-goal':
           openYearlyGoalModal();

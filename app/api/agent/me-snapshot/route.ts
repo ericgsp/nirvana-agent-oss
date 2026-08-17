@@ -36,8 +36,6 @@ export async function GET() {
     { data: yearSalesRows },
     { data: prevYearlyRow },
     { data: prevYearSalesRows },
-    { data: quotaGoalRow },
-    { data: quotaSalesRows },
   ] = await Promise.all([
     supabaseAdmin
       .from("yearly_sales_goals")
@@ -50,9 +48,12 @@ export async function GET() {
       .select("period, target_amount, locked, carry_forward_handled")
       .eq("user_id", user.id)
       .like("period", `${yearPrefix}-%`),
+    // Both amount (raw sales figure, for the YTD Sales reference display)
+    // and quota_amount (what the goal itself is now measured against) come
+    // from the same rows -- one query covers both.
     supabaseAdmin
       .from("sales_log")
-      .select("amount, sold_at")
+      .select("amount, quota_amount, sold_at")
       .eq("user_id", user.id)
       .gte("sold_at", `${yearPrefix}-01-01`)
       .lte("sold_at", `${yearPrefix}-12-31`),
@@ -67,39 +68,16 @@ export async function GET() {
       .maybeSingle(),
     supabaseAdmin
       .from("sales_log")
-      .select("amount")
+      .select("quota_amount")
       .eq("user_id", user.id)
       .gte("sold_at", `${currentYear - 1}-01-01`)
       .lte("sold_at", `${currentYear - 1}-12-31`),
-    // Quota -- a separate target/actual from the sales goal above. Actual
-    // is summed from sales_log.quota_amount (only populated for sales
-    // closed after that capture shipped), not sales_log.amount.
-    supabaseAdmin
-      .from("quota_goals")
-      .select("target_amount")
-      .eq("user_id", user.id)
-      .eq("period", period)
-      .maybeSingle(),
-    supabaseAdmin
-      .from("sales_log")
-      .select("quota_amount, sold_at")
-      .eq("user_id", user.id)
-      .gte("sold_at", `${period}-01`),
   ]);
 
   const prevYearGoal = {
     year: currentYear - 1,
     target: prevYearlyRow ? Number(prevYearlyRow.annual_target) : null,
-    actual: (prevYearSalesRows ?? []).reduce((sum, r) => sum + Number(r.amount), 0),
-  };
-
-  const quotaActual = (quotaSalesRows ?? [])
-    .filter((r) => r.sold_at.slice(0, 7) === period && r.quota_amount != null)
-    .reduce((sum, r) => sum + Number(r.quota_amount), 0);
-  const quotaGoal = {
-    period,
-    target: quotaGoalRow ? Number(quotaGoalRow.target_amount) : null,
-    actual: quotaActual,
+    actual: (prevYearSalesRows ?? []).reduce((sum, r) => sum + Number(r.quota_amount || 0), 0),
   };
 
   const targetByMonth: Record<string, number> = {};
@@ -109,11 +87,22 @@ export async function GET() {
     lockedByMonth[r.period as string] = !!r.locked;
   });
 
+  // The yearly goal card now tracks Quota (net pre_need_price minus
+  // discount/trust/backwall), not the raw quotation total -- "everything is
+  // calculated using quota" per the explicit decision to repurpose the
+  // existing sales_goals/yearly_sales_goals tables rather than build a
+  // separate quota system. Sales closed before quota_amount was captured
+  // contribute 0 here, same limitation as every other field added this way.
   const actualByMonth: Record<string, number> = {};
   (yearSalesRows ?? []).forEach((r) => {
     const m = (r.sold_at as string).slice(0, 7);
-    actualByMonth[m] = (actualByMonth[m] ?? 0) + Number(r.amount);
+    actualByMonth[m] = (actualByMonth[m] ?? 0) + Number(r.quota_amount || 0);
   });
+
+  // YTD Sales -- the raw, unmodified quotation-total figure, shown as a
+  // separate reference alongside the (now quota-based) yearly goal, never
+  // used for goal comparison itself.
+  const ytdSalesActual = (yearSalesRows ?? []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
 
   const months = Array.from({ length: 12 }, (_, i) => {
     const p = `${yearPrefix}-${String(i + 1).padStart(2, "0")}`;
@@ -168,15 +157,16 @@ export async function GET() {
 
       // Sales are checked for every descendant, not just those with a goal
       // set, so a downline member's sale isn't silently dropped from the
-      // total just because no quota was assigned to them.
+      // total just because no quota was assigned to them. Quota-based, same
+      // as everything else measured against target_amount now.
       const { data: salesRows } = await supabaseAdmin
         .from("sales_log")
-        .select("user_id, amount, sold_at")
+        .select("user_id, quota_amount, sold_at")
         .in("user_id", memberIds)
         .gte("sold_at", `${period}-01`);
       const actualTotal = (salesRows ?? [])
         .filter((r) => r.sold_at.slice(0, 7) === period)
-        .reduce((sum, r) => sum + Number(r.amount), 0);
+        .reduce((sum, r) => sum + Number(r.quota_amount || 0), 0);
 
       team = { memberCount: downline.length, goalCount: goalUserIds.length, targetTotal, actualTotal };
     } else {
@@ -190,7 +180,7 @@ export async function GET() {
     yearlyGoal,
     team,
     prevYearGoal,
-    quotaGoal,
+    ytdSalesActual,
   });
 }
 
@@ -218,43 +208,6 @@ export async function POST(req: NextRequest) {
         { user_id: user.id, period, target_amount: targetAmount, set_by: user.id },
         { onConflict: "user_id,period" }
       );
-    if (error) return Response.json({ error: error.message }, { status: 500 });
-    return Response.json({ ok: true });
-  }
-
-  // Quota is a separate target from the sales goal above -- own table, own
-  // action, so the two can never accidentally overwrite each other.
-  if (body?.action === "set_quota_goal") {
-    const targetAmount = body?.target_amount;
-    if (typeof targetAmount !== "number" || targetAmount <= 0) {
-      return Response.json({ error: "A positive target_amount is required" }, { status: 400 });
-    }
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
-
-    const period = currentPeriod();
-    const { error } = await supabaseAdmin
-      .from("quota_goals")
-      .upsert(
-        { user_id: user.id, period, target_amount: targetAmount },
-        { onConflict: "user_id,period" }
-      );
-    if (error) return Response.json({ error: error.message }, { status: 500 });
-    return Response.json({ ok: true });
-  }
-
-  if (body?.action === "delete_quota_goal") {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
-
-    const period = currentPeriod();
-    const { error } = await supabaseAdmin
-      .from("quota_goals")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("period", period);
     if (error) return Response.json({ error: error.message }, { status: 500 });
     return Response.json({ ok: true });
   }
@@ -485,16 +438,18 @@ export async function POST(req: NextRequest) {
         .like("period", `${year}-%`),
       supabaseAdmin
         .from("sales_log")
-        .select("amount, sold_at")
+        .select("quota_amount, sold_at")
         .eq("user_id", user.id)
         .gte("sold_at", `${year}-01-01`)
         .lte("sold_at", `${year}-12-31`),
     ]);
     const rows = monthRows ?? [];
+    // Quota-based, matching what the target itself now measures -- a month
+    // "falling short" means short of quota, not the raw sales figure.
     const actualByMonth: Record<string, number> = {};
     (yearSalesRows ?? []).forEach((r) => {
       const m = (r.sold_at as string).slice(0, 7);
-      actualByMonth[m] = (actualByMonth[m] ?? 0) + Number(r.amount);
+      actualByMonth[m] = (actualByMonth[m] ?? 0) + Number(r.quota_amount || 0);
     });
 
     const shortfallRows = rows.filter((r) => {

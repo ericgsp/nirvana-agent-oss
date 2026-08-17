@@ -185,7 +185,6 @@ export default async function AgentPage() {
         .tpm-track { height: 6px; border-radius: 4px; background: #e2e8f0; margin-top: 6px; overflow: hidden; }
         .tpm-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
         .tpm-compare-row { display: flex; justify-content: space-between; font-size: 11px; color: #475569; margin-top: 4px; }
-        .tpm-quota-edit-btn { margin-top: 8px; padding: 5px 12px; border-radius: 8px; border: none; background: ${G_TEAL}; color: #fff; font-size: 11px; font-weight: 700; }
         .team-row-top { display: flex; align-items: center; gap: 8px; }
         .team-tier-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
         .team-row-name { font-size: 13px; font-weight: 700; color: ${G_DARK}; flex: 1; }
@@ -255,6 +254,8 @@ export default async function AgentPage() {
         .me-goal-btn-row { display: flex; gap: 8px; margin-top: 10px; }
         .me-goal-btn-row .me-set-goal-btn { margin-top: 0; flex: 1; }
         .me-goal-btn-danger { background: rgba(255,255,255,0.10); color: #fecaca; }
+        .mgc-ytd { font-size: 11.5px; color: #475569; background: #f1f5f9; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; }
+        .mgc-ytd strong { color: ${G_DARK}; }
         .mgc { padding: 16px; border-radius: 16px; color: #fff; background: linear-gradient(150deg, ${G_DARK} 0%, ${G_TEAL} 130%); }
         .mgc-cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; font-weight: 700; }
         .mgc-figs { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
@@ -383,16 +384,16 @@ export default async function AgentPage() {
         #carry-forward-modal-deny { background:#f1f5f9; color:#475569; }
         #carry-forward-modal-accept { background:${G_TEAL}; color:#fff; }
 
-        #goal-modal-backdrop, #quota-goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
-        #goal-modal-backdrop.open, #quota-goal-modal-backdrop.open { display:flex; }
-        #goal-modal-box, #quota-goal-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
-        #goal-modal-title, #quota-goal-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #goal-modal-backdrop.open { display:flex; }
+        #goal-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #goal-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
         #goal-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
-        #goal-modal-amount, #quota-goal-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
-        #goal-modal-actions, #quota-goal-modal-actions { display:flex; gap:8px; margin-top:14px; }
-        #goal-modal-actions button, #quota-goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
-        #goal-modal-cancel, #quota-goal-modal-cancel { background:#f1f5f9; color:#475569; }
-        #goal-modal-confirm, #quota-goal-modal-confirm { background:${G_TEAL}; color:#fff; }
+        #goal-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
+        #goal-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #goal-modal-cancel { background:#f1f5f9; color:#475569; }
+        #goal-modal-confirm { background:${G_TEAL}; color:#fff; }
         .team-set-goal-btn { flex-shrink: 0; padding: 4px 10px; border-radius: 999px; border: 1px solid ${G_TEAL}; background: transparent; color: ${G_TEAL}; font-size: 10.5px; font-weight: 700; }
         .avail-banner { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 9px 13px; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(7,94,84,0.3); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-appearance: none; box-sizing: border-box; width: calc(100% - 20px); }
         .avail-banner:active { opacity: 0.88; }
@@ -1180,8 +1181,8 @@ export default async function AgentPage() {
                     <th data-sort="tier">Tier</th>
                     <th data-sort="agent_code">Agent Code</th>
                     <th data-sort="active">Status</th>
-                    <th data-sort="actual_amount">Sales (RM)</th>
-                    <th data-sort="target_amount">Quota (RM)</th>
+                    <th data-sort="actual_amount">Quota Actual (RM)</th>
+                    <th data-sort="target_amount">Quota Target (RM)</th>
                     <th data-sort="pct">% of Quota</th>
                   </tr>
                 </thead>
@@ -1729,7 +1730,7 @@ export default async function AgentPage() {
       {/* Set Goal modal — Team tab */}
       <div id="goal-modal-backdrop">
         <div id="goal-modal-box">
-          <div id="goal-modal-title">Set Monthly Goal</div>
+          <div id="goal-modal-title">Set Monthly Quota</div>
           <div id="goal-modal-sub"></div>
           <div className="f-lbl" style={{marginTop:"10px"}}>Target amount (RM)</div>
           <input id="goal-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
@@ -1740,20 +1741,6 @@ export default async function AgentPage() {
         </div>
       </div>
 
-      {/* Quota goal modal — Me tab. Separate target from the Sales Goal
-          above: net pre_need_price minus discount/trust/backwall, not the
-          quotation total. */}
-      <div id="quota-goal-modal-backdrop">
-        <div id="quota-goal-modal-box">
-          <div id="quota-goal-modal-title">Set Monthly Quota</div>
-          <div className="f-lbl" style={{marginTop:"10px"}}>Target amount (RM)</div>
-          <input id="quota-goal-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
-          <div id="quota-goal-modal-actions">
-            <button id="quota-goal-modal-cancel">Cancel</button>
-            <button id="quota-goal-modal-confirm">Save Quota</button>
-          </div>
-        </div>
-      </div>
 
       {/* Mark as Sold modal — Me tab. Shows a checklist (pick which quoted
           items were actually sold, amount sums itself) when the quote has
@@ -1879,7 +1866,7 @@ export default async function AgentPage() {
           the yearly total stays fixed. */}
       <div id="month-goal-modal-backdrop">
         <div id="month-goal-modal-box">
-          <div id="month-goal-modal-title">Edit Month Target</div>
+          <div id="month-goal-modal-title">Edit Month Quota</div>
           <div id="month-goal-modal-sub"></div>
           <div className="f-lbl" style={{marginTop:"10px"}}>Target for this month (RM)</div>
           <input id="month-goal-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
@@ -1896,7 +1883,7 @@ export default async function AgentPage() {
           dismiss, an explicit Accept/Deny choice is required. */}
       <div id="carry-forward-modal-backdrop">
         <div id="carry-forward-modal-box">
-          <div id="carry-forward-modal-title">Carry Forward Missed Goal?</div>
+          <div id="carry-forward-modal-title">Carry Forward Missed Quota?</div>
           <div id="carry-forward-modal-sub">A past month fell short of its target. Spread the shortfall evenly across your remaining months?</div>
           <div id="carry-forward-modal-amount"></div>
           <div id="carry-forward-modal-actions">
@@ -1952,7 +1939,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260819c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260819d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
