@@ -2455,13 +2455,13 @@
         }
       }
 
-      var followBox = document.getElementById('home-followup-box');
-      if (followBox) {
-        var followCount = data.followUpCount || 0;
-        followBox.className = 'home-box home-box-plain' + (followCount > 0 ? ' home-box-followup has-items' : '');
-        followBox.innerHTML =
-          '<div class="home-box-num">' + followCount + '</div>' +
-          '<div class="home-box-cap">Pending Follow Up</div>';
+      var needsActionBox = document.getElementById('home-needs-action-box');
+      if (needsActionBox) {
+        var needsActionCount = data.needsActionCount || 0;
+        needsActionBox.className = 'home-box home-box-plain home-box-pending' + (needsActionCount > 0 ? ' home-box-followup has-items' : '');
+        needsActionBox.innerHTML =
+          '<div class="home-box-num">' + needsActionCount + '</div>' +
+          '<div class="home-box-cap">Needs Action</div>';
       }
 
       var rankBox = document.getElementById('home-rank-box');
@@ -2474,13 +2474,6 @@
         } else {
           rankBox.innerHTML = '<div class="home-box-cap">This Month&apos;s Rank</div><div class="home-box-rank-of" style="margin-top:6px;">Not enough team data</div>';
         }
-      }
-
-      var pendingBox = document.getElementById('home-pending-box');
-      if (pendingBox) {
-        pendingBox.innerHTML =
-          '<div class="home-box-num">' + (data.pendingClosesCount || 0) + '</div>' +
-          '<div class="home-box-cap">Pending Close Case</div>';
       }
 
       var newLeadsBox = document.getElementById('home-newleads-box');
@@ -6056,16 +6049,13 @@
           _loadAnnouncementEdm();
           _applyAnnouncementReadState();
           break;
-        case 'home-followup-box': {
+        case 'home-needs-action-box': {
           var _sortSel = document.getElementById('leads-sort');
           if (_sortSel) _sortSel.value = 'next_action';
           switchTab('leads');
           if (_leadsLoaded) renderLeadsList();
           break;
         }
-        case 'home-pending-box':
-          switchTab('leads');
-          break;
         case 'home-newleads-box': {
           var _sortSel2 = document.getElementById('leads-sort');
           if (_sortSel2) _sortSel2.value = 'recent';

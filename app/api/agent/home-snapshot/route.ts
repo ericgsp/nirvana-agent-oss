@@ -33,8 +33,8 @@ export async function GET() {
     // not an error. Neutral state.
     return Response.json({
       profile: null, goal: null,
-      ytdQuota: null, followUpCount: 0,
-      teamRank: null, pendingClosesCount: 0, newLeadsThisWeek: 0,
+      ytdQuota: null, needsActionCount: 0,
+      teamRank: null, newLeadsThisWeek: 0,
       nvChallenge: null, daysLeft: null, cycleTotalDays: null,
     });
   }
@@ -92,23 +92,27 @@ export async function GET() {
     .gte("sold_at", `${year}-01-01`);
   const ytdQuota = (ytdRows ?? []).reduce((sum, r) => sum + Number(r.quota_amount || 0), 0);
 
-  // Leads needing a follow-up this month: overdue ones still count -- they
-  // still need to be followed up, just later than planned.
-  const { count: followUpCount } = await supabaseAdmin
+  // Needs Action: a single, deduped count of leads that need something from
+  // the agent this month -- either a follow-up is due (overdue counts too,
+  // it's still owed), or the lead has an open quote (not yet closed/lost).
+  // Counting leads (not quotes) means one prospect with 3 open quotes still
+  // only counts once, matching how they appear on the Leads page.
+  const { data: dueLeads } = await supabaseAdmin
     .from("leads")
-    .select("id", { count: "exact", head: true })
+    .select("id")
     .eq("user_id", user.id)
     .not("next_action_date", "is", null)
     .lte("next_action_date", endOfMonth());
-
-  // Pending closes: quotes not yet marked closed or lost -- still in play.
-  // Status is null until first actioned, so "not closed/lost" must include
-  // null explicitly (a plain NOT IN would silently drop null rows).
-  const { count: pendingClosesCount } = await supabaseAdmin
+  const { data: openQuoteLeads } = await supabaseAdmin
     .from("recent_quotes")
-    .select("id", { count: "exact", head: true })
+    .select("lead_id")
     .eq("user_id", user.id)
+    .not("lead_id", "is", null)
     .or("status.is.null,status.eq.followup");
+  const needsActionIds = new Set<string>();
+  (dueLeads ?? []).forEach((l) => needsActionIds.add(l.id));
+  (openQuoteLeads ?? []).forEach((q) => { if (q.lead_id) needsActionIds.add(q.lead_id); });
+  const needsActionCount = needsActionIds.size;
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
@@ -180,8 +184,7 @@ export async function GET() {
     ytdQuota: { actual: ytdQuota, target: yearlyRow ? Number(yearlyRow.annual_target) : null, year },
     daysLeft,
     cycleTotalDays,
-    followUpCount: followUpCount ?? 0,
-    pendingClosesCount: pendingClosesCount ?? 0,
+    needsActionCount,
     newLeadsThisWeek: newLeadsThisWeek ?? 0,
     teamRank,
     nvChallenge,
