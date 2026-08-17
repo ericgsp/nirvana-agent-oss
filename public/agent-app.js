@@ -2441,6 +2441,42 @@
           '<div class="home-box-num">' + followCount + '</div>' +
           '<div class="home-box-cap">Follow Up This Month</div>';
       }
+
+      var rankBox = document.getElementById('home-rank-box');
+      if (rankBox) {
+        if (data.teamRank) {
+          rankBox.innerHTML =
+            '<div class="home-box-rank-fig">#' + data.teamRank.rank + '</div>' +
+            '<div class="home-box-rank-of">of ' + data.teamRank.of + ' in your team</div>' +
+            '<div class="home-box-cap" style="margin-top:4px;">This Month&apos;s Rank</div>';
+        } else {
+          rankBox.innerHTML = '<div class="home-box-cap">This Month&apos;s Rank</div><div class="home-box-rank-of" style="margin-top:6px;">Not enough team data</div>';
+        }
+      }
+
+      var pendingBox = document.getElementById('home-pending-box');
+      if (pendingBox) {
+        pendingBox.innerHTML =
+          '<div class="home-box-num">' + (data.pendingClosesCount || 0) + '</div>' +
+          '<div class="home-box-cap">Pending Closes</div>';
+      }
+
+      var newLeadsBox = document.getElementById('home-newleads-box');
+      if (newLeadsBox) {
+        newLeadsBox.innerHTML =
+          '<div class="home-box-num">' + (data.newLeadsThisWeek || 0) + '</div>' +
+          '<div class="home-box-cap">New Leads This Week</div>';
+      }
+
+      var daysLeftBox = document.getElementById('home-daysleft-box');
+      if (daysLeftBox) {
+        var now = new Date();
+        var lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        var daysLeft = lastDay - now.getDate();
+        daysLeftBox.innerHTML =
+          '<div class="home-box-num">' + daysLeft + '</div>' +
+          '<div class="home-box-cap">Days Left This Month</div>';
+      }
     }).catch(function (err) { dbg('home snapshot failed: ' + err); });
   }
 
@@ -6010,6 +6046,16 @@
         case 'home-followup-box': {
           var _sortSel = document.getElementById('leads-sort');
           if (_sortSel) _sortSel.value = 'next_action';
+          switchTab('leads');
+          if (_leadsLoaded) renderLeadsList();
+          break;
+        }
+        case 'home-pending-box':
+          switchTab('leads');
+          break;
+        case 'home-newleads-box': {
+          var _sortSel2 = document.getElementById('leads-sort');
+          if (_sortSel2) _sortSel2.value = 'recent';
           switchTab('leads');
           if (_leadsLoaded) renderLeadsList();
           break;

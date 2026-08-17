@@ -37,6 +37,7 @@ export async function GET() {
     return Response.json({
       profile: null, goal: null, quotesThisWeek: 0, recentQuotes: [],
       ytdQuota: null, totalQuotesCount: 0, followUpCount: 0,
+      teamRank: null, pendingClosesCount: 0, newLeadsThisWeek: 0,
     });
   }
 
@@ -107,6 +108,49 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(5);
 
+  // Pending closes: quotes not yet marked closed or lost -- still in play.
+  // Status is null until first actioned, so "not closed/lost" must include
+  // null explicitly (a plain NOT IN would silently drop null rows).
+  const { count: pendingClosesCount } = await supabaseAdmin
+    .from("recent_quotes")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .or("status.is.null,status.eq.followup");
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const { count: newLeadsThisWeek } = await supabaseAdmin
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("created_at", weekAgo.toISOString());
+
+  // This month's rank among agents sharing the same leader -- the
+  // "immediate team" a person actually competes with day to day.
+  let teamRank: { rank: number; of: number } | null = null;
+  if (profile?.leader_id) {
+    const { data: siblings } = await supabaseAdmin
+      .from("agent_profiles")
+      .select("user_id")
+      .eq("leader_id", profile.leader_id);
+    const siblingIds = (siblings ?? []).map((s) => s.user_id);
+    if (siblingIds.length > 1) {
+      const { data: siblingSales } = await supabaseAdmin
+        .from("sales_log")
+        .select("user_id, quota_amount, sold_at")
+        .in("user_id", siblingIds)
+        .gte("sold_at", `${period}-01`);
+      const totals: Record<string, number> = {};
+      siblingIds.forEach((id) => { totals[id] = 0; });
+      (siblingSales ?? [])
+        .filter((r) => r.sold_at.slice(0, 7) === period)
+        .forEach((r) => { totals[r.user_id] = (totals[r.user_id] || 0) + Number(r.quota_amount || 0); });
+      const ranked = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+      const idx = ranked.findIndex(([id]) => id === user.id);
+      if (idx >= 0) teamRank = { rank: idx + 1, of: ranked.length };
+    }
+  }
+
   return Response.json({
     profile: profile ? { tier: profile.tier, display_name: profile.display_name } : null,
     goal: goalRow ? { target_amount: goalRow.target_amount, period: goalRow.period, actual_amount: actualAmount } : null,
@@ -114,6 +158,9 @@ export async function GET() {
     quotesThisWeek: quotesThisWeek ?? 0,
     totalQuotesCount: totalQuotesCount ?? 0,
     followUpCount: followUpCount ?? 0,
+    pendingClosesCount: pendingClosesCount ?? 0,
+    newLeadsThisWeek: newLeadsThisWeek ?? 0,
+    teamRank,
     recentQuotes: recentQuotes ?? [],
   });
 }

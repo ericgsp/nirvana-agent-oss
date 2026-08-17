@@ -128,6 +128,9 @@ export default async function AgentPage() {
         .home-box-followup.has-items { border-color: #fca5a5; background: #fef2f2; cursor: pointer; }
         .home-box-followup.has-items .home-box-num { color: #dc2626; }
         .home-box-followup { cursor: pointer; }
+        .home-box-pending, #home-newleads-box { cursor: pointer; }
+        .home-box-rank-fig { font-size: 24px; font-weight: 700; color: ${G_DARK}; }
+        .home-box-rank-of { font-size: 10px; color: #94a3b8; margin-top: 2px; }
 
         #team-scope-banner { margin: 10px 10px 0; padding: 10px 14px; border-radius: 12px; background: #f1f5f9; color: #475569; font-size: 11.5px; font-weight: 600; }
         #team-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -1021,6 +1024,12 @@ export default async function AgentPage() {
 
               <div id="home-recent-quotes-box" className="home-box home-box-plain"></div>
               <button id="home-followup-box" className="home-box home-box-plain"></button>
+
+              <div id="home-rank-box" className="home-box home-box-plain"></div>
+              <button id="home-pending-box" className="home-box home-box-plain home-box-pending"></button>
+
+              <button id="home-newleads-box" className="home-box home-box-plain"></button>
+              <div id="home-daysleft-box" className="home-box home-box-plain"></div>
             </div>
           </div>
 
@@ -1955,7 +1964,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260820a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260820b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
