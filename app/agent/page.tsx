@@ -707,7 +707,8 @@ export default async function AgentPage() {
         #announcement-drawer-close { font-size:22px; line-height:1; color:#94a3b8; background:none; border:none; cursor:pointer; padding:4px; }
         #announcement-scroll { flex:1; overflow-y:auto; padding-bottom:32px; }
         /* ── Activity feed (bell) ── */
-        #btn-activity-feed { position:relative; background:none; border:none; color:#fff; cursor:pointer; padding:4px; flex-shrink:0; touch-action:manipulation; }
+        #btn-activity-feed { position:relative; background:none; border:none; color:#fff; cursor:pointer; padding:4px; flex-shrink:0; touch-action:manipulation; display:flex; align-items:center; }
+        #btn-activity-feed svg { display:block; pointer-events:none; }
         #activity-badge { position:absolute; top:-1px; right:-1px; min-width:15px; height:15px; padding:0 3px; border-radius:999px; background:#dc2626; color:#fff; font-size:9px; font-weight:800; line-height:15px; text-align:center; display:none; pointer-events:none; }
         #activity-badge.show { display:block; }
         #activity-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1100; }
@@ -1023,7 +1024,11 @@ export default async function AgentPage() {
           <button id="btn-share-pdf" className="btn-pdf" style={{ display: "none" }}>💬 Share</button>
           <button id="btn-leads-export" className="btn-pdf" style={{ display: "none" }}>📊 Export</button>
           <button id="btn-activity-feed" className="no-print" aria-label="Activity">
-            🔔<span id="activity-badge"></span>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+            <span id="activity-badge"></span>
           </button>
         </div>
 
@@ -1999,7 +2004,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260821d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260821e" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
