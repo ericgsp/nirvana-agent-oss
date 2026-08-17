@@ -125,6 +125,10 @@ export default async function AgentPage() {
         .home-box-whatsnew .home-box-title { color: #854D0E; }
         .home-box-whatsnew .home-box-sub { color: #8A6A2E; }
         .home-box-quota, .home-box-ytd { background: linear-gradient(150deg, ${G_DARK} 0%, ${G_TEAL} 130%); color: #fff; align-items: flex-start; text-align: left; }
+        .home-box-challenge-progress { grid-column: 1 / -1; background: linear-gradient(120deg, #78350f 0%, #b45309 55%, #f59e0b 130%); color: #fff; align-items: flex-start; text-align: left; }
+        .home-box-challenge-progress .home-box-cap { opacity: 0.85; }
+        .home-box-challenge-progress .home-box-of { opacity: 0.9; }
+        .home-box-challenge-progress .home-box-dates { font-size: 9.5px; opacity: 0.75; margin-top: 2px; }
         .home-box-followup.has-items { border-color: #fca5a5; background: #fef2f2; cursor: pointer; }
         .home-box-followup.has-items .home-box-num { color: #dc2626; }
         .home-box-followup { cursor: pointer; }
@@ -1018,6 +1022,8 @@ export default async function AgentPage() {
                 <div className="home-box-title">What&apos;s New</div>
                 <div className="home-box-sub">This month&apos;s updates</div>
               </button>
+
+              <div id="home-challenge-progress-box" className="home-box home-box-challenge-progress" style={{display:"none"}}></div>
 
               <div id="home-quota-box" className="home-box home-box-quota"></div>
               <div id="home-ytd-quota-box" className="home-box home-box-ytd"></div>
@@ -1964,7 +1970,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260820b" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260820c" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

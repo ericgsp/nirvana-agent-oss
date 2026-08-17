@@ -2394,6 +2394,25 @@
 
   function loadHomeSnapshot() {
     fetch(API_BASE + '/api/agent/home-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      var challengeBox = document.getElementById('home-challenge-progress-box');
+      if (challengeBox) {
+        if (data.nvChallenge) {
+          var ch = data.nvChallenge;
+          var chPct = ch.target > 0 ? Math.min(100, Math.round(ch.actual / ch.target * 100)) : 0;
+          var chStart = new Date(ch.start_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' });
+          var chEnd = new Date(ch.end_date).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' });
+          challengeBox.style.display = '';
+          challengeBox.innerHTML =
+            '<div class="home-box-cap">🏆 ' + esc(ch.title) + '</div>' +
+            '<div class="home-box-actual">RM ' + fmt(ch.actual) + '</div>' +
+            '<div class="home-box-of">of RM ' + fmt(ch.target) + ' challenge target</div>' +
+            '<div class="home-box-dates">' + chStart + ' – ' + chEnd + '</div>' +
+            '<div class="home-box-track"><div style="width:' + chPct + '%"></div></div>';
+        } else {
+          challengeBox.style.display = 'none';
+        }
+      }
+
       var quotaBox = document.getElementById('home-quota-box');
       if (quotaBox) {
         if (data.goal) {

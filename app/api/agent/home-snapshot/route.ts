@@ -38,6 +38,7 @@ export async function GET() {
       profile: null, goal: null, quotesThisWeek: 0, recentQuotes: [],
       ytdQuota: null, totalQuotesCount: 0, followUpCount: 0,
       teamRank: null, pendingClosesCount: 0, newLeadsThisWeek: 0,
+      nvChallenge: null,
     });
   }
 
@@ -151,6 +152,36 @@ export async function GET() {
     }
   }
 
+  // NV Challenge: accumulated quota across the challenge's own date range
+  // (2-3 months), not the calendar-month quota -- a separate figure with
+  // its own target, set by an admin via /nv-challenge.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let nvChallenge: { title: string; start_date: string; end_date: string; target: number; actual: number } | null = null;
+  const { data: activeChallenge } = await supabaseAdmin
+    .from("nv_challenges")
+    .select("title, start_date, end_date, target_amount")
+    .lte("start_date", todayStr)
+    .gte("end_date", todayStr)
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (activeChallenge) {
+    const { data: challengeSales } = await supabaseAdmin
+      .from("sales_log")
+      .select("quota_amount")
+      .eq("user_id", user.id)
+      .gte("sold_at", activeChallenge.start_date)
+      .lte("sold_at", activeChallenge.end_date);
+    const challengeActual = (challengeSales ?? []).reduce((sum, r) => sum + Number(r.quota_amount || 0), 0);
+    nvChallenge = {
+      title: activeChallenge.title,
+      start_date: activeChallenge.start_date,
+      end_date: activeChallenge.end_date,
+      target: Number(activeChallenge.target_amount),
+      actual: challengeActual,
+    };
+  }
+
   return Response.json({
     profile: profile ? { tier: profile.tier, display_name: profile.display_name } : null,
     goal: goalRow ? { target_amount: goalRow.target_amount, period: goalRow.period, actual_amount: actualAmount } : null,
@@ -161,6 +192,7 @@ export async function GET() {
     pendingClosesCount: pendingClosesCount ?? 0,
     newLeadsThisWeek: newLeadsThisWeek ?? 0,
     teamRank,
+    nvChallenge,
     recentQuotes: recentQuotes ?? [],
   });
 }
