@@ -36,6 +36,8 @@ export async function GET() {
     { data: yearSalesRows },
     { data: prevYearlyRow },
     { data: prevYearSalesRows },
+    { data: quotaGoalRow },
+    { data: quotaSalesRows },
   ] = await Promise.all([
     supabaseAdmin
       .from("yearly_sales_goals")
@@ -69,12 +71,35 @@ export async function GET() {
       .eq("user_id", user.id)
       .gte("sold_at", `${currentYear - 1}-01-01`)
       .lte("sold_at", `${currentYear - 1}-12-31`),
+    // Quota -- a separate target/actual from the sales goal above. Actual
+    // is summed from sales_log.quota_amount (only populated for sales
+    // closed after that capture shipped), not sales_log.amount.
+    supabaseAdmin
+      .from("quota_goals")
+      .select("target_amount")
+      .eq("user_id", user.id)
+      .eq("period", period)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("sales_log")
+      .select("quota_amount, sold_at")
+      .eq("user_id", user.id)
+      .gte("sold_at", `${period}-01`),
   ]);
 
   const prevYearGoal = {
     year: currentYear - 1,
     target: prevYearlyRow ? Number(prevYearlyRow.annual_target) : null,
     actual: (prevYearSalesRows ?? []).reduce((sum, r) => sum + Number(r.amount), 0),
+  };
+
+  const quotaActual = (quotaSalesRows ?? [])
+    .filter((r) => r.sold_at.slice(0, 7) === period && r.quota_amount != null)
+    .reduce((sum, r) => sum + Number(r.quota_amount), 0);
+  const quotaGoal = {
+    period,
+    target: quotaGoalRow ? Number(quotaGoalRow.target_amount) : null,
+    actual: quotaActual,
   };
 
   const targetByMonth: Record<string, number> = {};
@@ -165,6 +190,7 @@ export async function GET() {
     yearlyGoal,
     team,
     prevYearGoal,
+    quotaGoal,
   });
 }
 
@@ -192,6 +218,43 @@ export async function POST(req: NextRequest) {
         { user_id: user.id, period, target_amount: targetAmount, set_by: user.id },
         { onConflict: "user_id,period" }
       );
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  // Quota is a separate target from the sales goal above -- own table, own
+  // action, so the two can never accidentally overwrite each other.
+  if (body?.action === "set_quota_goal") {
+    const targetAmount = body?.target_amount;
+    if (typeof targetAmount !== "number" || targetAmount <= 0) {
+      return Response.json({ error: "A positive target_amount is required" }, { status: 400 });
+    }
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const period = currentPeriod();
+    const { error } = await supabaseAdmin
+      .from("quota_goals")
+      .upsert(
+        { user_id: user.id, period, target_amount: targetAmount },
+        { onConflict: "user_id,period" }
+      );
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ ok: true });
+  }
+
+  if (body?.action === "delete_quota_goal") {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return Response.json({ error: "Not logged in" }, { status: 401 });
+
+    const period = currentPeriod();
+    const { error } = await supabaseAdmin
+      .from("quota_goals")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("period", period);
     if (error) return Response.json({ error: error.message }, { status: 500 });
     return Response.json({ ok: true });
   }

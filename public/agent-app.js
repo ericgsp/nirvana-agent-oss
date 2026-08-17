@@ -1160,34 +1160,37 @@
   // prevYearGoal for the one figure nothing else already covers. Moved here
   // from the Team Performance view, since personal performance belongs in
   // Me tab and team performance belongs in Team tab, not mixed together.
+  var _lastQuotaGoalTarget = null;
+
   function renderMeSelfPerfMatrix(data) {
     var el = qs('me-self-perf-matrix');
     if (!el) return;
 
     var now = new Date();
     var curPeriod = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-    var months = (data.yearlyGoal && data.yearlyGoal.months) || [];
-    var monthObj = months.filter(function (m) { return m.period === curPeriod; })[0];
-    var ownMonthActual = monthObj ? monthObj.actual : 0;
-    var ownMonthTarget = (monthObj && monthObj.target > 0) ? monthObj.target : null;
     var yearlyGoal = data.yearlyGoal || {};
     var prevYear = data.prevYearGoal || {};
+    var quotaGoal = data.quotaGoal || {};
     var currentYear = now.getFullYear();
 
     if (!data.yearlyGoal) { el.innerHTML = ''; return; }
 
-    var monthPct = ownMonthTarget ? Math.min(100, Math.round(ownMonthActual / ownMonthTarget * 100)) : 0;
+    var quotaPct = quotaGoal.target ? Math.min(100, Math.round(quotaGoal.actual / quotaGoal.target * 100)) : 0;
+    _lastQuotaGoalTarget = quotaGoal.target;
 
     // "Your Sales" (this month's actual) dropped -- redundant with the
     // yearly goal tracker card just above, which already shows it.
     // "Team Sales" moved back to Team Performance, where team data belongs.
+    // "Your Quota" now tracks the separate Quota goal/actual, not sales.
     el.innerHTML =
       '<div class="tpm-tile tpm-tile-wide">' +
         '<div class="tpm-tile-label">Your Quota · ' + esc(curPeriod) + '</div>' +
-        (ownMonthTarget != null
-          ? '<div class="tpm-compare-row"><span>RM ' + fmt(ownMonthActual) + '</span><span>of RM ' + fmt(ownMonthTarget) + '</span></div>' +
-            '<div class="tpm-track"><div style="width:' + monthPct + '%"></div></div>'
-          : '<div class="tpm-tile-sub">No quota set for this month</div>') +
+        (quotaGoal.target != null
+          ? '<div class="tpm-compare-row"><span>RM ' + fmt(quotaGoal.actual) + '</span><span>of RM ' + fmt(quotaGoal.target) + '</span></div>' +
+            '<div class="tpm-track"><div style="width:' + quotaPct + '%"></div></div>' +
+            '<button class="tpm-quota-edit-btn" id="btn-edit-quota-goal">Edit</button>'
+          : '<div class="tpm-tile-sub">No quota set for this month</div>' +
+            '<button class="tpm-quota-edit-btn" id="btn-set-quota-goal">Set Quota</button>') +
       '</div>' +
       '<div class="tpm-tile tpm-tile-wide">' +
         '<div class="tpm-tile-label">' + currentYear + ' vs ' + (currentYear - 1) + ' Quota</div>' +
@@ -1196,6 +1199,33 @@
         '<div class="tpm-compare-row"><span>' + (currentYear - 1) + ' target</span><span>' + (prevYear.target != null ? 'RM ' + fmt(prevYear.target) : '—') + '</span></div>' +
         '<div class="tpm-compare-row"><span>' + (currentYear - 1) + ' actual</span><span>RM ' + fmt(prevYear.actual || 0) + '</span></div>' +
       '</div>';
+  }
+
+  function openQuotaGoalModal(currentTarget) {
+    var amt = qs('quota-goal-modal-amount');
+    if (amt) amt.value = currentTarget ? currentTarget : '';
+    var backdrop = qs('quota-goal-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closeQuotaGoalModal() {
+    var backdrop = qs('quota-goal-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function confirmQuotaGoal() {
+    var amt = qs('quota-goal-modal-amount');
+    var target = amt ? parseFloat(amt.value) : NaN;
+    if (isNaN(target) || target <= 0) { alert('Enter a valid target amount.'); return; }
+    fetch(API_BASE + '/api/agent/me-snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_quota_goal', target_amount: target }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      closeQuotaGoalModal();
+      loadMeSnapshot();
+    }).catch(function (err) { dbg('set quota goal failed: ' + err); });
   }
 
   // Renders one quote row -- status control, Edit, Delete, closed-item
@@ -5883,6 +5913,19 @@
           break;
         case 'goal-modal-confirm':
           confirmGoal();
+          break;
+        case 'btn-set-quota-goal':
+        case 'btn-edit-quota-goal':
+          openQuotaGoalModal(_lastQuotaGoalTarget);
+          break;
+        case 'quota-goal-modal-cancel':
+          closeQuotaGoalModal();
+          break;
+        case 'quota-goal-modal-backdrop':
+          if (e.target.id === 'quota-goal-modal-backdrop') closeQuotaGoalModal();
+          break;
+        case 'quota-goal-modal-confirm':
+          confirmQuotaGoal();
           break;
         case 'btn-set-yearly-goal':
           openYearlyGoalModal();

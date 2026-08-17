@@ -185,6 +185,7 @@ export default async function AgentPage() {
         .tpm-track { height: 6px; border-radius: 4px; background: #e2e8f0; margin-top: 6px; overflow: hidden; }
         .tpm-track > div { height: 100%; background: ${G_TEAL}; border-radius: 4px; }
         .tpm-compare-row { display: flex; justify-content: space-between; font-size: 11px; color: #475569; margin-top: 4px; }
+        .tpm-quota-edit-btn { margin-top: 8px; padding: 5px 12px; border-radius: 8px; border: none; background: ${G_TEAL}; color: #fff; font-size: 11px; font-weight: 700; }
         .team-row-top { display: flex; align-items: center; gap: 8px; }
         .team-tier-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
         .team-row-name { font-size: 13px; font-weight: 700; color: ${G_DARK}; flex: 1; }
@@ -382,16 +383,16 @@ export default async function AgentPage() {
         #carry-forward-modal-deny { background:#f1f5f9; color:#475569; }
         #carry-forward-modal-accept { background:${G_TEAL}; color:#fff; }
 
-        #goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
-        #goal-modal-backdrop.open { display:flex; }
-        #goal-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
-        #goal-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #goal-modal-backdrop, #quota-goal-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #goal-modal-backdrop.open, #quota-goal-modal-backdrop.open { display:flex; }
+        #goal-modal-box, #quota-goal-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; }
+        #goal-modal-title, #quota-goal-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
         #goal-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
-        #goal-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
-        #goal-modal-actions { display:flex; gap:8px; margin-top:14px; }
-        #goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
-        #goal-modal-cancel { background:#f1f5f9; color:#475569; }
-        #goal-modal-confirm { background:${G_TEAL}; color:#fff; }
+        #goal-modal-amount, #quota-goal-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
+        #goal-modal-actions, #quota-goal-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #goal-modal-actions button, #quota-goal-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #goal-modal-cancel, #quota-goal-modal-cancel { background:#f1f5f9; color:#475569; }
+        #goal-modal-confirm, #quota-goal-modal-confirm { background:${G_TEAL}; color:#fff; }
         .team-set-goal-btn { flex-shrink: 0; padding: 4px 10px; border-radius: 999px; border: 1px solid ${G_TEAL}; background: transparent; color: ${G_TEAL}; font-size: 10.5px; font-weight: 700; }
         .avail-banner { display: flex; align-items: center; gap: 10px; margin: 8px 10px 0; padding: 9px 13px; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(7,94,84,0.3); text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-appearance: none; box-sizing: border-box; width: calc(100% - 20px); }
         .avail-banner:active { opacity: 0.88; }
@@ -1739,6 +1740,21 @@ export default async function AgentPage() {
         </div>
       </div>
 
+      {/* Quota goal modal — Me tab. Separate target from the Sales Goal
+          above: net pre_need_price minus discount/trust/backwall, not the
+          quotation total. */}
+      <div id="quota-goal-modal-backdrop">
+        <div id="quota-goal-modal-box">
+          <div id="quota-goal-modal-title">Set Monthly Quota</div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>Target amount (RM)</div>
+          <input id="quota-goal-modal-amount" type="number" inputMode="decimal" placeholder="0.00" />
+          <div id="quota-goal-modal-actions">
+            <button id="quota-goal-modal-cancel">Cancel</button>
+            <button id="quota-goal-modal-confirm">Save Quota</button>
+          </div>
+        </div>
+      </div>
+
       {/* Mark as Sold modal — Me tab. Shows a checklist (pick which quoted
           items were actually sold, amount sums itself) when the quote has
           itemized data; falls back to the original manual amount entry for
@@ -1936,7 +1952,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260819b" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260819c" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
