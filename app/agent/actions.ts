@@ -475,16 +475,33 @@ export async function logQuoteView(
 // never an arbitrary user_id from the client.
 export async function markSold(
   quotationRef: string, amount: number, soldAt?: string,
-  closedItems?: { label: string; amount: number; instalMonths?: number }[]
+  closedItems?: {
+    label: string; amount: number; instalMonths?: number;
+    preNeedPrice?: number; trust?: number; backwall?: number;
+    discPct?: number; discRm?: number;
+  }[]
 ) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: "Not logged in" };
 
+  // Quota is a different figure from the sales amount: pre_need_price minus
+  // discount minus trust minus backwall (backwall is naturally 0 for
+  // non-land items, so one formula covers both without branching on
+  // category). Distinct from PV -- confirmed these are separate fields,
+  // not interchangeable, before building this.
+  const quotaAmount = (closedItems ?? []).reduce((sum, it) => {
+    let net = (it.preNeedPrice || 0) - (it.trust || 0) - (it.backwall || 0);
+    if (it.discRm) net -= it.discRm;
+    else if (it.discPct) net -= net * (it.discPct / 100);
+    return sum + net;
+  }, 0);
+
   await supabaseAdmin.from("sales_log").insert({
     user_id: user.id,
     quotation_ref: quotationRef,
     amount,
+    quota_amount: closedItems && closedItems.length ? quotaAmount : null,
     sold_at: soldAt ?? new Date().toISOString().slice(0, 10),
     recorded_by: user.id,
   });
