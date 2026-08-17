@@ -62,6 +62,7 @@ export default async function AgentPage() {
         #phone { width: 100%; max-width: 430px; height: 100%; margin: 0 auto; background: #f0f2f5; display: flex; flex-direction: column; position: relative; }
         #topbar { background: ${G_DARK}; color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 30; box-shadow: 0 2px 8px rgba(0,0,0,0.25); flex-shrink: 0; }
         #topbar h1 { font-size: 16px; font-weight: 700; flex: 1; }
+        #topbar-days-left { font-size: 10.5px; font-weight: 700; background: rgba(255,255,255,0.16); border-radius: 999px; padding: 4px 10px; white-space: nowrap; flex-shrink: 0; }
         #btn-menu { background: none; border: none; color: #fff; cursor: pointer; padding: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; flex-shrink: 0; touch-action: manipulation; }
         #btn-menu span { display: block; width: 18px; height: 2px; background: #fff; border-radius: 1px; }
         #side-menu-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 90; display: none; }
@@ -996,7 +997,8 @@ export default async function AgentPage() {
               <span className="menu-icon">🚪</span>Log Out
             </button>
           </div>
-          <h1 id="topbar-title">Summary</h1>
+          <h1 id="topbar-title">Home</h1>
+          <span id="topbar-days-left" style={{display:"none"}}></span>
           <button id="btn-pdf" className="btn-pdf" style={{ display: "none" }}>🖨 Print</button>
           <button id="btn-share-pdf" className="btn-pdf" style={{ display: "none" }}>💬 Share</button>
           <button id="btn-leads-export" className="btn-pdf" style={{ display: "none" }}>📊 Export</button>
@@ -1035,7 +1037,6 @@ export default async function AgentPage() {
               <button id="home-pending-box" className="home-box home-box-plain home-box-pending"></button>
 
               <button id="home-newleads-box" className="home-box home-box-plain"></button>
-              <div id="home-daysleft-box" className="home-box home-box-plain"></div>
             </div>
           </div>
 
@@ -1970,7 +1971,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260820c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260820d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

@@ -1060,6 +1060,17 @@
     });
     var titleEl = qs('topbar-title');
     if (titleEl) titleEl.textContent = TAB_TITLES[name] || 'Home';
+    var daysLeftEl = qs('topbar-days-left');
+    if (daysLeftEl) {
+      if (name === 'home') {
+        var _now = new Date();
+        var _lastDay = new Date(_now.getFullYear(), _now.getMonth() + 1, 0).getDate();
+        daysLeftEl.textContent = (_lastDay - _now.getDate()) + ' days left';
+        daysLeftEl.style.display = '';
+      } else {
+        daysLeftEl.style.display = 'none';
+      }
+    }
     var scrollBody = document.getElementById('scroll-body');
     if (scrollBody) scrollBody.scrollTop = 0;
     if (name === 'home' && !_homeSnapshotLoaded) {
@@ -2487,15 +2498,6 @@
           '<div class="home-box-cap">New Leads This Week</div>';
       }
 
-      var daysLeftBox = document.getElementById('home-daysleft-box');
-      if (daysLeftBox) {
-        var now = new Date();
-        var lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        var daysLeft = lastDay - now.getDate();
-        daysLeftBox.innerHTML =
-          '<div class="home-box-num">' + daysLeft + '</div>' +
-          '<div class="home-box-cap">Days Left This Month</div>';
-      }
     }).catch(function (err) { dbg('home snapshot failed: ' + err); });
   }
 
