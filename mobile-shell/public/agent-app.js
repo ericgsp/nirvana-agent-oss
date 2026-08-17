@@ -1160,38 +1160,83 @@
     }).catch(function (err) { dbg('me snapshot failed: ' + err); });
   }
 
-  // Your sales this month, your team's sales this month, your quota, and a
-  // this-year-vs-last-year comparison -- built entirely from data me-snapshot
-  // already fetches (yearlyGoal's month breakdown + team totals), plus
-  // prevYearGoal for the one figure nothing else already covers. Moved here
-  // from the Team Performance view, since personal performance belongs in
-  // Me tab and team performance belongs in Team tab, not mixed together.
-  // "Your Sales" and "Your Quota" tiles both dropped from here: Your Sales
-  // was redundant with the yearly goal card above (which now tracks Quota
-  // directly, not a separate figure), and the standalone Quota goal/modal
-  // system was removed in favor of repurposing sales_goals/yearly_sales_goals
-  // to mean Quota outright -- one goal system, not two running in parallel.
-  // "Team Sales"/"Team Quota" moved back to Team Performance, where team
-  // data belongs. Only the year-over-year comparison stays here.
+  // Year-over-year quota trend -- a line chart comparing monthly quota
+  // actuals between a selected year and the one before it, as a simple
+  // performance indicator (not a goal-comparison figure). Only shown once
+  // a yearly quota exists, same gate as before.
   function renderMeSelfPerfMatrix(data) {
     var el = qs('me-self-perf-matrix');
     if (!el) return;
 
-    var yearlyGoal = data.yearlyGoal || {};
-    var prevYear = data.prevYearGoal || {};
-    var now = new Date();
-    var currentYear = now.getFullYear();
-
     if (!data.yearlyGoal) { el.innerHTML = ''; return; }
 
+    var currentYear = new Date().getFullYear();
+    var years = [currentYear, currentYear - 1, currentYear - 2];
     el.innerHTML =
       '<div class="tpm-tile tpm-tile-wide">' +
-        '<div class="tpm-tile-label">' + currentYear + ' vs ' + (currentYear - 1) + ' Quota</div>' +
-        '<div class="tpm-compare-row"><span>' + currentYear + ' target</span><span>' + (yearlyGoal.yearlyTarget ? 'RM ' + fmt(yearlyGoal.yearlyTarget) : '—') + '</span></div>' +
-        '<div class="tpm-compare-row"><span>' + currentYear + ' actual</span><span>RM ' + fmt(yearlyGoal.yearlyActual || 0) + '</span></div>' +
-        '<div class="tpm-compare-row"><span>' + (currentYear - 1) + ' target</span><span>' + (prevYear.target != null ? 'RM ' + fmt(prevYear.target) : '—') + '</span></div>' +
-        '<div class="tpm-compare-row"><span>' + (currentYear - 1) + ' actual</span><span>RM ' + fmt(prevYear.actual || 0) + '</span></div>' +
+        '<div class="tpm-tile-label">Quota trend</div>' +
+        '<div class="qtrend-year-btns">' +
+          years.map(function (y, i) {
+            return '<button class="qtrend-year-btn' + (i === 0 ? ' active' : '') + '" data-base-year="' + y + '">' + y + ' vs ' + (y - 1) + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div id="qtrend-chart"></div>' +
+        '<div class="qtrend-legend">' +
+          '<span class="qtrend-legend-item"><span class="qtrend-swatch qtrend-swatch-now"></span>' + currentYear + '</span>' +
+          '<span class="qtrend-legend-item"><span class="qtrend-swatch qtrend-swatch-prev"></span>' + (currentYear - 1) + '</span>' +
+        '</div>' +
       '</div>';
+    loadQuotaHistory(currentYear);
+  }
+
+  function loadQuotaHistory(baseYear) {
+    var chartEl = qs('qtrend-chart');
+    if (chartEl) chartEl.innerHTML = '<div class="home-empty">Loading…</div>';
+    fetch(API_BASE + '/api/agent/quota-history?baseYear=' + baseYear).then(function (res) { return res.json(); }).then(function (data) {
+      renderQuotaChart(data.pairs || []);
+      var legend = document.querySelectorAll('.qtrend-legend-item');
+      if (legend[0]) legend[0].lastChild.textContent = ' ' + baseYear;
+      if (legend[1]) legend[1].lastChild.textContent = ' ' + (baseYear - 1);
+    }).catch(function (err) { dbg('quota history fetch failed: ' + err); });
+  }
+
+  // Plain SVG polylines -- no charting library in this app. Two lines (this
+  // year, prior year) across 12 months, y-scaled to whichever pair has the
+  // higher peak so both are readable on the same axis.
+  function renderQuotaChart(pairs) {
+    var chartEl = qs('qtrend-chart');
+    if (!chartEl) return;
+    var nowPair = pairs[0] || { months: new Array(12).fill(0) };
+    var prevPair = pairs[1] || { months: new Array(12).fill(0) };
+    var allValues = nowPair.months.concat(prevPair.months);
+    var maxVal = Math.max.apply(null, allValues.concat([1])); // avoid /0
+
+    var W = 300, H = 110, padL = 4, padR = 4, padT = 8, padB = 16;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    function xAt(i) { return padL + (plotW * i) / 11; }
+    function yAt(v) { return padT + plotH - (plotH * v) / maxVal; }
+
+    function pathFor(months) {
+      return months.map(function (v, i) { return (i === 0 ? 'M' : 'L') + xAt(i).toFixed(1) + ',' + yAt(v).toFixed(1); }).join(' ');
+    }
+    function dotsFor(months, cls) {
+      return months.map(function (v, i) {
+        return '<circle class="' + cls + '" cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(v).toFixed(1) + '" r="2.2"></circle>';
+      }).join('');
+    }
+    var monthLabels = MONTH_ABBR.map(function (m, i) {
+      return '<text class="qtrend-axis-label" x="' + xAt(i).toFixed(1) + '" y="' + (H - 2) + '" text-anchor="middle">' + m.charAt(0) + '</text>';
+    }).join('');
+
+    chartEl.innerHTML =
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" class="qtrend-svg" preserveAspectRatio="none">' +
+        '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (padL + plotW) + '" y2="' + (padT + plotH) + '" class="qtrend-axis-line"></line>' +
+        '<path d="' + pathFor(prevPair.months) + '" class="qtrend-line qtrend-line-prev"></path>' +
+        '<path d="' + pathFor(nowPair.months) + '" class="qtrend-line qtrend-line-now"></path>' +
+        dotsFor(prevPair.months, 'qtrend-dot-prev') +
+        dotsFor(nowPair.months, 'qtrend-dot-now') +
+        monthLabels +
+      '</svg>';
   }
 
   // Renders one quote row -- status control, Edit, Delete, closed-item
@@ -5698,6 +5743,15 @@
       // "Suggest Products" toggle on a lead row (Leads tab)
       var suggestLeadBtn = e.target && e.target.closest && e.target.closest('.lead-suggest-toggle');
       if (suggestLeadBtn) { toggleLeadSuggestions(suggestLeadBtn.dataset.id); return; }
+
+      // Year-pair switch on the Quota trend chart (Me tab)
+      var yearBtn = e.target && e.target.closest && e.target.closest('.qtrend-year-btn');
+      if (yearBtn) {
+        document.querySelectorAll('.qtrend-year-btn').forEach(function (b) { b.classList.remove('active'); });
+        yearBtn.classList.add('active');
+        loadQuotaHistory(parseInt(yearBtn.dataset.baseYear, 10));
+        return;
+      }
 
       // Tapping a month in the yearly-goal mini bar chart (Me tab)
       var monthBarCol = e.target && e.target.closest && e.target.closest('.mgc-bar-col');
