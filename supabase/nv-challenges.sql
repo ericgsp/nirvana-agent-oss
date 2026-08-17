@@ -10,4 +10,6 @@ CREATE TABLE IF NOT EXISTS nv_challenges (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+GRANT ALL ON TABLE nv_challenges TO service_role;
+
 CREATE INDEX IF NOT EXISTS nv_challenges_dates_idx ON nv_challenges (start_date, end_date);
