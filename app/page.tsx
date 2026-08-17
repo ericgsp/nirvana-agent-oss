@@ -47,6 +47,11 @@ const cards = [
     highlight: "amber",
   },
   {
+    title: "NV Challenge",
+    href: "/nv-challenge",
+    description: "Set the current NV Challenge's date range and target quota — agents see their accumulated progress toward it on the Home tab.",
+  },
+  {
     title: "User Management",
     href: "/users",
     description: "Manage who can access this admin app and the agent app — assign Admin or Agent roles to each user.",
