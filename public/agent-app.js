@@ -1082,6 +1082,8 @@
       _leadsLoaded = true;
       loadLeadsSnapshot();
     }
+    var exportBtn = qs('btn-leads-export');
+    if (exportBtn) exportBtn.style.display = name === 'leads' ? '' : 'none';
   }
 
   var MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1955,6 +1957,54 @@
   }
 
   var LEAD_LABELS = { prospect: 'Prospect', hot: 'Hot Lead', cold: 'Cold Lead', customer: 'Customer' };
+  var QUOTE_STATUS_LABELS = { followup: 'Follow-up', lost: 'Lost Sales', closed: 'Close Sales' };
+
+  function csvField(v) {
+    var s = v == null ? '' : String(v);
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+
+  // One row per lead, or per lead-quote pair if they have quotes -- opens
+  // directly as real spreadsheet data in Excel/Google Sheets, not just a
+  // printed table, since some agents specifically work that way.
+  function exportLeadsCsv() {
+    var header = ['Lead Name', 'Phone', 'Label', 'Next Follow-up', 'Notes',
+      'Quote Site', 'Quote Zone/Product', 'Quote Lot/Section', 'Quote Price (RM)',
+      'Quote Date', 'Valid Until', 'Quote Status'];
+    var rows = [header];
+
+    _leadsCache.forEach(function (l) {
+      var base = [
+        l.name || '', l.phone || '', LEAD_LABELS[l.label] || l.label || '',
+        l.next_action_date || '', l.notes || '',
+      ];
+      var quotes = l.quotes || [];
+      if (!quotes.length) {
+        rows.push(base.concat(['', '', '', '', '', '', '']));
+        return;
+      }
+      quotes.forEach(function (q) {
+        var dateStr = q.created_at ? new Date(q.created_at).toLocaleDateString('en-MY') : '';
+        var validStr = q.valid_until ? new Date(q.valid_until).toLocaleDateString('en-MY') : '';
+        var statusStr = QUOTE_STATUS_LABELS[q.status || 'followup'] || q.status || '';
+        rows.push(base.concat([
+          q.site || '', q.product || '', q.section || '', q.net_total || 0,
+          dateStr, validStr, statusStr,
+        ]));
+      });
+    });
+
+    var csv = rows.map(function (row) { return row.map(csvField).join(','); }).join('\r\n');
+    var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'leads-report-' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
 
   function renderLeadsList() {
     var listEl = document.getElementById('leads-list');
@@ -5880,6 +5930,9 @@
           break;
         case 'btn-share-pdf':
           openCustomerInfoModal();
+          break;
+        case 'btn-leads-export':
+          exportLeadsCsv();
           break;
         case 'customer-info-modal-cancel':
         case 'customer-info-modal-backdrop':
