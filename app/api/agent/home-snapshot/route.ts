@@ -27,6 +27,12 @@ function endOfMonth() {
   return d.toISOString().slice(0, 10);
 }
 
+function daysBetween(fromStr: string, toStr: string) {
+  const from = new Date(fromStr + "T00:00:00");
+  const to = new Date(toStr + "T00:00:00");
+  return Math.round((to.getTime() - from.getTime()) / 86400000);
+}
+
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -38,7 +44,7 @@ export async function GET() {
       profile: null, goal: null, quotesThisWeek: 0, recentQuotes: [],
       ytdQuota: null, totalQuotesCount: 0, followUpCount: 0,
       teamRank: null, pendingClosesCount: 0, newLeadsThisWeek: 0,
-      nvChallenge: null,
+      nvChallenge: null, daysLeft: null, cycleTotalDays: null,
     });
   }
 
@@ -46,6 +52,19 @@ export async function GET() {
 
   const period = currentPeriod();
   const year = new Date().getFullYear();
+
+  // Sales cycle closing date: admin-set per period, defaults to calendar
+  // month-end (the company sometimes extends it, so this can't be a fixed
+  // day-of-month constant).
+  const { data: closingRow } = await supabaseAdmin
+    .from("sales_cycle_closing")
+    .select("closing_date")
+    .eq("period", period)
+    .maybeSingle();
+  const closingDate = closingRow ? closingRow.closing_date : endOfMonth();
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const daysLeft = Math.max(0, daysBetween(todayIso, closingDate));
+  const cycleTotalDays = Math.max(1, daysBetween(`${period}-01`, closingDate));
   const { data: goalRow } = await supabaseAdmin
     .from("sales_goals")
     .select("target_amount, period")
@@ -186,6 +205,8 @@ export async function GET() {
     profile: profile ? { tier: profile.tier, display_name: profile.display_name } : null,
     goal: goalRow ? { target_amount: goalRow.target_amount, period: goalRow.period, actual_amount: actualAmount } : null,
     ytdQuota: { actual: ytdQuota, target: yearlyRow ? Number(yearlyRow.annual_target) : null, year },
+    daysLeft,
+    cycleTotalDays,
     quotesThisWeek: quotesThisWeek ?? 0,
     totalQuotesCount: totalQuotesCount ?? 0,
     followUpCount: followUpCount ?? 0,

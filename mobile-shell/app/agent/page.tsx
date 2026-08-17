@@ -55,7 +55,10 @@ export default function AgentPage() {
         #phone { width: 100%; max-width: 430px; height: 100%; margin: 0 auto; background: #f0f2f5; display: flex; flex-direction: column; position: relative; }
         #topbar { background: ${G_DARK}; color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 30; box-shadow: 0 2px 8px rgba(0,0,0,0.25); flex-shrink: 0; }
         #topbar h1 { font-size: 16px; font-weight: 700; flex: 1; }
-        #topbar-days-left { font-size: 10.5px; font-weight: 700; background: rgba(255,255,255,0.16); border-radius: 999px; padding: 4px 10px; white-space: nowrap; flex-shrink: 0; }
+        #topbar-days-left { font-size: 10.5px; font-weight: 700; color: #fff; border-radius: 999px; padding: 4px 10px; white-space: nowrap; flex-shrink: 0; }
+        #topbar-days-left.dl-blue { background: #2563EB; }
+        #topbar-days-left.dl-amber { background: #d97706; }
+        #topbar-days-left.dl-red { background: #dc2626; }
         #btn-menu { background: none; border: none; color: #fff; cursor: pointer; padding: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; flex-shrink: 0; touch-action: manipulation; }
         #btn-menu span { display: block; width: 18px; height: 2px; background: #fff; border-radius: 1px; }
         #side-menu-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 90; display: none; }
@@ -1960,7 +1963,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260820d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260820e" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

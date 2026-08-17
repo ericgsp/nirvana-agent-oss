@@ -1061,16 +1061,7 @@
     var titleEl = qs('topbar-title');
     if (titleEl) titleEl.textContent = TAB_TITLES[name] || 'Home';
     var daysLeftEl = qs('topbar-days-left');
-    if (daysLeftEl) {
-      if (name === 'home') {
-        var _now = new Date();
-        var _lastDay = new Date(_now.getFullYear(), _now.getMonth() + 1, 0).getDate();
-        daysLeftEl.textContent = (_lastDay - _now.getDate()) + ' days left';
-        daysLeftEl.style.display = '';
-      } else {
-        daysLeftEl.style.display = 'none';
-      }
-    }
+    if (daysLeftEl) daysLeftEl.style.display = (name === 'home') ? '' : 'none';
     var scrollBody = document.getElementById('scroll-body');
     if (scrollBody) scrollBody.scrollTop = 0;
     if (name === 'home' && !_homeSnapshotLoaded) {
@@ -2405,6 +2396,14 @@
 
   function loadHomeSnapshot() {
     fetch(API_BASE + '/api/agent/home-snapshot').then(function (res) { return res.json(); }).then(function (data) {
+      var daysLeftEl = document.getElementById('topbar-days-left');
+      if (daysLeftEl && data.daysLeft != null && data.cycleTotalDays) {
+        var remainingRatio = data.daysLeft / data.cycleTotalDays;
+        var dlBand = remainingRatio > 0.5 ? 'dl-blue' : remainingRatio > 0.2 ? 'dl-amber' : 'dl-red';
+        daysLeftEl.className = dlBand;
+        daysLeftEl.textContent = data.daysLeft + (data.daysLeft === 1 ? ' day left' : ' days left');
+      }
+
       var challengeBox = document.getElementById('home-challenge-progress-box');
       if (challengeBox) {
         if (data.nvChallenge) {
