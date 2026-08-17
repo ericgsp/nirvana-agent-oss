@@ -1995,11 +1995,35 @@
     });
 
     var csv = rows.map(function (row) { return row.map(csvField).join(','); }).join('\r\n');
+    var filename = 'leads-report-' + new Date().toISOString().slice(0, 10) + '.csv';
+
+    // A plain <a download> click is a no-op inside a bare Capacitor WebView
+    // (no browser download manager to catch it) -- write the file to the
+    // app's cache via the Filesystem plugin, then hand it to the native
+    // Share sheet so the agent can save it to Drive, email it, or open it
+    // straight in a spreadsheet app.
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      var Filesystem = window.Capacitor.Plugins.Filesystem;
+      var Share = window.Capacitor.Plugins.Share;
+      if (Filesystem && Share) {
+        Filesystem.writeFile({ path: filename, data: '﻿' + csv, directory: 'CACHE', encoding: 'utf8' })
+          .then(function (result) {
+            return Share.share({ title: 'Leads Report', url: result.uri });
+          })
+          .catch(function (err) {
+            dbg('export csv failed: ' + (err && err.message ? err.message : err));
+            alert('Could not export CSV: ' + (err && err.message ? err.message : err));
+          });
+        return;
+      }
+    }
+
+    // Web preview fallback (not used inside the installed app).
     var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'leads-report-' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
