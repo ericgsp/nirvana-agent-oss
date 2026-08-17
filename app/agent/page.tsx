@@ -1019,12 +1019,12 @@ export default async function AgentPage() {
           </div>
           <h1 id="topbar-title">Home</h1>
           <span id="topbar-days-left" style={{display:"none"}}></span>
-          <button id="btn-activity-feed" className="no-print" aria-label="Activity">
-            🔔<span id="activity-badge"></span>
-          </button>
           <button id="btn-pdf" className="btn-pdf" style={{ display: "none" }}>🖨 Print</button>
           <button id="btn-share-pdf" className="btn-pdf" style={{ display: "none" }}>💬 Share</button>
           <button id="btn-leads-export" className="btn-pdf" style={{ display: "none" }}>📊 Export</button>
+          <button id="btn-activity-feed" className="no-print" aria-label="Activity">
+            🔔<span id="activity-badge"></span>
+          </button>
         </div>
 
         <div id="scroll-body">
@@ -1999,7 +1999,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260821c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260821d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
