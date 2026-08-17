@@ -176,6 +176,7 @@ export default async function AgentPage() {
         .team-perf-status-active { color: #16a34a; font-weight: 700; }
         .team-perf-status-inactive { color: #94a3b8; }
         #me-self-perf-matrix { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 10px 10px; }
+        #team-perf-sales-tile { padding: 10px 14px 0; flex-shrink: 0; }
         .tpm-tile { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; }
         .tpm-tile-label { font-size: 9.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
         .tpm-tile-value { font-size: 16px; font-weight: 800; color: ${G_DARK}; margin-top: 3px; }
@@ -1158,6 +1159,7 @@ export default async function AgentPage() {
               <span id="team-perf-title">Team Performance</span>
               <button id="team-perf-print" className="btn-pdf">🖨 Print</button>
             </div>
+            <div id="team-perf-sales-tile"></div>
             <div id="team-perf-controls" className="no-print">
               <input id="team-perf-search" type="text" placeholder="Search name or agent code…" />
               <select id="team-perf-tier-filter">
@@ -1934,7 +1936,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260819a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260819b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

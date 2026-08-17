@@ -1170,24 +1170,18 @@
     var monthObj = months.filter(function (m) { return m.period === curPeriod; })[0];
     var ownMonthActual = monthObj ? monthObj.actual : 0;
     var ownMonthTarget = (monthObj && monthObj.target > 0) ? monthObj.target : null;
-    var teamMonthActual = data.team ? data.team.actualTotal : 0;
     var yearlyGoal = data.yearlyGoal || {};
     var prevYear = data.prevYearGoal || {};
     var currentYear = now.getFullYear();
 
-    if (!data.yearlyGoal && !data.team) { el.innerHTML = ''; return; }
+    if (!data.yearlyGoal) { el.innerHTML = ''; return; }
 
     var monthPct = ownMonthTarget ? Math.min(100, Math.round(ownMonthActual / ownMonthTarget * 100)) : 0;
 
+    // "Your Sales" (this month's actual) dropped -- redundant with the
+    // yearly goal tracker card just above, which already shows it.
+    // "Team Sales" moved back to Team Performance, where team data belongs.
     el.innerHTML =
-      '<div class="tpm-tile">' +
-        '<div class="tpm-tile-label">Your Sales · ' + esc(curPeriod) + '</div>' +
-        '<div class="tpm-tile-value">RM ' + fmt(ownMonthActual) + '</div>' +
-      '</div>' +
-      '<div class="tpm-tile">' +
-        '<div class="tpm-tile-label">Team Sales · ' + esc(curPeriod) + '</div>' +
-        '<div class="tpm-tile-value">RM ' + fmt(teamMonthActual) + '</div>' +
-      '</div>' +
       '<div class="tpm-tile tpm-tile-wide">' +
         '<div class="tpm-tile-label">Your Quota · ' + esc(curPeriod) + '</div>' +
         (ownMonthTarget != null
@@ -1394,6 +1388,7 @@
       items.push({
         label: q.lotCode || '', amount: amt,
         pv: (q.levelData && q.levelData.point_value) || 0,
+        preNeedPrice: (q.levelData && q.levelData.pre_need_price) || 0,
         trust: (q.levelData && q.levelData.trust_account_facility) || 0,
         backwall: (q.levelData && q.levelData.backwall_cost) || 0,
         category: (q.levelData && q.levelData.product_category) || '',
@@ -1516,7 +1511,7 @@
         var itLabel = it.label || ('Item ' + (i + 1));
         return '<label class="sold-item-row">'
           + '<input type="checkbox" class="sold-item-check" data-amt="' + (it.amount || 0) + '" data-label="' + esc(itLabel)
-          + '" data-pv="' + (it.pv || 0) + '" data-trust="' + (it.trust || 0) + '" data-backwall="' + (it.backwall || 0)
+          + '" data-pv="' + (it.pv || 0) + '" data-pre-need-price="' + (it.preNeedPrice || 0) + '" data-trust="' + (it.trust || 0) + '" data-backwall="' + (it.backwall || 0)
           + '" data-category="' + esc(it.category || '') + '" data-disc-pct="' + (it.discPct || 0) + '" data-disc-rm="' + (it.discRm || 0)
           + '" data-instal-months="' + (it.instalMonths || 0) + '"'
           + ' checked />'
@@ -1568,6 +1563,7 @@
         closedItems.push({
           label: cb.dataset.label || '', amount: amt,
           pv: parseFloat(cb.dataset.pv) || 0,
+          preNeedPrice: parseFloat(cb.dataset.preNeedPrice) || 0,
           trust: parseFloat(cb.dataset.trust) || 0,
           backwall: parseFloat(cb.dataset.backwall) || 0,
           category: cb.dataset.category || '',
@@ -1861,7 +1857,23 @@
   function openTeamPerfView() {
     var view = qs('team-perf-view');
     if (view) view.classList.add('open');
+    renderTeamPerfSalesTile();
     renderTeamPerfTable();
+  }
+
+  // Team's combined sales this period -- lives here, not Me tab, since it's
+  // team data, not personal data. Summed from the same performance rows the
+  // table below already has, no extra fetch needed.
+  function renderTeamPerfSalesTile() {
+    var el = qs('team-perf-sales-tile');
+    if (!el) return;
+    var now = new Date();
+    var curPeriod = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    var teamMonthActual = _teamPerfCache.reduce(function (sum, p) { return sum + (p.actual_amount || 0); }, 0);
+    el.innerHTML = '<div class="tpm-tile">' +
+      '<div class="tpm-tile-label">Team Sales · ' + esc(curPeriod) + '</div>' +
+      '<div class="tpm-tile-value">RM ' + fmt(teamMonthActual) + '</div>' +
+    '</div>';
   }
 
   function closeTeamPerfView() {
