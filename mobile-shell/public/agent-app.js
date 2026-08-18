@@ -2550,6 +2550,23 @@
     document.getElementById('activity-drawer').classList.remove('open');
   }
 
+  // Hides the native splash screen once Home has actually been painted --
+  // launchAutoHide is off (capacitor.config.ts) specifically so this fires
+  // after real content is on screen instead of on a fixed timer, which
+  // could otherwise reveal a blank WebView for a moment. Double rAF makes
+  // sure a paint has actually happened before hiding, not just that the DOM
+  // was updated. No-ops on web (native-only).
+  function hideSplashScreen() {
+    if (!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) return;
+    var SplashScreen = window.Capacitor.Plugins.SplashScreen;
+    if (!SplashScreen) return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        SplashScreen.hide().catch(function (err) { dbg('splash hide failed: ' + err); });
+      });
+    });
+  }
+
   // Real push notifications (phase 2 of the activity feature) -- registers
   // this device with FCM and hands the resulting token to the server so it
   // knows where to send future pushes. No-ops entirely on web (native-only).
@@ -5541,6 +5558,7 @@
     switchTab('home');
     loadActivityBadge();
     setupPushNotifications();
+    hideSplashScreen();
 
     // Column visibility toggle — checkbox per column in the quotation table
     document.addEventListener('change', function (e) {

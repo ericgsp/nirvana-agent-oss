@@ -15,6 +15,15 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
   },
+  plugins: {
+    // Keep the native splash up until agent-app.js explicitly hides it
+    // (after Home has actually painted) -- the default auto-hide timing
+    // can hide the splash before the WebView has anything to show yet,
+    // producing a blank flash in between.
+    SplashScreen: {
+      launchAutoHide: false,
+    },
+  },
 };
 
 export default config;
