@@ -755,6 +755,7 @@ export async function GET(request: NextRequest) {
     groupMap[key].push(r);
   });
 
+  const _debugWrites: PromiseLike<unknown>[] = [];
   const levels = Object.entries(groupMap).map(([groupKey, rows]) => {
     // When agent selects a specific niche lot, niche_section is passed so we use a row
     // from that exact section as rep — avoids lot_range mismatch when a section group
@@ -783,7 +784,7 @@ export async function GET(request: NextRequest) {
     } : null, site, rep.product_category);
 
     if (product === "NLP") {
-      supabaseAdmin.from("debug_logs").insert({
+      _debugWrites.push(supabaseAdmin.from("debug_logs").insert({
         tag: "nlp-pricing",
         payload: {
           site, product, section, groupKey, preNeed,
@@ -791,7 +792,7 @@ export async function GET(request: NextRequest) {
           rep_lot_section: rep.lot_section, rep_niche_section: rep.niche_section,
           resolvedPromo,
         },
-      }).then(() => {});
+      }));
     }
 
     return {
@@ -812,6 +813,11 @@ export async function GET(request: NextRequest) {
       available_count:        rows.length,
     };
   });
+
+  // Serverless functions can be torn down the instant the response is sent,
+  // before a fire-and-forget insert's HTTP request to Supabase completes --
+  // must await these before returning or the debug rows never actually land.
+  if (_debugWrites.length) await Promise.all(_debugWrites);
 
   levels.sort((a: any, b: any) => {
     if (!isBurial) {
