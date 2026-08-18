@@ -488,12 +488,13 @@ export async function markSold(
   if (!user) return { ok: false as const, error: "Not logged in" };
 
   // Quota is a different figure from the sales amount: pre_need_price minus
-  // discount minus trust minus backwall (backwall is naturally 0 for
-  // non-land items, so one formula covers both without branching on
-  // category). Distinct from PV -- confirmed these are separate fields,
-  // not interchangeable, before building this.
+  // the discount (flat RM or %), applied the same way across Niche, Land,
+  // and NLP. No trust/backwall deduction -- confirmed the previous formula
+  // (which also subtracted trust and backwall) was wrong; more category-
+  // specific rules may be added later as they're confirmed, this is the
+  // simple correct baseline for now.
   const quotaAmount = (closedItems ?? []).reduce((sum, it) => {
-    let net = (it.preNeedPrice || 0) - (it.trust || 0) - (it.backwall || 0);
+    let net = it.preNeedPrice || 0;
     if (it.discRm) net -= it.discRm;
     else if (it.discPct) net -= net * (it.discPct / 100);
     return sum + net;
