@@ -1160,6 +1160,70 @@
 
       renderMeSelfPerfMatrix(data);
     }).catch(function (err) { dbg('me snapshot failed: ' + err); });
+
+    loadMySales();
+  }
+
+  var _mySalesCache = [];
+  var _mySalesTotals = { totalAmount: 0, totalQuota: 0 };
+  var _mySalesSortCol = 'soldAt';
+  var _mySalesSortDir = 'desc';
+
+  // "My Sales" -- every closed sale for this agent in one table, since
+  // closed sales otherwise only ever show up attached to their lead in the
+  // Leads tab, with no overview anywhere. Sortable by any column.
+  function loadMySales() {
+    fetch(API_BASE + '/api/agent/my-sales').then(function (res) { return res.json(); }).then(function (data) {
+      _mySalesCache = data.rows || [];
+      _mySalesTotals = { totalAmount: data.totalAmount || 0, totalQuota: data.totalQuota || 0 };
+      renderMySalesTable();
+    }).catch(function (err) { dbg('my sales failed: ' + err); });
+  }
+
+  function renderMySalesTable() {
+    var tbody = document.getElementById('my-sales-tbody');
+    var tfoot = document.getElementById('my-sales-tfoot');
+    if (!tbody) return;
+
+    var rows = _mySalesCache.slice();
+    var col = _mySalesSortCol, dir = _mySalesSortDir === 'asc' ? 1 : -1;
+    rows.sort(function (a, b) {
+      var av = a[col], bv = b[col];
+      if (col === 'amount' || col === 'quotaAmount') { av = av || 0; bv = bv || 0; }
+      else { av = (av || '').toString().toLowerCase(); bv = (bv || '').toString().toLowerCase(); }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+
+    document.querySelectorAll('#my-sales-table thead th').forEach(function (th) {
+      th.classList.remove('sorted-asc', 'sorted-desc');
+      if (th.dataset.col === _mySalesSortCol) th.classList.add(_mySalesSortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    });
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="my-sales-empty">No sales closed yet.</td></tr>';
+      if (tfoot) tfoot.innerHTML = '';
+      return;
+    }
+
+    tbody.innerHTML = rows.map(function (r) {
+      var when = r.soldAt ? new Date(r.soldAt).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+      return '<tr>' +
+        '<td>' + when + '</td>' +
+        '<td>' + esc(r.customerName || '—') + '</td>' +
+        '<td>' + esc(r.site || '—') + '</td>' +
+        '<td>' + esc(r.product || '—') + '</td>' +
+        '<td>' + fmt(r.amount || 0) + '</td>' +
+        '<td>' + (r.quotaAmount != null ? fmt(r.quotaAmount) : '—') + '</td>' +
+      '</tr>';
+    }).join('');
+
+    if (tfoot) {
+      tfoot.innerHTML = '<tr><td colspan="4">Total (' + rows.length + ')</td>' +
+        '<td>' + fmt(_mySalesTotals.totalAmount) + '</td>' +
+        '<td>' + fmt(_mySalesTotals.totalQuota) + '</td></tr>';
+    }
   }
 
   // Year-over-year quota trend -- a line chart comparing monthly quota
@@ -5897,6 +5961,20 @@
           _teamPerfSortDir = 'asc';
         }
         renderTeamPerfTable();
+        return;
+      }
+
+      // Sortable column header (My Sales table)
+      var mySalesHeaderTh = e.target && e.target.closest && e.target.closest('#my-sales-table thead th[data-col]');
+      if (mySalesHeaderTh) {
+        var mySalesCol = mySalesHeaderTh.dataset.col;
+        if (_mySalesSortCol === mySalesCol) {
+          _mySalesSortDir = _mySalesSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          _mySalesSortCol = mySalesCol;
+          _mySalesSortDir = mySalesCol === 'soldAt' ? 'desc' : 'asc';
+        }
+        renderMySalesTable();
         return;
       }
 

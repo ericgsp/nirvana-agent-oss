@@ -167,6 +167,15 @@ export default function AgentPage() {
         #team-perf-controls { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
         #team-perf-search { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; box-sizing: border-box; }
         #team-perf-tier-filter { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; }
+        #my-sales-wrap { overflow-x: auto; margin: 0 10px 10px; border: 1px solid #e2e8f0; border-radius: 12px; }
+        #my-sales-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        #my-sales-table th, #my-sales-table td { padding: 8px 10px; border-bottom: 1px solid #f0f2f5; text-align: left; white-space: nowrap; }
+        #my-sales-table thead th { background: #f8fafc; cursor: pointer; font-weight: 700; color: #475569; user-select: none; }
+        #my-sales-table thead th:hover { background: #f1f5f9; }
+        #my-sales-table thead th.sorted-asc::after { content: ' ▲'; }
+        #my-sales-table thead th.sorted-desc::after { content: ' ▼'; }
+        #my-sales-tfoot td { font-weight: 700; color: ${G_DARK}; background: #f8fafc; border-top: 2px solid #e2e8f0; border-bottom: none; }
+        .my-sales-empty { text-align: center; color: #94a3b8; font-size: 12px; padding: 20px 10px; }
         #team-perf-table-wrap { flex: 1; overflow: auto; padding: 0 14px 14px; }
         #team-perf-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
         #team-perf-table th, #team-perf-table td { padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; white-space: nowrap; }
@@ -1243,6 +1252,26 @@ export default function AgentPage() {
 
             <div id="me-team-card"></div>
 
+            <div className="s-label no-print" style={{marginTop:"14px"}}>
+              <span className="s-title">My Sales</span>
+            </div>
+            <div id="my-sales-wrap">
+              <table id="my-sales-table">
+                <thead>
+                  <tr>
+                    <th data-col="soldAt">Date</th>
+                    <th data-col="customerName">Customer</th>
+                    <th data-col="site">Site</th>
+                    <th data-col="product">Product</th>
+                    <th data-col="amount">Amount (RM)</th>
+                    <th data-col="quotaAmount">Quota (RM)</th>
+                  </tr>
+                </thead>
+                <tbody id="my-sales-tbody"></tbody>
+                <tfoot id="my-sales-tfoot"></tfoot>
+              </table>
+            </div>
+
             <div id="me-self-perf-matrix"></div>
           </div>
 
@@ -1993,7 +2022,7 @@ export default function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260822d" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260823a" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
