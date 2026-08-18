@@ -782,6 +782,15 @@ export async function GET(request: NextRequest) {
       max_instalment_months: resolveInstalmentMonths(promoMatch, preNeed),
     } : null, site, rep.product_category);
 
+    if (product === "NLP") {
+      console.log("[NLP-DEBUG]", JSON.stringify({
+        site, product, section, groupKey, preNeed,
+        rep_product_category: rep.product_category,
+        rep_lot_section: rep.lot_section, rep_niche_section: rep.niche_section,
+        resolvedPromo,
+      }));
+    }
+
     return {
       level:                  isBurial ? null     : groupKey,
       lot_no:                 isBurial ? groupKey : null,
