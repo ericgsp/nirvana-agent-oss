@@ -1226,6 +1226,31 @@
     }
   }
 
+  function toggleMySalesCollapse() {
+    var wrap = document.getElementById('my-sales-wrap');
+    var arrow = document.getElementById('my-sales-arrow');
+    if (!wrap) return;
+    wrap.classList.toggle('my-sales-collapsed');
+    if (arrow) arrow.classList.toggle('collapsed', wrap.classList.contains('my-sales-collapsed'));
+  }
+
+  // Native-aware print, same pattern as doPrintFlow(): the Capacitor
+  // WebView has no window.print() dialog wired up on its own, so native
+  // platforms go through the NativePrint plugin instead.
+  function printMySales() {
+    document.body.classList.add('printing-my-sales');
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      window.Capacitor.Plugins.NativePrint.print().catch(function (err) {
+        dbg('My Sales print failed: ' + (err && err.message ? err.message : err));
+      }).then(function () {
+        document.body.classList.remove('printing-my-sales');
+      });
+    } else {
+      window.print();
+      setTimeout(function () { document.body.classList.remove('printing-my-sales'); }, 500);
+    }
+  }
+
   // Year-over-year quota trend -- a line chart comparing monthly quota
   // actuals between a selected year and the one before it, as a simple
   // performance indicator (not a goal-comparison figure). Only shown once
@@ -5964,6 +5989,9 @@
         return;
       }
 
+      if (id === 'my-sales-toggle') { toggleMySalesCollapse(); return; }
+      if (id === 'my-sales-print') { printMySales(); return; }
+
       // Sortable column header (My Sales table)
       var mySalesHeaderTh = e.target && e.target.closest && e.target.closest('#my-sales-table thead th[data-col]');
       if (mySalesHeaderTh) {
@@ -6506,7 +6534,7 @@
 
     scrollBody.addEventListener('touchstart', function (e) {
       var t = e.target;
-      blocked = !!(t && t.closest && t.closest('.ad-chips, .ad-sites, .qt-scroll, #layout-area, #quote-section'));
+      blocked = !!(t && t.closest && t.closest('.ad-chips, .ad-sites, .qt-scroll, #layout-area, #quote-section, #my-sales-wrap'));
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       swiping = false;

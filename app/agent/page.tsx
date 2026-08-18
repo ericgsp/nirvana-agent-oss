@@ -182,6 +182,11 @@ export default async function AgentPage() {
         #my-sales-table thead th.sorted-desc::after { content: ' ▼'; }
         #my-sales-tfoot td { font-weight: 700; color: ${G_DARK}; background: #f8fafc; border-top: 2px solid #e2e8f0; border-bottom: none; }
         .my-sales-empty { text-align: center; color: #94a3b8; font-size: 12px; padding: 20px 10px; }
+        .my-sales-print-btn { flex-shrink: 0; padding: 4px 10px; border-radius: 999px; border: 1px solid ${G_TEAL}; background: transparent; color: ${G_TEAL}; font-size: 10.5px; font-weight: 700; cursor: pointer; }
+        .my-sales-toggle-btn { display: flex; align-items: center; gap: 6px; flex: 1; background: none; border: none; cursor: pointer; padding: 0; text-align: left; }
+        .my-sales-arrow { font-size: 11px; color: #94a3b8; transition: transform 0.2s; }
+        .my-sales-arrow.collapsed { transform: rotate(-90deg); }
+        #my-sales-wrap.my-sales-collapsed { display: none; }
         #team-perf-table-wrap { flex: 1; overflow: auto; padding: 0 14px 14px; }
         #team-perf-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
         #team-perf-table th, #team-perf-table td { padding: 8px 10px; border: 1px solid #e2e8f0; text-align: left; white-space: nowrap; }
@@ -978,6 +983,16 @@ export default async function AgentPage() {
           body.printing-team-perf #team-perf-table-wrap { overflow: visible !important; padding: 0 !important; }
           body.printing-team-perf #team-perf-table th, body.printing-team-perf #team-perf-table td { color: #000 !important; }
 
+          /* My Sales print -- same override pattern as Team Performance:
+             force #tab-me visible (base rule above hides all tab panels by
+             default), then hide everything inside it except the table. */
+          body.printing-my-sales #tab-browse, body.printing-my-sales #inventory-layout-view,
+          body.printing-my-sales #tab-home, body.printing-my-sales #tab-leads, body.printing-my-sales #tab-team { display: none !important; }
+          body.printing-my-sales #tab-me { display: block !important; }
+          body.printing-my-sales #tab-me > *:not(#my-sales-wrap) { display: none !important; }
+          body.printing-my-sales #my-sales-wrap { overflow: visible !important; margin: 0 !important; border: none !important; }
+          body.printing-my-sales #my-sales-table th, body.printing-my-sales #my-sales-table td { color: #000 !important; }
+
           /* Quote snapshot print -- lets an agent reprint a past quote
              straight from Leads/Me tab without hunting for the original
              saved PDF on their phone. */
@@ -1264,7 +1279,11 @@ export default async function AgentPage() {
             <div id="me-team-card"></div>
 
             <div className="s-label no-print" style={{marginTop:"14px"}}>
-              <span className="s-title">My Sales</span>
+              <button id="my-sales-toggle" className="my-sales-toggle-btn">
+                <span className="s-title">My Sales</span>
+                <span id="my-sales-arrow" className="my-sales-arrow">▾</span>
+              </button>
+              <button id="my-sales-print" className="my-sales-print-btn">🖨 Print</button>
             </div>
             <div id="my-sales-wrap">
               <table id="my-sales-table">
@@ -2033,7 +2052,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260823a" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260823b" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
