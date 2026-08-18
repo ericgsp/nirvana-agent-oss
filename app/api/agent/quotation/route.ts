@@ -400,6 +400,17 @@ export async function GET(request: NextRequest) {
   const specificLotNum = lotParam ? parseInt(lotParam, 10) : null;
   const selectedLevels = lvls ? lvls.split(",") : [];
 
+  // Unconditional request-entry log -- every prior attempt to log from
+  // further inside this route produced zero rows, so capturing raw params
+  // at the very top before any branching, to find out where the trail
+  // actually goes cold.
+  if (product.toUpperCase().includes("NLP") || product.toLowerCase().includes("elegant")) {
+    await supabaseAdmin.from("debug_logs").insert({
+      tag: "quotation-entry",
+      payload: { site, product, block, section, lvls, dpParam, promo, nicheSection },
+    });
+  }
+
   // section may be empty for pet niche lots which filter by level only (not niche_section)
   if (!site || !product || !block || (!section && !lvls))
     return NextResponse.json({ error: "Missing required params" }, { status: 400 });
@@ -612,16 +623,17 @@ export async function GET(request: NextRequest) {
       max_instalment_months: resolveInstalmentMonths(directPromo, dr.pre_need_price ?? 0),
     } : null;
 
-    if (product === "NLP") {
-      await supabaseAdmin.from("debug_logs").insert({
-        tag: "nlp-pricing",
-        payload: {
-          site, product, section, preNeedPrice: dr.pre_need_price,
-          product_category: dr.product_category,
-          directPromo, resolvedDirectPromo,
-        },
-      });
-    }
+    // Unconditional (no product==="NLP" gate) -- two prior attempts gated
+    // on that condition produced zero rows, so logging every request through
+    // this branch to see what "product" actually arrives as.
+    await supabaseAdmin.from("debug_logs").insert({
+      tag: "quotation-direct-branch",
+      payload: {
+        site, product, section, preNeedPrice: dr.pre_need_price,
+        product_category: dr.product_category,
+        directPromo, resolvedDirectPromo,
+      },
+    });
 
     const pwpPromoDirect = promoList.find((p: PromoRow) =>
       p.purchase_condition === "purchase_with_purchase" && !p.is_combo &&
