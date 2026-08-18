@@ -44,4 +44,8 @@
          WRITE_CONTACTS is required here to satisfy Capacitor's permission
          check, not because the app writes to the phone's contacts. -->
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <!-- Required on Android 13+ (API 33) for push notifications to display
+         at all. The app must also ask for this at runtime; this only
+         declares that it's allowed to ask. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

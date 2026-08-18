@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "660261557052",
+    "project_id": "nirvana-agent-app",
+    "storage_bucket": "nirvana-agent-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:660261557052:android:e94fb360fc71f2b332c439",
+        "android_client_info": {
+          "package_name": "com.dggroup.supamobily"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDv1uCZJ5ucx9JFpKkfQnhW2H1RRF1clro"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

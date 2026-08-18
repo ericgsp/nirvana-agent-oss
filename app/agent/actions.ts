@@ -3,6 +3,7 @@
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
 import { createClient } from "@/lib/supabase/server";
 import { getMyProfile } from "@/lib/supabase/get-hierarchy";
+import { sendPushToAll } from "@/lib/push/send";
 
 // ── Promo matching ────────────────────────────────────────────────────────────
 
@@ -538,15 +539,24 @@ export async function markSold(
   // itself, so it's not awaited into the main error path.
   const [site, product, section] = quotationRef.split("|");
   const profile = await getMyProfile();
+  const displayName = profile?.display_name || "An agent";
   await supabaseAdmin.from("activity_events").insert({
     event_type: "case_closed",
     user_id: user.id,
-    display_name: profile?.display_name || "An agent",
+    display_name: displayName,
     site: site || null,
     product: product || null,
     section: section || null,
     amount,
   });
+
+  // Real push notification, phase 2 -- fire-and-forget so a slow or failed
+  // FCM send never delays or blocks the close itself.
+  const detailParts = [product, site, section ? `Zone ${section}` : null].filter(Boolean);
+  sendPushToAll(
+    `${displayName} closed a case! 🎉`,
+    (detailParts.length ? detailParts.join(" · ") + " — " : "") + `RM ${amount.toLocaleString()}`
+  ).catch((e) => console.error("sendPushToAll failed:", e instanceof Error ? e.message : e));
 
   return { ok: true as const };
 }

@@ -2550,6 +2550,43 @@
     document.getElementById('activity-drawer').classList.remove('open');
   }
 
+  // Real push notifications (phase 2 of the activity feature) -- registers
+  // this device with FCM and hands the resulting token to the server so it
+  // knows where to send future pushes. No-ops entirely on web (native-only).
+  function setupPushNotifications() {
+    if (!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) return;
+    var PushNotifications = window.Capacitor.Plugins.PushNotifications;
+    if (!PushNotifications) return;
+
+    PushNotifications.addListener('registration', function (token) {
+      fetch(API_BASE + '/api/agent/push-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token.value, platform: 'android' }),
+      }).catch(function (err) { dbg('push token register failed: ' + err); });
+    });
+
+    PushNotifications.addListener('registrationError', function (err) {
+      dbg('push registration error: ' + JSON.stringify(err));
+    });
+
+    // App was already open when a push arrived -- the OS won't show a tray
+    // notification in that case, so refresh the bell badge to compensate.
+    PushNotifications.addListener('pushNotificationReceived', function () {
+      loadActivityBadge();
+    });
+
+    // User tapped a push from the notification tray -- take them straight
+    // to the activity feed that explains it.
+    PushNotifications.addListener('pushNotificationActionPerformed', function () {
+      openActivityDrawer();
+    });
+
+    PushNotifications.requestPermissions().then(function (result) {
+      if (result.receive === 'granted') PushNotifications.register();
+    }).catch(function (err) { dbg('push permission request failed: ' + err); });
+  }
+
   function closeAvailDrawer() {}
 
   // Opens the memo drawer directly to the requested tab -- Price List and
@@ -5484,6 +5521,7 @@
   function init() {
     switchTab('home');
     loadActivityBadge();
+    setupPushNotifications();
 
     // Column visibility toggle — checkbox per column in the quotation table
     document.addEventListener('change', function (e) {
