@@ -2,7 +2,16 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 
+// Full logo (mark + "SupaMobily" + "Quote Engine") -- used only where there's
+// room to actually read text: the Play Store listing icon and the splash
+// screen (see generate-splash.js). Never for the launcher icon itself --
+// real launcher icons render as small as 32-48px, where the wordmark is
+// illegible and "QUOTE ENGINE" in particular disappears or gets clipped by
+// the OS's adaptive-icon mask.
 const SRC = path.join(__dirname, 'SupaMobily.png');
+// Mark only (no text), pre-cropped from SRC -- this is what actually goes on
+// the home screen and in the app switcher.
+const MARK = path.join(__dirname, 'SupaMobily-mark.png');
 const RES = path.join(__dirname, '..', '..', 'android', 'app', 'src', 'main', 'res');
 
 // legacy launcher px size, adaptive icon canvas px size (1.5x legacy, standard Android ratio)
@@ -14,14 +23,14 @@ const DENSITIES = {
   'mipmap-xxxhdpi': { legacy: 192, adaptive: 432 },
 };
 
-// Foreground: full-bleed, same crop as the legacy icon. The source has no
-// transparency (its gradient background is baked in), so padding it onto a
-// transparent canvas at 66% left a visible hard-edged rectangle floating in
-// the middle of the mask -- tried it, looked broken. Full-bleed matches the
-// legacy icon and crops cleanly under every mask shape since there's no
-// seam between "logo" and "canvas" to expose.
+// Foreground: full-bleed mark, same crop as the legacy icon. MARK has no
+// transparency either (same baked-in-background situation as SRC), so this
+// stays full-bleed rather than padded -- padding it onto a transparent
+// canvas left a visible hard-edged rectangle floating in the mask when
+// tried with the full logo; full-bleed crops cleanly under every mask shape
+// since there's no seam between "logo" and "canvas" to expose.
 async function makeForeground(size) {
-  return sharp(SRC).resize(size, size).png().toBuffer();
+  return sharp(MARK).resize(size, size).png().toBuffer();
 }
 
 async function main() {
@@ -29,11 +38,12 @@ async function main() {
     const outDir = path.join(RES, dir);
     fs.mkdirSync(outDir, { recursive: true });
 
-    // Legacy square + round: full image, no padding -- these are never
-    // masked by the OS, so the complete design (including the wordmark)
-    // shows exactly as designed.
-    await sharp(SRC).resize(legacy, legacy).png().toFile(path.join(outDir, 'ic_launcher.png'));
-    await sharp(SRC).resize(legacy, legacy).png().toFile(path.join(outDir, 'ic_launcher_round.png'));
+    // Legacy square + round: mark only, no padding. These technically
+    // aren't masked by the OS the way adaptive icons are, but keeping them
+    // consistent with the adaptive foreground (mark-only) avoids the same
+    // small-size illegibility problem on older devices that still use them.
+    await sharp(MARK).resize(legacy, legacy).png().toFile(path.join(outDir, 'ic_launcher.png'));
+    await sharp(MARK).resize(legacy, legacy).png().toFile(path.join(outDir, 'ic_launcher_round.png'));
 
     // Adaptive icon foreground (background is a solid @color resource,
     // updated separately below -- not per-density images)
