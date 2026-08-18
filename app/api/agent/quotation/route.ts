@@ -783,12 +783,15 @@ export async function GET(request: NextRequest) {
     } : null, site, rep.product_category);
 
     if (product === "NLP") {
-      console.log("[NLP-DEBUG]", JSON.stringify({
-        site, product, section, groupKey, preNeed,
-        rep_product_category: rep.product_category,
-        rep_lot_section: rep.lot_section, rep_niche_section: rep.niche_section,
-        resolvedPromo,
-      }));
+      supabaseAdmin.from("debug_logs").insert({
+        tag: "nlp-pricing",
+        payload: {
+          site, product, section, groupKey, preNeed,
+          rep_product_category: rep.product_category,
+          rep_lot_section: rep.lot_section, rep_niche_section: rep.niche_section,
+          resolvedPromo,
+        },
+      }).then(() => {});
     }
 
     return {
