@@ -1095,7 +1095,10 @@
   // is shown above it as a separate, unmodified reference figure (the raw
   // quotation total), never part of the goal comparison itself.
   function renderYearlyGoalCard(yg, ytdSalesActual) {
-    var ytdHtml = '<div class="mgc-ytd">Year to date sales: <strong>RM ' + fmt(ytdSalesActual || 0) + '</strong></div>';
+    var ytdHtml = '<div class="mgc-ytd-banner">' +
+      '<div class="mgc-cap">Year to Date Sales</div>' +
+      '<div class="mgc-figs"><div class="mgc-actual">RM ' + fmt(ytdSalesActual || 0) + '</div></div>' +
+    '</div>';
 
     if (!yg || !yg.yearlyTarget) {
       return ytdHtml + '<button class="me-set-goal-btn me-set-goal-btn-outline" id="btn-set-yearly-goal">Set your yearly quota</button>';

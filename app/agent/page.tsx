@@ -304,8 +304,7 @@ export default async function AgentPage() {
         .me-goal-btn-row { display: flex; gap: 8px; margin-top: 10px; }
         .me-goal-btn-row .me-set-goal-btn { margin-top: 0; flex: 1; }
         .me-goal-btn-danger { background: rgba(255,255,255,0.10); color: #fecaca; }
-        .mgc-ytd { font-size: 11.5px; color: #475569; background: #f1f5f9; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; }
-        .mgc-ytd strong { color: ${G_DARK}; }
+        .mgc-ytd-banner { padding: 16px; border-radius: 16px; color: #fff; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); box-shadow: 0 2px 6px rgba(30,64,175,0.3); margin-bottom: 10px; }
         .mgc { padding: 16px; border-radius: 16px; color: #fff; background: linear-gradient(150deg, ${G_DARK} 0%, ${G_TEAL} 130%); }
         .mgc-cap { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; font-weight: 700; }
         .mgc-figs { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
@@ -2044,7 +2043,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260823c" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260823d" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
