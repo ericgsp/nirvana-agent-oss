@@ -1234,21 +1234,48 @@
     if (arrow) arrow.classList.toggle('collapsed', wrap.classList.contains('my-sales-collapsed'));
   }
 
-  // Native-aware print, same pattern as doPrintFlow(): the Capacitor
-  // WebView has no window.print() dialog wired up on its own, so native
-  // platforms go through the NativePrint plugin instead.
-  function printMySales() {
-    document.body.classList.add('printing-my-sales');
+  // CSV export instead of print -- same pattern as exportLeadsCsv(): a
+  // plain <a download> is a no-op inside the bare Capacitor WebView, so on
+  // native this writes to the app cache via Filesystem and hands it to the
+  // native Share sheet, letting the agent save/open it straight in Excel.
+  function exportMySalesCsv() {
+    var header = ['Date', 'Customer', 'Site', 'Product', 'Amount (RM)', 'Quota (RM)'];
+    var rows = [header];
+    _mySalesCache.forEach(function (r) {
+      var dateStr = r.soldAt ? new Date(r.soldAt).toLocaleDateString('en-MY') : '';
+      rows.push([dateStr, r.customerName || '', r.site || '', r.product || '', r.amount || 0, r.quotaAmount != null ? r.quotaAmount : '']);
+    });
+    rows.push(['', '', '', 'Total', _mySalesTotals.totalAmount || 0, _mySalesTotals.totalQuota || 0]);
+
+    var csv = rows.map(function (row) { return row.map(csvField).join(','); }).join('\r\n');
+    var filename = 'my-sales-' + new Date().toISOString().slice(0, 10) + '.csv';
+
     if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-      window.Capacitor.Plugins.NativePrint.print().catch(function (err) {
-        dbg('My Sales print failed: ' + (err && err.message ? err.message : err));
-      }).then(function () {
-        document.body.classList.remove('printing-my-sales');
-      });
-    } else {
-      window.print();
-      setTimeout(function () { document.body.classList.remove('printing-my-sales'); }, 500);
+      var Filesystem = window.Capacitor.Plugins.Filesystem;
+      var Share = window.Capacitor.Plugins.Share;
+      if (Filesystem && Share) {
+        Filesystem.writeFile({ path: filename, data: '﻿' + csv, directory: 'CACHE', encoding: 'utf8' })
+          .then(function (result) {
+            return Share.share({ title: 'My Sales', url: result.uri });
+          })
+          .catch(function (err) {
+            dbg('export my sales csv failed: ' + (err && err.message ? err.message : err));
+            alert('Could not export CSV: ' + (err && err.message ? err.message : err));
+          });
+        return;
+      }
     }
+
+    // Web preview fallback (not used inside the installed app).
+    var blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
   // Year-over-year quota trend -- a line chart comparing monthly quota
@@ -5990,7 +6017,7 @@
       }
 
       if (id === 'my-sales-toggle') { toggleMySalesCollapse(); return; }
-      if (id === 'my-sales-print') { printMySales(); return; }
+      if (id === 'my-sales-print') { exportMySalesCsv(); return; }
 
       // Sortable column header (My Sales table)
       var mySalesHeaderTh = e.target && e.target.closest && e.target.closest('#my-sales-table thead th[data-col]');

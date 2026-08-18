@@ -983,16 +983,6 @@ export default async function AgentPage() {
           body.printing-team-perf #team-perf-table-wrap { overflow: visible !important; padding: 0 !important; }
           body.printing-team-perf #team-perf-table th, body.printing-team-perf #team-perf-table td { color: #000 !important; }
 
-          /* My Sales print -- same override pattern as Team Performance:
-             force #tab-me visible (base rule above hides all tab panels by
-             default), then hide everything inside it except the table. */
-          body.printing-my-sales #tab-browse, body.printing-my-sales #inventory-layout-view,
-          body.printing-my-sales #tab-home, body.printing-my-sales #tab-leads, body.printing-my-sales #tab-team { display: none !important; }
-          body.printing-my-sales #tab-me { display: block !important; }
-          body.printing-my-sales #tab-me > *:not(#my-sales-wrap) { display: none !important; }
-          body.printing-my-sales #my-sales-wrap { overflow: visible !important; margin: 0 !important; border: none !important; }
-          body.printing-my-sales #my-sales-table th, body.printing-my-sales #my-sales-table td { color: #000 !important; }
-
           /* Quote snapshot print -- lets an agent reprint a past quote
              straight from Leads/Me tab without hunting for the original
              saved PDF on their phone. */
@@ -1283,7 +1273,7 @@ export default async function AgentPage() {
                 <span className="s-title">My Sales</span>
                 <span id="my-sales-arrow" className="my-sales-arrow">▾</span>
               </button>
-              <button id="my-sales-print" className="my-sales-print-btn">🖨 Print</button>
+              <button id="my-sales-print" className="my-sales-print-btn">📊 Export</button>
             </div>
             <div id="my-sales-wrap">
               <table id="my-sales-table">
@@ -2052,7 +2042,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260823b" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260823c" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />
