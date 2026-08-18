@@ -1568,11 +1568,19 @@
     var quoteBodyEl = document.getElementById('quote-body');
     var quoteSnapshotHtml = quoteBodyEl ? quoteBodyEl.innerHTML : '';
 
+    // NLP entries are identified by nlpColor being set (only triggerNLPQuotation
+    // sets it) -- for these, show the actual package name(s) picked (e.g.
+    // "NV Elegant (A)") instead of the generic "N lot(s)", which read as a
+    // meaningless duplicate of the "NLP" product label above it.
+    var isNLPQuote = lotQuotes.length > 0 && lotQuotes.every(function (q) { return q.nlpColor !== undefined; });
+    var loggedProduct = isNLPQuote ? lotQuotes.map(function (q) { return q.lotCode; }).join(', ') : product;
+    var loggedSection = isNLPQuote ? '' : lotQuotes.length + ' lot(s)';
+
     fetch(API_BASE + '/api/agent/home-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        site: site, product: product, section: lotQuotes.length + ' lot(s)',
+        site: site, product: loggedProduct, section: loggedSection,
         netTotal: total, customerName: customerName, customerPhone: customerPhone,
         validUntil: earliestValidUntil, items: items, quoteSnapshotHtml: quoteSnapshotHtml,
       }),
