@@ -2570,10 +2570,24 @@
       dbg('push registration error: ' + JSON.stringify(err));
     });
 
-    // App was already open when a push arrived -- the OS won't show a tray
-    // notification in that case, so refresh the bell badge to compensate.
-    PushNotifications.addListener('pushNotificationReceived', function () {
+    // Android never shows a tray notification for a push that arrives while
+    // the app is already open/foregrounded -- it hands the message straight
+    // to the app instead. Refresh the bell badge either way, and explicitly
+    // schedule a local notification so it still shows up in the tray too
+    // (confirmed via direct FCM test: the send itself works fine, this was
+    // the missing piece).
+    PushNotifications.addListener('pushNotificationReceived', function (notification) {
       loadActivityBadge();
+      var LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+      if (LocalNotifications && notification) {
+        LocalNotifications.schedule({
+          notifications: [{
+            id: Math.floor(Math.random() * 2147483647),
+            title: (notification.title || (notification.data && notification.data.title) || 'Nirvana Agent'),
+            body: (notification.body || (notification.data && notification.data.body) || ''),
+          }],
+        }).catch(function (err) { dbg('local notification schedule failed: ' + err); });
+      }
     });
 
     // User tapped a push from the notification tray -- take them straight
@@ -2581,6 +2595,11 @@
     PushNotifications.addListener('pushNotificationActionPerformed', function () {
       openActivityDrawer();
     });
+
+    var LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+    if (LocalNotifications) {
+      LocalNotifications.requestPermissions().catch(function (err) { dbg('local notification permission request failed: ' + err); });
+    }
 
     PushNotifications.requestPermissions().then(function (result) {
       if (result.receive === 'granted') PushNotifications.register();
