@@ -1394,7 +1394,14 @@
     var closedTotal = hasClosedItems
       ? closedItemsArr.reduce(function (sum, it) { return sum + (it.amount || 0); }, 0)
       : 0;
-    var displayAmount = hasClosedItems ? closedTotal : (q.net_total || 0);
+    // Lead cards show the gross Total Price (pre_need_price, no discount)
+    // before close, for every product type (Niche/Land/NLP alike) -- display
+    // only, doesn't touch net_total itself (which still correctly pre-fills
+    // as the discounted amount when actually closing the sale, feeding My
+    // Sales / YTD Sales revenue tracking, and separately from the quota
+    // formula which is pre_need_price - discount, computed at close time).
+    var grossTotal = itemsArr.length ? itemsArr.reduce(function (sum, it) { return sum + (it.preNeedPrice || 0); }, 0) : 0;
+    var displayAmount = hasClosedItems ? closedTotal : (grossTotal || (q.net_total || 0));
     var line1Parts = [esc(q.site || '')];
     if (!hasClosedItems) {
       if (label) line1Parts.push(label);
