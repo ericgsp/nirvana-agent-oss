@@ -68,6 +68,16 @@ function promoLotTypes(lotType: string | null): string[] {
 function lotRangeMatch(section: string | null, lotNum: number | null, lotRange: string | null): boolean {
   if (!lotRange) return true;
 
+  // Exact whole-string match first. Covers names like NLP plans ("NV Elegant
+  // (A)") that contain parentheses as part of their own name, not as
+  // "SECTION (LOT_NUMBERS)" range syntax -- without this, the paren-parsing
+  // below strips "(A)" off and compares only "NV ELEGANT" against the full
+  // section name, which never matches, silently dropping the correct
+  // site-specific promo and falling through to the generic Central Promo.
+  // A physical lot's own section code would never equal a full range string
+  // like "DA (5-10)", so this is safe for burial/niche lot matching too.
+  if (section && section.toUpperCase() === lotRange.toUpperCase().trim()) return true;
+
   const upper = lotRange.toUpperCase().trim();
   const parenIdx = upper.indexOf("(");
   const sectionPart = parenIdx >= 0 ? upper.slice(0, parenIdx).trim() : upper;
@@ -400,17 +410,6 @@ export async function GET(request: NextRequest) {
   const specificLotNum = lotParam ? parseInt(lotParam, 10) : null;
   const selectedLevels = lvls ? lvls.split(",") : [];
 
-  // Unconditional request-entry log -- every prior attempt to log from
-  // further inside this route produced zero rows, so capturing raw params
-  // at the very top before any branching, to find out where the trail
-  // actually goes cold.
-  if (product.toUpperCase().includes("NLP") || product.toLowerCase().includes("elegant")) {
-    await supabaseAdmin.from("debug_logs").insert({
-      tag: "quotation-entry",
-      payload: { site, product, block, section, lvls, dpParam, promo, nicheSection },
-    });
-  }
-
   // section may be empty for pet niche lots which filter by level only (not niche_section)
   if (!site || !product || !block || (!section && !lvls))
     return NextResponse.json({ error: "Missing required params" }, { status: 400 });
@@ -622,18 +621,6 @@ export async function GET(request: NextRequest) {
       ...directPromo,
       max_instalment_months: resolveInstalmentMonths(directPromo, dr.pre_need_price ?? 0),
     } : null;
-
-    // Unconditional (no product==="NLP" gate) -- two prior attempts gated
-    // on that condition produced zero rows, so logging every request through
-    // this branch to see what "product" actually arrives as.
-    await supabaseAdmin.from("debug_logs").insert({
-      tag: "quotation-direct-branch",
-      payload: {
-        site, product, section, preNeedPrice: dr.pre_need_price,
-        product_category: dr.product_category,
-        directPromo, resolvedDirectPromo,
-      },
-    });
 
     const pwpPromoDirect = promoList.find((p: PromoRow) =>
       p.purchase_condition === "purchase_with_purchase" && !p.is_combo &&
