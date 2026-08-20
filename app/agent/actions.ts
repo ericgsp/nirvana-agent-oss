@@ -480,6 +480,7 @@ export async function markSold(
   closedItems?: {
     label: string; amount: number; instalMonths?: number;
     preNeedPrice?: number; trust?: number; backwall?: number;
+    isAsNeed?: boolean; asNeedPrice?: number;
     discPct?: number; discRm?: number;
   }[]
 ) {
@@ -493,8 +494,11 @@ export async function markSold(
   // (which also subtracted trust and backwall) was wrong; more category-
   // specific rules may be added later as they're confirmed, this is the
   // simple correct baseline for now.
+  // As-Need (Niche/Land) is a separate base: 100% of the as_need_price,
+  // not pre_need_price, minus the same discount (if any) -- as-need is
+  // full instant-use purchase, priced off a different list price entirely.
   const quotaAmount = (closedItems ?? []).reduce((sum, it) => {
-    let net = it.preNeedPrice || 0;
+    let net = it.isAsNeed ? (it.asNeedPrice || 0) : (it.preNeedPrice || 0);
     if (it.discRm) net -= it.discRm;
     else if (it.discPct) net -= net * (it.discPct / 100);
     return sum + net;

@@ -1571,6 +1571,8 @@
         preNeedPrice: (calc && calc.preNeedPrice) || 0,
         trust: (calc && calc.trust) || 0,
         backwall: (calc && calc.backwall) || 0,
+        isAsNeed: !!(calc && calc.isAsNeed),
+        asNeedPrice: (calc && calc.originalPrice) || 0,
         category: (q.levelData && q.levelData.product_category) || '',
         discPct: (promo && promo.discount_pct) || 0,
         discRm: (promo && promo.discount_rm) || 0,
