@@ -488,17 +488,18 @@ export async function markSold(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false as const, error: "Not logged in" };
 
-  // Quota is a different figure from the sales amount: pre_need_price minus
-  // the discount (flat RM or %), applied the same way across Niche, Land,
-  // and NLP. No trust/backwall deduction -- confirmed the previous formula
-  // (which also subtracted trust and backwall) was wrong; more category-
-  // specific rules may be added later as they're confirmed, this is the
-  // simple correct baseline for now.
-  // As-Need (Niche/Land) is a separate base: 100% of the as_need_price,
-  // not pre_need_price, minus the same discount (if any) -- as-need is
-  // full instant-use purchase, priced off a different list price entirely.
+  // Quota is a different figure from the sales amount.
+  // Pre-Need (Niche/Land/NLP): pre_need_price minus the discount (flat RM or
+  // %). No trust/backwall deduction here -- confirmed the previous formula
+  // (which also subtracted trust and backwall) was wrong for Pre-Need.
+  // As-Need (Niche/Land): a DIFFERENT formula -- as_need_price minus trust
+  // minus backwall minus the discount (if any occurred in the quotation).
+  // Trust/backwall ARE deducted for As-Need, confirmed against a real
+  // as-need land sale (as_need_price 72,800, trust+backwall 12,000, no
+  // discount actually applied -> correct quota 60,800).
   const quotaAmount = (closedItems ?? []).reduce((sum, it) => {
     let net = it.isAsNeed ? (it.asNeedPrice || 0) : (it.preNeedPrice || 0);
+    if (it.isAsNeed) net -= (it.trust || 0) + (it.backwall || 0);
     if (it.discRm) net -= it.discRm;
     else if (it.discPct) net -= net * (it.discPct / 100);
     return sum + net;
