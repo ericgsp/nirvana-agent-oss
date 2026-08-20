@@ -489,19 +489,29 @@ export async function markSold(
   if (!user) return { ok: false as const, error: "Not logged in" };
 
   // Quota is a different figure from the sales amount.
-  // Pre-Need (Niche/Land/NLP): pre_need_price minus the discount (flat RM or
-  // %). No trust/backwall deduction here -- confirmed the previous formula
-  // (which also subtracted trust and backwall) was wrong for Pre-Need.
-  // As-Need (Niche/Land): a DIFFERENT formula -- as_need_price minus trust
-  // minus backwall minus the discount (if any occurred in the quotation).
-  // Trust/backwall ARE deducted for As-Need, confirmed against a real
-  // as-need land sale (as_need_price 72,800, trust+backwall 12,000, no
-  // discount actually applied -> correct quota 60,800).
+  //
+  // Deriving it from discPct/discRm turned out unreliable -- those fields
+  // are just whatever promo happened to be attached to the lot, which isn't
+  // always the discount that actually got applied (calcMatrix may have used
+  // a dp_tiers-based rebate instead, or no discount at all for that specific
+  // sale, e.g. an as_need_discount_pct of 0). Two wrong quota numbers in a
+  // row came from trusting that field instead of the real math.
+  //
+  // it.amount is trustworthy -- it's calcMatrix's own resolved net price for
+  // this item, verified correct at close time (the agent sees and confirms
+  // it in the checklist). So the real discount is always recoverable as
+  // (base + trust + backwall) - amount, where base is preNeedPrice or
+  // asNeedPrice depending on purchase type. That lets quota be built
+  // directly from amount instead of re-deriving a possibly-wrong discount:
+  //   Pre-Need quota = base - discount               = amount - trust - backwall
+  //   As-Need  quota = base - trust - backwall - discount
+  //                  = (amount - trust - backwall) - trust - backwall
+  // Confirmed against a real as-need land sale (amount 84,800, trust+backwall
+  // 12,000, no discount actually applied -> correct quota 60,800).
   const quotaAmount = (closedItems ?? []).reduce((sum, it) => {
-    let net = it.isAsNeed ? (it.asNeedPrice || 0) : (it.preNeedPrice || 0);
-    if (it.isAsNeed) net -= (it.trust || 0) + (it.backwall || 0);
-    if (it.discRm) net -= it.discRm;
-    else if (it.discPct) net -= net * (it.discPct / 100);
+    const tb = (it.trust || 0) + (it.backwall || 0);
+    let net = it.amount - tb;
+    if (it.isAsNeed) net -= tb;
     return sum + net;
   }, 0);
 
