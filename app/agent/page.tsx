@@ -1590,6 +1590,14 @@ export default async function AgentPage() {
               <span>Monthly Presentation</span>
               <span style={{marginLeft:'auto', color:'#94a3b8', fontSize:'16px'}}>›</span>
             </a>
+            {/* NCBB (Butterworth) New Launch PPT link */}
+            <a href="https://orlneoqfdgiatvybvgar.supabase.co/storage/v1/object/public/product-assets/NCBB%20(Butterworth)/New%20Launch%20PPT/NCBB%20NEW%20LAUNCH%20PPT.pdf"
+              target="_blank" rel="noopener noreferrer"
+              style={{display:'flex', alignItems:'center', gap:'10px', padding:'12px 14px', background:'#f8fafc', borderRadius:'10px', border:'1px solid #e2e8f0', textDecoration:'none', color:'#0f172a', fontWeight:700, fontSize:'14px', marginBottom:'12px'}}>
+              <span style={{fontSize:'20px'}}>📊</span>
+              <span>NCBB (Butterworth) New Launch PPT</span>
+              <span style={{marginLeft:'auto', color:'#94a3b8', fontSize:'16px'}}>›</span>
+            </a>
             {/* EDM section */}
             <div style={{fontSize:'12px', fontWeight:700, color:'#64748b', letterSpacing:'0.05em', marginBottom:'8px', textTransform:'uppercase'}}>EDM</div>
             <select id="edm-site-sel" style={{width:'100%', padding:'10px 12px', borderRadius:'8px', border:'1px solid #e2e8f0', fontSize:'13px', fontWeight:600, color:'#0f172a', background:'#f8fafc', marginBottom:'12px'}}>
