@@ -1553,8 +1553,13 @@
     var total = 0;
     var earliestValidUntil = null;
     lotQuotes.forEach(function (q) {
-      var amt = 0;
-      try { amt = calcMatrix(q.levelData, dpPct).netTotalPrice; } catch (e) {}
+      var amt = 0, calc = null;
+      // Use calcMatrix's own preNeedPrice/trust/backwall (not the raw
+      // levelData fields) -- calcMatrix already resolves category-specific
+      // quirks like Pedestal, where pre_need_price is null and the real
+      // base price lives in pre_launch_price instead. Reading the raw field
+      // directly gave 0 for Pedestal, silently breaking the lead card total.
+      try { calc = calcMatrix(q.levelData, dpPct); amt = calc.netTotalPrice; } catch (e) {}
       total += amt;
       var promo = q.levelData && q.levelData.promo;
       // PV commission inputs, captured at quote time off the same levelData
@@ -1563,9 +1568,9 @@
       items.push({
         label: q.lotCode || '', amount: amt,
         pv: (q.levelData && q.levelData.point_value) || 0,
-        preNeedPrice: (q.levelData && q.levelData.pre_need_price) || 0,
-        trust: (q.levelData && q.levelData.trust_account_facility) || 0,
-        backwall: (q.levelData && q.levelData.backwall_cost) || 0,
+        preNeedPrice: (calc && calc.preNeedPrice) || 0,
+        trust: (calc && calc.trust) || 0,
+        backwall: (calc && calc.backwall) || 0,
         category: (q.levelData && q.levelData.product_category) || '',
         discPct: (promo && promo.discount_pct) || 0,
         discRm: (promo && promo.discount_rm) || 0,
