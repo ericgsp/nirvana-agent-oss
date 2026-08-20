@@ -1558,6 +1558,14 @@
     var items = [];
     var total = 0;
     var earliestValidUntil = null;
+    // Manual As-Need mode (the "As-Need" DP pill, toggled without any
+    // as_need promo attached) is a global UI flag, not something calcMatrix
+    // knows about -- calc.isAsNeed only fires for a promo-driven as-need
+    // row. buildMatrixHtml's own printed "NET TOTAL PRICE" row for manual
+    // as-need is originalPrice - siteDiscount% + trust + backwall (full
+    // payment, no DP/instalment breakdown); mirror that formula here so the
+    // captured item matches what the customer actually saw on the quote.
+    var _anDiscPct = asNeedMode ? ((lotQuotes[0] && lotQuotes[0].siteInfo && lotQuotes[0].siteInfo.as_need_discount_pct) || 0) : 0;
     lotQuotes.forEach(function (q) {
       var amt = 0, calc = null;
       // Use calcMatrix's own preNeedPrice/trust/backwall (not the raw
@@ -1566,6 +1574,12 @@
       // base price lives in pre_launch_price instead. Reading the raw field
       // directly gave 0 for Pedestal, silently breaking the lead card total.
       try { calc = calcMatrix(q.levelData, dpPct); amt = calc.netTotalPrice; } catch (e) {}
+      var isManualAsNeed = asNeedMode && !(calc && calc.isAsNeed);
+      var manualDisc = 0;
+      if (isManualAsNeed && calc) {
+        manualDisc = _anDiscPct ? Math.round(calc.originalPrice * _anDiscPct / 100) : 0;
+        amt = calc.originalPrice - manualDisc + (calc.trust || 0) + (calc.backwall || 0);
+      }
       total += amt;
       var promo = q.levelData && q.levelData.promo;
       // PV commission inputs, captured at quote time off the same levelData
@@ -1577,10 +1591,10 @@
         preNeedPrice: (calc && calc.preNeedPrice) || 0,
         trust: (calc && calc.trust) || 0,
         backwall: (calc && calc.backwall) || 0,
-        isAsNeed: !!(calc && calc.isAsNeed),
+        isAsNeed: !!(calc && calc.isAsNeed) || asNeedMode,
         asNeedPrice: (calc && calc.originalPrice) || 0,
         category: (q.levelData && q.levelData.product_category) || '',
-        discPct: (promo && promo.discount_pct) || 0,
+        discPct: (promo && promo.discount_pct) || (isManualAsNeed ? _anDiscPct : 0) || 0,
         discRm: (promo && promo.discount_rm) || 0,
         instalMonths: (promo && promo.max_instalment_months) || 0
       });
