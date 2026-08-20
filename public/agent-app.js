@@ -1400,7 +1400,13 @@
     // as the discounted amount when actually closing the sale, feeding My
     // Sales / YTD Sales revenue tracking, and separately from the quota
     // formula which is pre_need_price - discount, computed at close time).
-    var grossTotal = itemsArr.length ? itemsArr.reduce(function (sum, it) { return sum + (it.preNeedPrice || 0); }, 0) : 0;
+    // Total Price = pre_need_price + trust + backwall (matches calcMatrix's
+    // own totalPrice formula) -- NLP has trust=backwall=0 so this coincided
+    // with preNeedPrice alone there, but Niche/Land genuinely carry real
+    // trust/backwall amounts that belong in the total.
+    var grossTotal = itemsArr.length
+      ? itemsArr.reduce(function (sum, it) { return sum + (it.preNeedPrice || 0) + (it.trust || 0) + (it.backwall || 0); }, 0)
+      : 0;
     var displayAmount = hasClosedItems ? closedTotal : (grossTotal || (q.net_total || 0));
     var line1Parts = [esc(q.site || '')];
     if (!hasClosedItems) {
