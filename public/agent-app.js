@@ -1229,11 +1229,15 @@
 
     tbody.innerHTML = rows.map(function (r) {
       var when = r.soldAt ? new Date(r.soldAt).toLocaleDateString('en-MY', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+      // Product column shows zone + section/row together (e.g. "GARDEN 1 ·
+      // DB368") -- previously only the zone showed, with no way to tell
+      // which specific lot was actually sold from this table alone.
+      var productCell = [r.product, r.section].filter(Boolean).map(esc).join(' · ') || '—';
       return '<tr>' +
         '<td>' + when + '</td>' +
         '<td>' + esc(r.customerName || '—') + '</td>' +
         '<td>' + esc(r.site || '—') + '</td>' +
-        '<td>' + esc(r.product || '—') + '</td>' +
+        '<td>' + productCell + '</td>' +
         '<td>' + fmt(r.amount || 0) + '</td>' +
         '<td>' + (r.quotaAmount != null ? fmt(r.quotaAmount) : '—') + '</td>' +
       '</tr>';
@@ -1259,13 +1263,13 @@
   // native this writes to the app cache via Filesystem and hands it to the
   // native Share sheet, letting the agent save/open it straight in Excel.
   function exportMySalesCsv() {
-    var header = ['Date', 'Customer', 'Site', 'Product', 'Amount (RM)', 'Quota (RM)'];
+    var header = ['Date', 'Customer', 'Site', 'Product', 'Section/Row', 'Amount (RM)', 'Quota (RM)'];
     var rows = [header];
     _mySalesCache.forEach(function (r) {
       var dateStr = r.soldAt ? new Date(r.soldAt).toLocaleDateString('en-MY') : '';
-      rows.push([dateStr, r.customerName || '', r.site || '', r.product || '', r.amount || 0, r.quotaAmount != null ? r.quotaAmount : '']);
+      rows.push([dateStr, r.customerName || '', r.site || '', r.product || '', r.section || '', r.amount || 0, r.quotaAmount != null ? r.quotaAmount : '']);
     });
-    rows.push(['', '', '', 'Total', _mySalesTotals.totalAmount || 0, _mySalesTotals.totalQuota || 0]);
+    rows.push(['', '', '', '', 'Total', _mySalesTotals.totalAmount || 0, _mySalesTotals.totalQuota || 0]);
 
     var csv = rows.map(function (row) { return row.map(csvField).join(','); }).join('\r\n');
     var filename = 'my-sales-' + new Date().toISOString().slice(0, 10) + '.csv';
@@ -1431,11 +1435,12 @@
         }, 0)
       : 0;
     var displayAmount = hasClosedItems ? closedTotal : (grossTotal || (q.net_total || 0));
+    // Site + zone + section/row (lot code) always shown, closed or not --
+    // previously this was dropped entirely once closed, leaving just site +
+    // price with no way to tell what was actually sold from the lead list.
     var line1Parts = [esc(q.site || '')];
-    if (!hasClosedItems) {
-      if (label) line1Parts.push(label);
-      if (q.section) line1Parts.push(esc(q.section));
-    }
+    if (label) line1Parts.push(label);
+    if (q.section) line1Parts.push(esc(q.section));
     var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(displayAmount) + '</span>';
     var closedItemsHtml = hasClosedItems
       ? '<div class="mqr-closed-items">' + closedItemsArr.map(function (it) {
@@ -1631,7 +1636,11 @@
     // meaningless duplicate of the "NLP" product label above it.
     var isNLPQuote = lotQuotes.length > 0 && lotQuotes.every(function (q) { return q.nlpColor !== undefined; });
     var loggedProduct = isNLPQuote ? lotQuotes.map(function (q) { return q.lotCode; }).join(', ') : product;
-    var loggedSection = isNLPQuote ? '' : lotQuotes.length + ' lot(s)';
+    // Show the actual section/row (lot code) picked, not just a bare count --
+    // "1 lot(s)" told the agent nothing about which lot it actually was.
+    // Multiple lots quoted together are joined the same way NLP plan names
+    // already are above.
+    var loggedSection = isNLPQuote ? '' : lotQuotes.map(function (q) { return q.lotCode; }).join(', ');
 
     fetch(API_BASE + '/api/agent/home-snapshot', {
       method: 'POST',
