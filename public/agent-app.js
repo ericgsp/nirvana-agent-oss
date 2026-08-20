@@ -809,12 +809,29 @@
   }
 
   // ── Reset ──────────────────────────────────────────────────────
+  // Pricing/purchase-mode state (dpPct, asNeedMode, tomb/virtual-section
+  // selection, PWP bundle progress) lives in module-level vars shared across
+  // the whole session, not scoped to a single quote. Every place that starts
+  // a fresh quote is supposed to reset this state, but that's fragile --
+  // miss one call site (as onPromoCardTap did for asNeedMode) and a leftover
+  // flag from the PREVIOUS quote silently prices the NEXT one. Centralized
+  // here so the reset logic can't drift out of sync between call sites.
+  // NOT called right after a quote is sent (confirmCustomerInfoAndShare) --
+  // the quote table stays on screen after Share, and things like tab
+  // switches re-render it live off these same globals (see updateUI ->
+  // renderQuoteSection); resetting them under a still-visible quote would
+  // flip its displayed pricing after the fact. Only called where lotQuotes
+  // is *also* being cleared, i.e. actually starting a new quote.
+  function resetQuoteState() {
+    dpPct = 20; _dpFixedRm = null; _tombType = null; asNeedMode = false; dpAutoSet = false; _virtualBlk = null; _virtualSec = null;
+    _pwpBundleActive = false; _pwpLevel2Data = null; _pwpHasOption = false; _pwpFetching = false;
+  }
+
   function resetLayout() {
     layoutGen++;  // invalidates all in-flight loadLayout / loadLotMeta callbacks
     zoneLayouts = []; availMap = {}; lotMeta = {}; hiddenCols = {};
     selectedLots = []; lotQuotes = []; worshipPlans = []; nlpPromos = [];
-    dpPct = 20; _dpFixedRm = null; _tombType = null; asNeedMode = false; dpAutoSet = false; _virtualBlk = null; _virtualSec = null;
-    _pwpBundleActive = false; _pwpLevel2Data = null; _pwpHasOption = false; _pwpFetching = false;
+    resetQuoteState();
     layoutLoading = false;
     layoutScrollLeft = 0;
     layoutMode = 'grid';
@@ -3232,8 +3249,8 @@
     site = newSite; product = newProduct;
     selectedLots = []; lotQuotes = [];
     var _isRmDp = newSite === 'Semenyih-NMG' && newProduct === 'OV6-1F-AT';
-    dpPct = 20; _dpFixedRm = _isRmDp ? 4000 : null; _tombType = null; asNeedMode = false; dpAutoSet = false; _virtualBlk = null; _virtualSec = null;
-    _pwpBundleActive = false; _pwpLevel2Data = null; _pwpHasOption = false; _pwpFetching = false;
+    resetQuoteState();
+    if (_isRmDp) _dpFixedRm = 4000;
     var key = newSite + '|' + newProduct;
     delete zoneLayoutCache[key]; delete lotMetaCache[key]; quotationCache = {};
     saveSession(); updateUI(); loadLayout(newSite, newProduct);
@@ -4028,9 +4045,15 @@
     }
     function applyPromoJson(j) {
       if (!j || j.error || !j.levels || !j.levels.length) return;
-      // Clear previous and load all levels for this section as synthetic lots
+      // Clear previous and load all levels for this section as synthetic lots.
+      // NOTE: dpPct/_dpFixedRm/_tombType are intentionally left alone here --
+      // they're product-scoped settings from the drawer selection above this,
+      // not per-quote state. asNeedMode IS per-quote though (toggled per
+      // section quoted) and was the one flag missing here -- left stale
+      // As-Need mode on would silently price the next section as-need too.
       selectedLots = []; lotQuotes = [];
       dpAutoSet = false;
+      asNeedMode = false;
 
       // For virtual (lot-range-restricted) sections, filter to the DP tier that best matches
       // the current dpPct — one level per price bracket, avoiding mixed 25%/35% columns.
