@@ -182,6 +182,9 @@ export default async function AgentPage() {
         #my-sales-table thead th.sorted-desc::after { content: ' ▼'; }
         #my-sales-tfoot td { font-weight: 700; color: ${G_DARK}; background: #f8fafc; border-top: 2px solid #e2e8f0; border-bottom: none; }
         .my-sales-empty { text-align: center; color: #94a3b8; font-size: 12px; padding: 20px 10px; }
+        .my-sales-type { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+        .my-sales-type-preneed { background: #dbeafe; color: #1e40af; }
+        .my-sales-type-asneed { background: #fef3c7; color: #92400e; }
         .my-sales-banner { display: flex; align-items: center; gap: 10px; margin: 14px 10px 0; padding: 10px 14px; background: linear-gradient(135deg, ${G_DARK} 0%, ${G_TEAL} 100%); border-radius: 12px; box-shadow: 0 2px 6px rgba(30,64,175,0.3); box-sizing: border-box; }
         .my-sales-banner .s-title { color: #fff; }
         .my-sales-print-btn { flex-shrink: 0; padding: 5px 11px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.55); background: rgba(255,255,255,0.12); color: #fff; font-size: 10.5px; font-weight: 700; cursor: pointer; }
@@ -1284,6 +1287,7 @@ export default async function AgentPage() {
                     <th data-col="customerName">Customer</th>
                     <th data-col="site">Site</th>
                     <th data-col="product">Product</th>
+                    <th data-col="purchaseType">Type</th>
                     <th data-col="amount">Amount (RM)</th>
                     <th data-col="quotaAmount">Quota (RM)</th>
                   </tr>
@@ -2043,7 +2047,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260824k" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260824l" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

@@ -24,22 +24,31 @@ export async function GET() {
   const { data: quoteRows } = quoteIds.length
     ? await supabaseAdmin
         .from("recent_quotes")
-        .select("id, customer_name")
+        .select("id, customer_name, closed_items")
         .in("id", quoteIds)
-    : { data: [] as { id: string; customer_name: string | null }[] };
+    : { data: [] as { id: string; customer_name: string | null; closed_items: { isAsNeed?: boolean }[] | null }[] };
 
-  const customerById = new Map((quoteRows ?? []).map((q) => [q.id, q.customer_name]));
+  const quoteById = new Map((quoteRows ?? []).map((q) => [q.id, q]));
 
   const rows = (salesRows ?? []).map((r) => {
     const parts = (r.quotation_ref || "").split("|");
     const [site, product, section] = parts;
     const quoteId = parts[parts.length - 1];
+    const quote = quoteById.get(quoteId);
+    const closedItems: { isAsNeed?: boolean }[] = quote?.closed_items ?? [];
+    // Purchase type isn't stored on sales_log itself -- derive it from the
+    // same closed_items snapshot that already drives the quota calc, so it
+    // can never disagree with the amount/quota shown on the same row.
+    const purchaseType = closedItems.length
+      ? (closedItems.every((it) => it.isAsNeed) ? "As-Need" : "Pre-Need")
+      : null;
     return {
       id: r.id,
       site: site || null,
       product: product || null,
       section: section || null,
-      customerName: customerById.get(quoteId) || null,
+      customerName: quote?.customer_name || null,
+      purchaseType,
       amount: Number(r.amount || 0),
       quotaAmount: r.quota_amount != null ? Number(r.quota_amount) : null,
       soldAt: r.sold_at,

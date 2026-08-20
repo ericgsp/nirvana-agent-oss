@@ -1222,7 +1222,7 @@
     });
 
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="my-sales-empty">No sales closed yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="my-sales-empty">No sales closed yet.</td></tr>';
       if (tfoot) tfoot.innerHTML = '';
       return;
     }
@@ -1233,18 +1233,22 @@
       // DB368") -- previously only the zone showed, with no way to tell
       // which specific lot was actually sold from this table alone.
       var productCell = [r.product, r.section].filter(Boolean).map(esc).join(' · ') || '—';
+      var typeCell = r.purchaseType
+        ? '<span class="my-sales-type my-sales-type-' + (r.purchaseType === 'As-Need' ? 'asneed' : 'preneed') + '">' + esc(r.purchaseType) + '</span>'
+        : '—';
       return '<tr>' +
         '<td>' + when + '</td>' +
         '<td>' + esc(r.customerName || '—') + '</td>' +
         '<td>' + esc(r.site || '—') + '</td>' +
         '<td>' + productCell + '</td>' +
+        '<td>' + typeCell + '</td>' +
         '<td>' + fmt(r.amount || 0) + '</td>' +
         '<td>' + (r.quotaAmount != null ? fmt(r.quotaAmount) : '—') + '</td>' +
       '</tr>';
     }).join('');
 
     if (tfoot) {
-      tfoot.innerHTML = '<tr><td colspan="4">Total (' + rows.length + ')</td>' +
+      tfoot.innerHTML = '<tr><td colspan="5">Total (' + rows.length + ')</td>' +
         '<td>' + fmt(_mySalesTotals.totalAmount) + '</td>' +
         '<td>' + fmt(_mySalesTotals.totalQuota) + '</td></tr>';
     }
@@ -1263,13 +1267,13 @@
   // native this writes to the app cache via Filesystem and hands it to the
   // native Share sheet, letting the agent save/open it straight in Excel.
   function exportMySalesCsv() {
-    var header = ['Date', 'Customer', 'Site', 'Product', 'Section/Row', 'Amount (RM)', 'Quota (RM)'];
+    var header = ['Date', 'Customer', 'Site', 'Product', 'Section/Row', 'Type', 'Amount (RM)', 'Quota (RM)'];
     var rows = [header];
     _mySalesCache.forEach(function (r) {
       var dateStr = r.soldAt ? new Date(r.soldAt).toLocaleDateString('en-MY') : '';
-      rows.push([dateStr, r.customerName || '', r.site || '', r.product || '', r.section || '', r.amount || 0, r.quotaAmount != null ? r.quotaAmount : '']);
+      rows.push([dateStr, r.customerName || '', r.site || '', r.product || '', r.section || '', r.purchaseType || '', r.amount || 0, r.quotaAmount != null ? r.quotaAmount : '']);
     });
-    rows.push(['', '', '', '', 'Total', _mySalesTotals.totalAmount || 0, _mySalesTotals.totalQuota || 0]);
+    rows.push(['', '', '', '', '', 'Total', _mySalesTotals.totalAmount || 0, _mySalesTotals.totalQuota || 0]);
 
     var csv = rows.map(function (row) { return row.map(csvField).join(','); }).join('\r\n');
     var filename = 'my-sales-' + new Date().toISOString().slice(0, 10) + '.csv';
@@ -1435,13 +1439,24 @@
         }, 0)
       : 0;
     var displayAmount = hasClosedItems ? closedTotal : (grossTotal || (q.net_total || 0));
+    // Pre-Need vs As-Need -- reuses items[] before close, closed_items after
+    // (they can differ if not every quoted item was actually the one sold).
+    // "every" rather than "some" -- a mixed quote showing "As-Need" would be
+    // misleading if only part of it was actually as-need.
+    var typeItems = hasClosedItems ? closedItemsArr : itemsArr;
+    var purchaseType = typeItems.length
+      ? (typeItems.every(function (it) { return it.isAsNeed; }) ? 'As-Need' : 'Pre-Need')
+      : null;
+    var typeBadge = purchaseType
+      ? ' <span class="my-sales-type my-sales-type-' + (purchaseType === 'As-Need' ? 'asneed' : 'preneed') + '">' + purchaseType + '</span>'
+      : '';
     // Site + zone + section/row (lot code) always shown, closed or not --
     // previously this was dropped entirely once closed, leaving just site +
     // price with no way to tell what was actually sold from the lead list.
     var line1Parts = [esc(q.site || '')];
     if (label) line1Parts.push(label);
     if (q.section) line1Parts.push(esc(q.section));
-    var line1 = line1Parts.filter(Boolean).join(' · ') + ' · <span class="mqr-amount">RM ' + fmt(displayAmount) + '</span>';
+    var line1 = line1Parts.filter(Boolean).join(' · ') + typeBadge + ' · <span class="mqr-amount">RM ' + fmt(displayAmount) + '</span>';
     var closedItemsHtml = hasClosedItems
       ? '<div class="mqr-closed-items">' + closedItemsArr.map(function (it) {
           return '<div class="mqr-closed-item-row"><span>' + esc(it.label || '') + '</span><span>RM ' + fmt(it.amount || 0) + '</span></div>';
