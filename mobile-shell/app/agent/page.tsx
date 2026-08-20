@@ -1416,7 +1416,7 @@ export default function AgentPage() {
           <button id="forms-drawer-close">×</button>
         </div>
         <div id="forms-scroll">
-          <a className="memo-item" href="https://orlneoqfdgiatvybvgar.supabase.co/storage/v1/object/public/product-assets/Forms/Direct%20Debit%20Authorisation%20Form%20(V2).pdf" target="_blank" rel="noopener noreferrer">
+          <a className="memo-item" href="https://orlneoqfdgiatvybvgar.supabase.co/storage/v1/object/public/product-assets/Forms/20_08_2026_Direct%20Debit%20Authorisation%20Form%20(V2).pdf" target="_blank" rel="noopener noreferrer">
             <span className="memo-item-icon">📝</span>
             <span className="memo-item-body">
               <div className="memo-item-title">Direct Debit Authorisation Form</div>
