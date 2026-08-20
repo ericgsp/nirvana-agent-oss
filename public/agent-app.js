@@ -1404,8 +1404,14 @@
     // own totalPrice formula) -- NLP has trust=backwall=0 so this coincided
     // with preNeedPrice alone there, but Niche/Land genuinely carry real
     // trust/backwall amounts that belong in the total.
+    // As-Need items are priced off a different list price entirely (their
+    // "Original Price" in the quote IS the as_need_price, not pre_need_price)
+    // -- use asNeedPrice as the base for those instead.
     var grossTotal = itemsArr.length
-      ? itemsArr.reduce(function (sum, it) { return sum + (it.preNeedPrice || 0) + (it.trust || 0) + (it.backwall || 0); }, 0)
+      ? itemsArr.reduce(function (sum, it) {
+          var base = it.isAsNeed ? (it.asNeedPrice || 0) : (it.preNeedPrice || 0);
+          return sum + base + (it.trust || 0) + (it.backwall || 0);
+        }, 0)
       : 0;
     var displayAmount = hasClosedItems ? closedTotal : (grossTotal || (q.net_total || 0));
     var line1Parts = [esc(q.site || '')];
