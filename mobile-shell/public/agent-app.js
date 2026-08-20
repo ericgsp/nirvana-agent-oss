@@ -1740,6 +1740,7 @@
           + '<input type="checkbox" class="sold-item-check" data-amt="' + (it.amount || 0) + '" data-label="' + esc(itLabel)
           + '" data-pv="' + (it.pv || 0) + '" data-pre-need-price="' + (it.preNeedPrice || 0) + '" data-trust="' + (it.trust || 0) + '" data-backwall="' + (it.backwall || 0)
           + '" data-category="' + esc(it.category || '') + '" data-disc-pct="' + (it.discPct || 0) + '" data-disc-rm="' + (it.discRm || 0)
+          + '" data-is-as-need="' + (it.isAsNeed ? '1' : '0') + '" data-as-need-price="' + (it.asNeedPrice || 0)
           + '" data-instal-months="' + (it.instalMonths || 0) + '"'
           + ' checked />'
           + '<span class="sold-item-label">' + esc(itLabel) + '</span>'
@@ -1793,6 +1794,8 @@
           preNeedPrice: parseFloat(cb.dataset.preNeedPrice) || 0,
           trust: parseFloat(cb.dataset.trust) || 0,
           backwall: parseFloat(cb.dataset.backwall) || 0,
+          isAsNeed: cb.dataset.isAsNeed === '1',
+          asNeedPrice: parseFloat(cb.dataset.asNeedPrice) || 0,
           category: cb.dataset.category || '',
           discPct: parseFloat(cb.dataset.discPct) || 0,
           discRm: parseFloat(cb.dataset.discRm) || 0,
