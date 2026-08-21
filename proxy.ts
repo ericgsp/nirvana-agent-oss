@@ -77,9 +77,11 @@ export async function proxy(request: NextRequest) {
     path === "/agent-sw.js" ||
     path === "/agent-manifest.json" ||
     path.startsWith("/agent-icon") ||
-    // Privacy policy must be publicly reachable without login -- Play
-    // Console (and Google's reviewer) fetch this URL unauthenticated.
-    path === "/privacy";
+    // Privacy policy and data-deletion pages must be publicly reachable
+    // without login -- Play Console (and Google's reviewer) fetch these
+    // URLs unauthenticated.
+    path === "/privacy" ||
+    path === "/data-deletion";
 
   if (!user && path !== "/login" && path !== "/signup" && !isAgentRoute) {
     const url = request.nextUrl.clone();
