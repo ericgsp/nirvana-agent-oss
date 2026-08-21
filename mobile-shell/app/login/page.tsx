@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Device } from "@capacitor/device";
+import { SplashScreen } from "@capacitor/splash-screen";
 import { API_BASE } from "../api-base";
 import { toLocalPath } from "../local-nav";
 
@@ -23,6 +24,25 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const sessionReplaced = searchParams.get("reason") === "session_replaced";
   const deviceBound = searchParams.get("reason") === "device_bound";
+
+  useEffect(() => {
+    // launchAutoHide is off (capacitor.config.ts) so the native splash screen
+    // never hides on its own -- only agent-app.js (the Home screen, reached
+    // only once already logged in) ever called SplashScreen.hide(). A fresh
+    // install/logout with no saved session lands here first, on a page that
+    // never knew about the splash at all, leaving it stuck on screen forever
+    // even though this page itself was fully loaded underneath. Same
+    // double-rAF technique as agent-app.js's hideSplashScreen(), so it fires
+    // after a real paint instead of on a timer.
+    const w = window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } };
+    if (w.Capacitor?.isNativePlatform?.()) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          SplashScreen.hide().catch(() => {});
+        });
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem("rememberedEmail");
