@@ -539,7 +539,8 @@ export async function POST(req: NextRequest) {
   }
   const result = await markSold(
     quotationRef, amount, typeof soldAt === "string" ? soldAt : undefined,
-    Array.isArray(body?.closedItems) ? body.closedItems : undefined
+    Array.isArray(body?.closedItems) ? body.closedItems : undefined,
+    typeof body?.fileNumber === "string" ? body.fileNumber : undefined
   );
   if (!result.ok) return Response.json({ error: result.error }, { status: 401 });
   return Response.json({ ok: true });

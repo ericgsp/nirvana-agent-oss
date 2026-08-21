@@ -475,45 +475,53 @@ export async function logQuoteView(
 // Manual v1 sales recording -- an agent marks their own generated quotation
 // "Sold" with the final amount. Always attributed to the logged-in caller,
 // never an arbitrary user_id from the client.
-export async function markSold(
-  quotationRef: string, amount: number, soldAt?: string,
-  closedItems?: {
-    label: string; amount: number; instalMonths?: number;
-    preNeedPrice?: number; trust?: number; backwall?: number;
-    isAsNeed?: boolean; asNeedPrice?: number;
-    discPct?: number; discRm?: number;
-  }[]
-) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false as const, error: "Not logged in" };
+type ClosedItem = {
+  label: string; amount: number; instalMonths?: number;
+  preNeedPrice?: number; trust?: number; backwall?: number;
+  isAsNeed?: boolean; asNeedPrice?: number;
+  discPct?: number; discRm?: number;
+};
 
-  // Quota is a different figure from the sales amount.
-  //
-  // Deriving it from discPct/discRm turned out unreliable -- those fields
-  // are just whatever promo happened to be attached to the lot, which isn't
-  // always the discount that actually got applied (calcMatrix may have used
-  // a dp_tiers-based rebate instead, or no discount at all for that specific
-  // sale, e.g. an as_need_discount_pct of 0). Two wrong quota numbers in a
-  // row came from trusting that field instead of the real math.
-  //
-  // it.amount is trustworthy -- it's calcMatrix's own resolved net price for
-  // this item, verified correct at close time (the agent sees and confirms
-  // it in the checklist). So the real discount is always recoverable as
-  // (base + trust + backwall) - amount, where base is preNeedPrice or
-  // asNeedPrice depending on purchase type. That lets quota be built
-  // directly from amount instead of re-deriving a possibly-wrong discount:
-  //   Pre-Need quota = base - discount               = amount - trust - backwall
-  //   As-Need  quota = base - trust - backwall - discount
-  //                  = (amount - trust - backwall) - trust - backwall
-  // Confirmed against a real as-need land sale (amount 84,800, trust+backwall
-  // 12,000, no discount actually applied -> correct quota 60,800).
-  const quotaAmount = (closedItems ?? []).reduce((sum, it) => {
+// Quota is a different figure from the sales amount.
+//
+// Deriving it from discPct/discRm turned out unreliable -- those fields
+// are just whatever promo happened to be attached to the lot, which isn't
+// always the discount that actually got applied (calcMatrix may have used
+// a dp_tiers-based rebate instead, or no discount at all for that specific
+// sale, e.g. an as_need_discount_pct of 0). Two wrong quota numbers in a
+// row came from trusting that field instead of the real math.
+//
+// it.amount is trustworthy -- it's calcMatrix's own resolved net price for
+// this item, verified correct at close time (the agent sees and confirms
+// it in the checklist). So the real discount is always recoverable as
+// (base + trust + backwall) - amount, where base is preNeedPrice or
+// asNeedPrice depending on purchase type. That lets quota be built
+// directly from amount instead of re-deriving a possibly-wrong discount:
+//   Pre-Need quota = base - discount               = amount - trust - backwall
+//   As-Need  quota = base - trust - backwall - discount
+//                  = (amount - trust - backwall) - trust - backwall
+// Confirmed against a real as-need land sale (amount 84,800, trust+backwall
+// 12,000, no discount actually applied -> correct quota 60,800).
+// Shared by markSold and addManualSale so the two paths can never drift.
+function computeQuotaAmount(closedItems: ClosedItem[]): number {
+  return closedItems.reduce((sum, it) => {
     const tb = (it.trust || 0) + (it.backwall || 0);
     let net = it.amount - tb;
     if (it.isAsNeed) net -= tb;
     return sum + net;
   }, 0);
+}
+
+export async function markSold(
+  quotationRef: string, amount: number, soldAt?: string,
+  closedItems?: ClosedItem[], fileNumber?: string
+) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "Not logged in" };
+  if (!fileNumber || !fileNumber.trim()) return { ok: false as const, error: "File Number is required" };
+
+  const quotaAmount = computeQuotaAmount(closedItems ?? []);
 
   await supabaseAdmin.from("sales_log").insert({
     user_id: user.id,
@@ -522,6 +530,7 @@ export async function markSold(
     quota_amount: closedItems && closedItems.length ? quotaAmount : null,
     sold_at: soldAt ?? new Date().toISOString().slice(0, 10),
     recorded_by: user.id,
+    file_number: fileNumber.trim(),
   });
 
   // quotationRef is "site|product|section|id" -- the id is what recent_quotes
@@ -573,6 +582,99 @@ export async function markSold(
     `${displayName} closed a case! 🎉`,
     (detailParts.length ? detailParts.join(" · ") + " — " : "") + `RM ${amount.toLocaleString()}`
   ).catch((e) => console.error("sendPushToAll failed:", e instanceof Error ? e.message : e));
+
+  return { ok: true as const };
+}
+
+// ── Manual (backfilled) sales ──────────────────────────────────────────────
+// For sales that happened before/outside the app's own quote flow -- no real
+// quotation to attach it to, so this creates a minimal recent_quotes row
+// (status 'closed', one synthetic item) alongside the sales_log row, giving
+// it the exact same shape a real closed quote has. Everything that already
+// reads closed sales (lead card, My Sales, Team Performance, YTD) picks it
+// up automatically with no special-casing. No activity-feed event or push
+// notification is fired -- unlike a real close, this isn't news to announce
+// company-wide, it's paperwork catching up on the past.
+export async function addManualSale(input: {
+  site: string; product: string; section: string; customerName?: string;
+  amount: number; trust?: number; backwall?: number; isAsNeed: boolean;
+  soldAt: string; fileNumber: string;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "Not logged in" };
+
+  const { site, product, section, amount, isAsNeed, soldAt, fileNumber } = input;
+  if (!site || !product || !amount || amount <= 0) {
+    return { ok: false as const, error: "Site, product, and a valid amount are required" };
+  }
+  if (!fileNumber || !fileNumber.trim()) {
+    return { ok: false as const, error: "File Number is required" };
+  }
+
+  const closedItem: ClosedItem = {
+    label: section || product, amount,
+    trust: input.trust || 0, backwall: input.backwall || 0, isAsNeed,
+  };
+  const quotaAmount = computeQuotaAmount([closedItem]);
+
+  const { data: quoteRow, error: quoteErr } = await supabaseAdmin
+    .from("recent_quotes")
+    .insert({
+      user_id: user.id,
+      site, product, section: section || null,
+      customer_name: input.customerName || null,
+      status: "closed",
+      closed_items: [closedItem],
+      net_total: amount,
+      closed_at: new Date(soldAt).toISOString(),
+      created_at: new Date(soldAt).toISOString(),
+    })
+    .select("id")
+    .single();
+  if (quoteErr || !quoteRow) return { ok: false as const, error: quoteErr?.message || "Failed to save" };
+
+  const { error: salesErr } = await supabaseAdmin.from("sales_log").insert({
+    user_id: user.id,
+    quotation_ref: `${site}|${product}|${section || ""}|${quoteRow.id}`,
+    amount,
+    quota_amount: quotaAmount,
+    sold_at: soldAt,
+    recorded_by: user.id,
+    is_manual_entry: true,
+    file_number: fileNumber.trim(),
+  });
+  if (salesErr) {
+    // Roll back the quote row rather than leave an orphaned "closed" quote
+    // with no matching sales_log entry.
+    await supabaseAdmin.from("recent_quotes").delete().eq("id", quoteRow.id);
+    return { ok: false as const, error: salesErr.message };
+  }
+
+  return { ok: true as const };
+}
+
+// A manual entry can be deleted and re-added by the agent who created it --
+// unlike real closed sales, which stay locked once closed. Guarded on both
+// is_manual_entry and user_id so an agent can only delete their own manual
+// entries, never a real sale (theirs or anyone else's).
+export async function deleteManualSale(salesLogId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false as const, error: "Not logged in" };
+
+  const { data: row, error: fetchErr } = await supabaseAdmin
+    .from("sales_log")
+    .select("id, quotation_ref, is_manual_entry, user_id")
+    .eq("id", salesLogId)
+    .single();
+  if (fetchErr || !row) return { ok: false as const, error: "Not found" };
+  if (row.user_id !== user.id) return { ok: false as const, error: "Not your entry" };
+  if (!row.is_manual_entry) return { ok: false as const, error: "Only manual entries can be deleted" };
+
+  const quoteId = row.quotation_ref?.split("|").pop();
+  await supabaseAdmin.from("sales_log").delete().eq("id", salesLogId);
+  if (quoteId) await supabaseAdmin.from("recent_quotes").delete().eq("id", quoteId).eq("user_id", user.id);
 
   return { ok: true as const };
 }

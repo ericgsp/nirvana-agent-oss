@@ -1,5 +1,7 @@
+import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/server-admin";
+import { addManualSale, deleteManualSale } from "@/app/agent/actions";
 
 export const runtime = "nodejs";
 
@@ -13,7 +15,7 @@ export async function GET() {
 
   const { data: salesRows } = await supabaseAdmin
     .from("sales_log")
-    .select("id, quotation_ref, amount, quota_amount, sold_at")
+    .select("id, quotation_ref, amount, quota_amount, sold_at, is_manual_entry, file_number")
     .eq("user_id", user.id)
     .order("sold_at", { ascending: false });
 
@@ -52,6 +54,8 @@ export async function GET() {
       amount: Number(r.amount || 0),
       quotaAmount: r.quota_amount != null ? Number(r.quota_amount) : null,
       soldAt: r.sold_at,
+      isManualEntry: !!r.is_manual_entry,
+      fileNumber: r.file_number || null,
     };
   });
 
@@ -59,4 +63,31 @@ export async function GET() {
   const totalQuota = rows.reduce((sum, r) => sum + (r.quotaAmount || 0), 0);
 
   return Response.json({ rows, totalAmount, totalQuota });
+}
+
+// POST — add a manual (backfilled) sale, for history that predates the app's
+// own quote flow.
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => null);
+  if (!body) return Response.json({ error: "Invalid request" }, { status: 400 });
+
+  const result = await addManualSale({
+    site: body.site, product: body.product, section: body.section,
+    customerName: body.customerName, amount: Number(body.amount) || 0,
+    trust: Number(body.trust) || 0, backwall: Number(body.backwall) || 0,
+    isAsNeed: !!body.isAsNeed, soldAt: body.soldAt, fileNumber: body.fileNumber,
+  });
+  if (!result.ok) return Response.json({ error: result.error }, { status: 400 });
+  return Response.json({ ok: true });
+}
+
+// DELETE — remove a manual entry the agent made themselves. Real closed
+// sales aren't deletable (see deleteManualSale's own guard).
+export async function DELETE(request: NextRequest) {
+  const body = await request.json().catch(() => null);
+  if (!body?.id) return Response.json({ error: "Missing id" }, { status: 400 });
+
+  const result = await deleteManualSale(body.id);
+  if (!result.ok) return Response.json({ error: result.error }, { status: 400 });
+  return Response.json({ ok: true });
 }

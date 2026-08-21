@@ -360,6 +360,7 @@ export default async function AgentPage() {
         #sold-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
         #sold-modal-warning { margin-top:10px; padding:8px 10px; border-radius:10px; background:#fffbeb; border:1px solid #fde68a; color:#92400e; font-size:11px; line-height:1.4; }
         #sold-modal-amount { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:15px; box-sizing:border-box; }
+        #sold-modal-file-number { width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; }
         #sold-modal-items { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
         .sold-item-row { display:flex; align-items:center; gap:9px; padding:9px 10px; border:1.5px solid #e2e8f0; border-radius:10px; }
         .sold-item-row input { flex-shrink:0; width:17px; height:17px; }
@@ -372,6 +373,23 @@ export default async function AgentPage() {
         #sold-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
         #sold-modal-cancel { background:#f1f5f9; color:#475569; }
         #sold-modal-confirm { background:${G_TEAL}; color:#fff; }
+
+        #past-sale-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
+        #past-sale-modal-backdrop.open { display:flex; }
+        #past-sale-modal-box { background:#fff; border-radius:16px; padding:18px; width:100%; max-width:340px; max-height:85vh; overflow-y:auto; }
+        #past-sale-modal-title { font-size:15px; font-weight:700; color:${G_DARK}; }
+        #past-sale-modal-sub { font-size:11.5px; color:#94a3b8; margin-top:2px; }
+        #past-sale-modal-box input[type="text"], #past-sale-modal-box input[type="number"], #past-sale-modal-box input[type="date"], #past-sale-modal-box select {
+          width:100%; margin-top:6px; padding:10px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:14px; box-sizing:border-box; background:#fff;
+        }
+        .past-sale-type-toggle { display:flex; gap:8px; margin-top:6px; }
+        .past-sale-type-toggle button { flex:1; padding:9px; border-radius:10px; font-size:12.5px; font-weight:700; border:1.5px solid #cbd5e1; background:#fff; color:#64748b; cursor:pointer; }
+        .past-sale-type-toggle button.active { background:${G_DARK}; border-color:${G_DARK}; color:#fff; }
+        #past-sale-modal-actions { display:flex; gap:8px; margin-top:14px; }
+        #past-sale-modal-actions button { flex:1; padding:10px; border-radius:10px; font-size:13px; font-weight:700; border:none; }
+        #past-sale-modal-cancel { background:#f1f5f9; color:#475569; }
+        #past-sale-modal-confirm { background:${G_TEAL}; color:#fff; }
+        .my-sales-delete-btn { background:none; border:none; color:#dc2626; font-size:14px; cursor:pointer; padding:2px 6px; }
 
         #customer-info-modal-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1300; align-items:center; justify-content:center; padding:20px; }
         #customer-info-modal-backdrop.open { display:flex; }
@@ -1277,6 +1295,7 @@ export default async function AgentPage() {
                 <span className="s-title">My Sales</span>
                 <span id="my-sales-arrow" className="my-sales-arrow">▾</span>
               </button>
+              <button id="my-sales-add-past" className="my-sales-print-btn">➕ Add Past Sale</button>
               <button id="my-sales-print" className="my-sales-print-btn">📊 Export</button>
             </div>
             <div id="my-sales-wrap">
@@ -1288,8 +1307,10 @@ export default async function AgentPage() {
                     <th data-col="site">Site</th>
                     <th data-col="product">Product</th>
                     <th data-col="purchaseType">Type</th>
+                    <th data-col="fileNumber">File No.</th>
                     <th data-col="amount">Amount (RM)</th>
                     <th data-col="quotaAmount">Quota (RM)</th>
+                    <th className="no-sort"></th>
                   </tr>
                 </thead>
                 <tbody id="my-sales-tbody"></tbody>
@@ -1867,6 +1888,8 @@ export default async function AgentPage() {
           <div id="sold-modal-title">Mark as Sold</div>
           <div id="sold-modal-sub"></div>
           <div id="sold-modal-warning">⚠ Once marked <strong>Close Sales</strong>, it cannot be edited, changed, or deleted. Only confirm once the sale is actually final.</div>
+          <div className="f-lbl" style={{marginTop:"10px"}}>File Number</div>
+          <input id="sold-modal-file-number" type="text" placeholder="e.g. F-2026-0142" />
           <div id="sold-modal-items-wrap" style={{display:"none"}}>
             <div id="sold-modal-items"></div>
             <div id="sold-modal-total-row">
@@ -1881,6 +1904,52 @@ export default async function AgentPage() {
           <div id="sold-modal-actions">
             <button id="sold-modal-cancel">Cancel</button>
             <button id="sold-modal-confirm">Confirm Sold</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Add Past Sale modal — for sales history that predates the app's own
+          quote flow. Pure manual entry, no real quotation behind it. Kept
+          deletable (unlike real closed sales) so a mis-entered row can be
+          fixed by deleting and re-adding, since there's no quote to re-edit. */}
+      <div id="past-sale-modal-backdrop">
+        <div id="past-sale-modal-box">
+          <div id="past-sale-modal-title">Add Past Sale</div>
+          <div id="past-sale-modal-sub">For sales that happened before you started using the app</div>
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>Site</div>
+          <select id="past-sale-site"></select>
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>Product / Zone</div>
+          <input id="past-sale-product" type="text" placeholder="e.g. GARDEN 1" />
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>Section / Row (Lot)</div>
+          <input id="past-sale-section" type="text" placeholder="e.g. DB368" />
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>Customer Name (optional)</div>
+          <input id="past-sale-customer" type="text" placeholder="" />
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>Purchase Type</div>
+          <div id="past-sale-type-toggle" className="past-sale-type-toggle">
+            <button type="button" data-type="preneed" className="active">Pre-Need</button>
+            <button type="button" data-type="asneed">As-Need</button>
+          </div>
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>Amount Sold (RM)</div>
+          <input id="past-sale-amount" type="number" inputMode="decimal" placeholder="0.00" />
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>Trust Account + Backwall (RM, if any)</div>
+          <input id="past-sale-trust-backwall" type="number" inputMode="decimal" placeholder="0.00" />
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>File Number</div>
+          <input id="past-sale-file-number" type="text" placeholder="e.g. F-2026-0142" />
+
+          <div className="f-lbl" style={{marginTop:"10px"}}>Date Sold</div>
+          <input id="past-sale-date" type="date" />
+
+          <div id="past-sale-modal-actions">
+            <button id="past-sale-modal-cancel">Cancel</button>
+            <button id="past-sale-modal-confirm">Save</button>
           </div>
         </div>
       </div>
@@ -2055,7 +2124,7 @@ export default async function AgentPage() {
       </div>
 
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-      <script src="/agent-app.js?v=20260824l" suppressHydrationWarning />
+      <script src="/agent-app.js?v=20260824m" suppressHydrationWarning />
       {/* Combo lot module — isolated, removable without touching agent-app.js logic */}
       {/* eslint-disable-next-line @next/next/no-sync-scripts */}
       <script src="/agent-combo.js?v=20260806a"  suppressHydrationWarning />

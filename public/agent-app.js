@@ -1222,7 +1222,7 @@
     });
 
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="my-sales-empty">No sales closed yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="my-sales-empty">No sales closed yet.</td></tr>';
       if (tfoot) tfoot.innerHTML = '';
       return;
     }
@@ -1236,21 +1236,29 @@
       var typeCell = r.purchaseType
         ? '<span class="my-sales-type my-sales-type-' + (r.purchaseType === 'As-Need' ? 'asneed' : 'preneed') + '">' + esc(r.purchaseType) + '</span>'
         : '—';
+      // Delete only ever shows for manual (backfilled) entries -- real closed
+      // sales stay locked once closed, same rule as everywhere else.
+      var deleteCell = r.isManualEntry
+        ? '<button class="my-sales-delete-btn" data-id="' + esc(r.id) + '" title="Delete this manual entry">🗑</button>'
+        : '';
       return '<tr>' +
         '<td>' + when + '</td>' +
         '<td>' + esc(r.customerName || '—') + '</td>' +
         '<td>' + esc(r.site || '—') + '</td>' +
         '<td>' + productCell + '</td>' +
         '<td>' + typeCell + '</td>' +
+        '<td>' + esc(r.fileNumber || '—') + '</td>' +
         '<td>' + fmt(r.amount || 0) + '</td>' +
         '<td>' + (r.quotaAmount != null ? fmt(r.quotaAmount) : '—') + '</td>' +
+        '<td>' + deleteCell + '</td>' +
       '</tr>';
     }).join('');
 
     if (tfoot) {
-      tfoot.innerHTML = '<tr><td colspan="5">Total (' + rows.length + ')</td>' +
+      tfoot.innerHTML = '<tr><td colspan="6">Total (' + rows.length + ')</td>' +
         '<td>' + fmt(_mySalesTotals.totalAmount) + '</td>' +
-        '<td>' + fmt(_mySalesTotals.totalQuota) + '</td></tr>';
+        '<td>' + fmt(_mySalesTotals.totalQuota) + '</td>' +
+        '<td></td></tr>';
     }
   }
 
@@ -1267,13 +1275,13 @@
   // native this writes to the app cache via Filesystem and hands it to the
   // native Share sheet, letting the agent save/open it straight in Excel.
   function exportMySalesCsv() {
-    var header = ['Date', 'Customer', 'Site', 'Product', 'Section/Row', 'Type', 'Amount (RM)', 'Quota (RM)'];
+    var header = ['Date', 'Customer', 'Site', 'Product', 'Section/Row', 'Type', 'File Number', 'Amount (RM)', 'Quota (RM)'];
     var rows = [header];
     _mySalesCache.forEach(function (r) {
       var dateStr = r.soldAt ? new Date(r.soldAt).toLocaleDateString('en-MY') : '';
-      rows.push([dateStr, r.customerName || '', r.site || '', r.product || '', r.section || '', r.purchaseType || '', r.amount || 0, r.quotaAmount != null ? r.quotaAmount : '']);
+      rows.push([dateStr, r.customerName || '', r.site || '', r.product || '', r.section || '', r.purchaseType || '', r.fileNumber || '', r.amount || 0, r.quotaAmount != null ? r.quotaAmount : '']);
     });
-    rows.push(['', '', '', '', '', 'Total', _mySalesTotals.totalAmount || 0, _mySalesTotals.totalQuota || 0]);
+    rows.push(['', '', '', '', '', '', 'Total', _mySalesTotals.totalAmount || 0, _mySalesTotals.totalQuota || 0]);
 
     var csv = rows.map(function (row) { return row.map(csvField).join(','); }).join('\r\n');
     var filename = 'my-sales-' + new Date().toISOString().slice(0, 10) + '.csv';
@@ -1304,6 +1312,87 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  // ── Add Past Sale (manual/backfilled entry) ────────────────────────────────
+  function openPastSaleModal() {
+    var siteSel = document.getElementById('past-sale-site');
+    if (siteSel) {
+      siteSel.innerHTML = SITES.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join('');
+    }
+    ['past-sale-product', 'past-sale-section', 'past-sale-customer', 'past-sale-amount', 'past-sale-trust-backwall', 'past-sale-file-number'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.querySelectorAll('#past-sale-type-toggle button').forEach(function (b, i) { b.classList.toggle('active', i === 0); });
+    var dateEl = document.getElementById('past-sale-date');
+    if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
+    var backdrop = document.getElementById('past-sale-modal-backdrop');
+    if (backdrop) backdrop.classList.add('open');
+  }
+
+  function closePastSaleModal() {
+    var backdrop = document.getElementById('past-sale-modal-backdrop');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  var _pastSaleSubmitting = false;
+
+  function confirmPastSale() {
+    if (_pastSaleSubmitting) return; // guards against a fast double-tap
+    var site = (document.getElementById('past-sale-site') || {}).value || '';
+    var product = (document.getElementById('past-sale-product') || {}).value.trim();
+    var section = (document.getElementById('past-sale-section') || {}).value.trim();
+    var customerName = (document.getElementById('past-sale-customer') || {}).value.trim();
+    var amount = parseFloat((document.getElementById('past-sale-amount') || {}).value) || 0;
+    var trustBackwall = parseFloat((document.getElementById('past-sale-trust-backwall') || {}).value) || 0;
+    var fileNumber = (document.getElementById('past-sale-file-number') || {}).value.trim();
+    var soldAt = (document.getElementById('past-sale-date') || {}).value || '';
+    var activeTypeBtn = document.querySelector('#past-sale-type-toggle button.active');
+    var isAsNeed = activeTypeBtn ? activeTypeBtn.dataset.type === 'asneed' : false;
+
+    if (!site || !product) { alert('Site and Product/Zone are required.'); return; }
+    if (!amount || amount <= 0) { alert('Enter a valid amount.'); return; }
+    if (!fileNumber) { alert('File Number is required.'); return; }
+    if (!soldAt) { alert('Date sold is required.'); return; }
+
+    _pastSaleSubmitting = true;
+    var confirmBtn = qs('past-sale-modal-confirm');
+    if (confirmBtn) confirmBtn.disabled = true;
+    fetch(API_BASE + '/api/agent/my-sales', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        site: site, product: product, section: section, customerName: customerName,
+        amount: amount, trust: trustBackwall, backwall: 0, isAsNeed: isAsNeed,
+        soldAt: soldAt, fileNumber: fileNumber,
+      }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      _pastSaleSubmitting = false;
+      if (confirmBtn) confirmBtn.disabled = false;
+      if (data.error) { alert(data.error); return; }
+      closePastSaleModal();
+      _mySalesLoaded = false;
+      loadMySales();
+    }).catch(function (err) {
+      _pastSaleSubmitting = false;
+      if (confirmBtn) confirmBtn.disabled = false;
+      dbg('add past sale failed: ' + err);
+    });
+  }
+
+  function deletePastSale(id) {
+    if (!id) return;
+    if (!confirm('Delete this manual entry? This cannot be undone -- you can re-add it afterward if needed.')) return;
+    fetch(API_BASE + '/api/agent/my-sales', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id }),
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data.error) { alert(data.error); return; }
+      _mySalesLoaded = false;
+      loadMySales();
+    }).catch(function (err) { dbg('delete past sale failed: ' + err); });
   }
 
   // Year-over-year quota trend -- a line chart comparing monthly quota
@@ -1748,6 +1837,8 @@
     if (confirmBtnReset) confirmBtnReset.disabled = false;
     var sub = document.getElementById('sold-modal-sub');
     if (sub) sub.textContent = label || '';
+    var fileNumEl = document.getElementById('sold-modal-file-number');
+    if (fileNumEl) fileNumEl.value = '';
 
     var items = [];
     try { items = JSON.parse(itemsJson || '[]'); } catch (e) {}
@@ -1832,6 +1923,9 @@
       amount = amt ? parseFloat(amt.value) : NaN;
       if (!_soldModalRef || !amount || amount <= 0) { alert('Enter a valid final amount.'); return; }
     }
+    var fileNumberEl = document.getElementById('sold-modal-file-number');
+    var fileNumber = fileNumberEl ? fileNumberEl.value.trim() : '';
+    if (!fileNumber) { alert('File Number is required.'); return; }
     var confirmMsg = 'Are you sure this sale is confirmed?\n\nOnce marked Close Sales, it cannot be edited, changed, or deleted.';
     if (!window.confirm(confirmMsg)) return;
     _soldModalSubmitting = true;
@@ -1840,7 +1934,7 @@
     fetch(API_BASE + '/api/agent/me-snapshot', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quotationRef: _soldModalRef, amount: amount, closedItems: closedItems })
+      body: JSON.stringify({ quotationRef: _soldModalRef, amount: amount, closedItems: closedItems, fileNumber: fileNumber })
     }).then(function (res) { return res.json(); }).then(function (data) {
       _soldModalSubmitting = false;
       if (confirmBtn) confirmBtn.disabled = false;
@@ -6119,6 +6213,19 @@
 
       if (id === 'my-sales-toggle') { toggleMySalesCollapse(); return; }
       if (id === 'my-sales-print') { exportMySalesCsv(); return; }
+      if (id === 'my-sales-add-past') { openPastSaleModal(); return; }
+      if (id === 'past-sale-modal-cancel' || id === 'past-sale-modal-backdrop') { closePastSaleModal(); return; }
+      if (id === 'past-sale-modal-confirm') { confirmPastSale(); return; }
+
+      var pastSaleTypeBtn = e.target && e.target.closest && e.target.closest('#past-sale-type-toggle button');
+      if (pastSaleTypeBtn) {
+        document.querySelectorAll('#past-sale-type-toggle button').forEach(function (b) { b.classList.remove('active'); });
+        pastSaleTypeBtn.classList.add('active');
+        return;
+      }
+
+      var mySalesDeleteBtn = e.target && e.target.closest && e.target.closest('.my-sales-delete-btn');
+      if (mySalesDeleteBtn) { deletePastSale(mySalesDeleteBtn.dataset.id); return; }
 
       // Sortable column header (My Sales table)
       var mySalesHeaderTh = e.target && e.target.closest && e.target.closest('#my-sales-table thead th[data-col]');
