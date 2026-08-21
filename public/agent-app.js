@@ -1372,8 +1372,19 @@
       if (confirmBtn) confirmBtn.disabled = false;
       if (data.error) { alert(data.error); return; }
       closePastSaleModal();
-      _mySalesLoaded = false;
-      loadMySales();
+      // Insert the row the server just built directly instead of re-fetching
+      // the whole list (two extra sequential DB queries just to get back
+      // data the POST already computed) -- this is what made adding a past
+      // sale feel slow.
+      if (data.row) {
+        _mySalesCache.unshift(data.row);
+        _mySalesTotals.totalAmount += data.row.amount || 0;
+        _mySalesTotals.totalQuota += data.row.quotaAmount || 0;
+        renderMySalesTable();
+      } else {
+        _mySalesLoaded = false;
+        loadMySales();
+      }
     }).catch(function (err) {
       _pastSaleSubmitting = false;
       if (confirmBtn) confirmBtn.disabled = false;
@@ -1390,8 +1401,18 @@
       body: JSON.stringify({ id: id }),
     }).then(function (res) { return res.json(); }).then(function (data) {
       if (data.error) { alert(data.error); return; }
-      _mySalesLoaded = false;
-      loadMySales();
+      // Same reasoning as confirmPastSale -- remove locally instead of a
+      // full re-fetch, since the server already confirmed the deletion.
+      var idx = _mySalesCache.findIndex(function (r) { return r.id === id; });
+      if (idx >= 0) {
+        _mySalesTotals.totalAmount -= _mySalesCache[idx].amount || 0;
+        _mySalesTotals.totalQuota -= _mySalesCache[idx].quotaAmount || 0;
+        _mySalesCache.splice(idx, 1);
+        renderMySalesTable();
+      } else {
+        _mySalesLoaded = false;
+        loadMySales();
+      }
     }).catch(function (err) { dbg('delete past sale failed: ' + err); });
   }
 

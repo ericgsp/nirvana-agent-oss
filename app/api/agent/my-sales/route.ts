@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
     isAsNeed: !!body.isAsNeed, soldAt: body.soldAt, fileNumber: body.fileNumber,
   });
   if (!result.ok) return Response.json({ error: result.error }, { status: 400 });
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, row: result.row });
 }
 
 // DELETE — remove a manual entry the agent made themselves. Real closed

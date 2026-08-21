@@ -634,24 +634,41 @@ export async function addManualSale(input: {
     .single();
   if (quoteErr || !quoteRow) return { ok: false as const, error: quoteErr?.message || "Failed to save" };
 
-  const { error: salesErr } = await supabaseAdmin.from("sales_log").insert({
-    user_id: user.id,
-    quotation_ref: `${site}|${product}|${section || ""}|${quoteRow.id}`,
-    amount,
-    quota_amount: quotaAmount,
-    sold_at: soldAt,
-    recorded_by: user.id,
-    is_manual_entry: true,
-    file_number: fileNumber.trim(),
-  });
-  if (salesErr) {
+  const { data: salesRow, error: salesErr } = await supabaseAdmin
+    .from("sales_log")
+    .insert({
+      user_id: user.id,
+      quotation_ref: `${site}|${product}|${section || ""}|${quoteRow.id}`,
+      amount,
+      quota_amount: quotaAmount,
+      sold_at: soldAt,
+      recorded_by: user.id,
+      is_manual_entry: true,
+      file_number: fileNumber.trim(),
+    })
+    .select("id")
+    .single();
+  if (salesErr || !salesRow) {
     // Roll back the quote row rather than leave an orphaned "closed" quote
     // with no matching sales_log entry.
     await supabaseAdmin.from("recent_quotes").delete().eq("id", quoteRow.id);
-    return { ok: false as const, error: salesErr.message };
+    return { ok: false as const, error: salesErr?.message || "Failed to save" };
   }
 
-  return { ok: true as const };
+  // Return the fully-formed row instead of making the caller re-fetch the
+  // whole My Sales list -- everything needed to render it is already known
+  // here, and a full refetch is two extra sequential DB round trips just to
+  // get back data this function already computed.
+  return {
+    ok: true as const,
+    row: {
+      id: salesRow.id, site, product, section: section || null,
+      customerName: input.customerName || null,
+      purchaseType: isAsNeed ? "As-Need" : "Pre-Need",
+      amount, quotaAmount, soldAt, isManualEntry: true,
+      fileNumber: fileNumber.trim(),
+    },
+  };
 }
 
 // A manual entry can be deleted and re-added by the agent who created it --
