@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
       if (allowed) {
         res.headers.set("Access-Control-Allow-Origin", origin);
         res.headers.set("Access-Control-Allow-Credentials", "true");
-        res.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
         res.headers.set("Access-Control-Allow-Headers", "Content-Type");
       }
       return res;
