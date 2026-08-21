@@ -672,9 +672,16 @@ export async function deleteManualSale(salesLogId: string) {
   if (row.user_id !== user.id) return { ok: false as const, error: "Not your entry" };
   if (!row.is_manual_entry) return { ok: false as const, error: "Only manual entries can be deleted" };
 
+  // Neither delete depends on the other's result -- run them together
+  // instead of one after another, since each is its own round trip to
+  // Supabase.
   const quoteId = row.quotation_ref?.split("|").pop();
-  await supabaseAdmin.from("sales_log").delete().eq("id", salesLogId);
-  if (quoteId) await supabaseAdmin.from("recent_quotes").delete().eq("id", quoteId).eq("user_id", user.id);
+  await Promise.all([
+    supabaseAdmin.from("sales_log").delete().eq("id", salesLogId),
+    quoteId
+      ? supabaseAdmin.from("recent_quotes").delete().eq("id", quoteId).eq("user_id", user.id)
+      : Promise.resolve(),
+  ]);
 
   return { ok: true as const };
 }
