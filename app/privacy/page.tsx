@@ -12,7 +12,7 @@ export default function PrivacyPolicyPage() {
         <p style={{ color: "#6b7280", fontSize: "13px", marginBottom: "24px" }}><strong>Last updated: 21 August 2026</strong></p>
 
         <p>
-          Supamobily (&ldquo;the App&rdquo;) is an internal sales tool for DG Group Sdn Bhd
+          Supamobily (&ldquo;the App&rdquo;) is an internal sales tool for DG Life Planning Sdn Bhd
           (&ldquo;we&rdquo;, &ldquo;us&rdquo;, &ldquo;our&rdquo;) sales agents. This policy
           explains what information the App collects, how it&apos;s used, and how it&apos;s
           protected. The App is not available to the general public &mdash; access is
